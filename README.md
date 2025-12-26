@@ -1,4 +1,4 @@
-# Milou - Retro Game Downloader
+# Milou - Game Scraper and Downloader
 
 A modern Android app for discovering, downloading, and managing retro games. Named after my dog and done with love and lack of knowledge (I'm a ruby dev don't hate me).
 
