@@ -23,6 +23,7 @@ Milou scrapes game data from ROM sites, provides search and filtering, and handl
 3. **Download**: Tap games to start downloading
 4. **Manage**: Monitor progress in Downloads screen
 5. **Configure**: Adjust settings like download folder and speed limits
+6. **Console-specific Download Paths**: Go into Sources -> Manufacturer(e.g. Sony) -> Console(e.g. PS2) and clock the folder icon to set that console's download path
 
 ## Building
 
