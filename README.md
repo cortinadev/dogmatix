@@ -8,7 +8,7 @@ Check the [releases](https://github.com/santiifm/milou/releases)
 
 ## How It Works
 
-Milou scrapes game data from ROM sites, provides search and filtering, and handles downloads with automatic archive extraction. The app comes prepackaged with some ROMs to quickly get started.
+Milou scrapes game data from .torrent files or magnet links, provides search and filtering, and handles downloads with automatic archive extraction. The app comes prepackaged with some ROMs to quickly get started.
 
 ### Core Features
 - **Search & Filter**: Find games by name, console, region, or content type
@@ -68,8 +68,8 @@ app/                    # Main Android application
 ### Adding Sources
 1. Go to Sources screen
 2. Add manufacturers and consoles
-3. Add URLs for scraping
-4. Use "Rescan Sources" to update database
+3. Add .torrent/magnet for scraping
+4. Use "Rescan Sources" to update database or the refresh icon on a console to only reload that one
 
 ## Disclaimer
 
