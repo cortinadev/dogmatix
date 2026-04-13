@@ -3,7 +3,7 @@ package com.santiifm.milou.util
 object ArchiveUtils {
 
     private val SUPPORTED_EXTENSIONS = setOf(
-        ".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".cab", ".iso"
+        ".zip", ".7z", ".rar", ".tar", ".gz", ".tgz", ".bz2", ".xz", ".cab"
     )
 
     fun isExtractable(fileExtension: String): Boolean {
