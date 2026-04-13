@@ -8,7 +8,7 @@ Check the [releases](https://github.com/santiifm/milou/releases)
 
 ## How It Works
 
-Milou scrapes game data from .torrent files or magnet links, provides search and filtering, and handles downloads with automatic archive extraction. The app comes prepackaged with some ROMs to quickly get started. To get an idea of how indexing and tagging works for example a torrent file called **Burnout Paradise (En,Es,Fr) (NTSC).zip** becomes **Name: Burnout Paradise, Tags: [Languages: [Es, En, Fr], Region: [NTSC], Console: XBOX 360, Manufacturer: Microsoft, Extension: .zip]**
+Milou scrapes game data from .torrent files or magnet links, provides search and filtering, and handles downloads with automatic archive extraction. The app comes prepackaged with some ROMs to quickly get started. To get an idea of how indexing and tagging works, for example: a torrent file called **Burnout Paradise (En,Es,Fr) (NTSC).zip** becomes **Name: Burnout Paradise, Tags: [Languages: [Es, En, Fr], Region: [NTSC], Console: XBOX 360, Manufacturer: Microsoft, Extension: .zip]**
 
 ### Core Features
 - **Automatic Indexing and Tagging**: By adding a source the app will automatically index and tag each file in the torrent making for easier filtering and sorting.
