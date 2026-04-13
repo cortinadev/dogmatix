@@ -23,7 +23,8 @@ Milou scrapes game data from .torrent files or magnet links, provides search and
 3. **Download**: Tap games to start downloading
 4. **Manage**: Monitor progress in Downloads screen
 5. **Configure**: Adjust settings like download folder and speed limits
-6. **Console-specific Download Paths**: Go into Sources -> Manufacturer(e.g. Sony) -> Console(e.g. PS2) and clock the folder icon to set that console's download path
+6. **Console-specific Download Paths (useful for ES/DE)**: Go into Sources -> Manufacturer(e.g. Sony) -> Console(e.g. PS2) and click the folder icon to set that console's download path
+7. **Console-specific Source Rescan**: Go into Sources -> Manufacturer(e.g. Sony) -> Console(e.g. PS2) and click the reload icon to rescan only that console
 
 ## Building
 
