@@ -18,8 +18,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
@@ -114,6 +117,14 @@ class MainActivity : AppCompatActivity() {
     }
 }
 
+/**
+ * Insets the app content keeps clear of: the system bars (zero while immersive) plus the display
+ * cutout, so on notched devices nothing sits under the notch in either orientation while the
+ * background still paints edge to edge.
+ */
+@Composable
+private fun contentInsets(): WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout)
+
 /** First-run tour on the same gradient ground as the shell; import reuses the Sources ViewModel. */
 @Composable
 private fun OnboardingHost() {
@@ -132,8 +143,7 @@ private fun OnboardingHost() {
             modifier = Modifier
                 .fillMaxSize()
                 .background(Brush.linearGradient(listOf(tokens.gradientTop, scheme.background, scheme.background)))
-                .statusBarsPadding()
-                .navigationBarsPadding()
+                .windowInsetsPadding(contentInsets())
         ) {
             OnboardingScreen(
                 onImportSources = sourcesViewModel::importSources,
@@ -228,8 +238,7 @@ private fun DogmatixApp() {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
+                .windowInsetsPadding(contentInsets())
         ) {
             if (isLandscape) {
                 TopTabs(currentRoute = currentRoute, onSelect = navController::switchTo)
