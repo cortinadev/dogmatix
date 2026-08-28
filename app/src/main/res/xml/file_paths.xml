@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <external-path name="download_dir" path="." />
+    <!-- Sources export: the JSON is written to cacheDir/exports and shared through the provider. -->
+    <cache-path name="exports" path="exports/" />
 </paths>

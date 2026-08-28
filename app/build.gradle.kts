@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -5,27 +7,55 @@ plugins {
     id("com.google.dagger.hilt.android")
 }
 
+// Third-party API keys live in the (git-ignored) .env at the repo root, or in the environment.
+val secrets = Properties().apply {
+    rootProject.file(".env").takeIf { it.exists() }?.inputStream()?.use { load(it) }
+}
+fun secret(name: String): String = (secrets.getProperty(name) ?: System.getenv(name) ?: "").trim().trim('"')
+
 android {
-    namespace = "com.santiifm.milou"
+    namespace = "com.cortinadev.dogmatix"
     compileSdk {
         version = release(36)
     }
 
     defaultConfig {
-        applicationId = "com.santiifm.milou"
+        applicationId = "com.cortinadev.dogmatix"
         minSdk = 29
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.5"
+        versionCode = 2
+        versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        buildConfigField("String", "RAWG_API_KEY", "\"${secret("RAWG_API_KEY")}\"")
+        buildConfigField("String", "THEGAMESDB_API_KEY", "\"${secret("THEGAMESDB_API_KEY")}\"")
 
         ndk {
             abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
         }
     }
 
+    signingConfigs {
+        // Release key lives outside the repo (keystore/, git-ignored); credentials come from .env
+        // or the environment. Without them the release falls back to the debug key.
+        val storeFile = secret("RELEASE_STORE_FILE").takeIf { it.isNotBlank() }?.let { rootProject.file(it) }
+        if (storeFile != null && storeFile.exists()) {
+            create("release") {
+                this.storeFile = storeFile
+                storePassword = secret("RELEASE_STORE_PASSWORD")
+                keyAlias = secret("RELEASE_KEY_ALIAS")
+                keyPassword = secret("RELEASE_KEY_PASSWORD")
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            // Installs alongside the release build (com.cortinadev.dogmatix.debug).
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -33,7 +63,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
         }
     }
 
@@ -48,6 +78,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     lint {
@@ -68,6 +99,7 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
@@ -85,6 +117,7 @@ dependencies {
     implementation(libs.androidx.room.common.jvm)
     implementation(libs.androidx.room.ktx)
     implementation(libs.gson)
+    implementation(libs.coil.compose)
     implementation(libs.androidx.documentfile)
     implementation(libs.jsoup)
     implementation(libs.seven.zip.jbinding)

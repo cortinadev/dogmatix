@@ -26,6 +26,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "milou"
+rootProject.name = "dogmatix"
 include(":app")
 project(":app").projectDir = file("app")

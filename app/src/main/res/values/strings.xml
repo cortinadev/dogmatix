@@ -1,18 +1,125 @@
 <resources>
     <!-- App Info -->
-    <string name="app_name">milou</string>
-    <string name="username">santiifm</string>
-    <string name="occupation">Alleged Software Engineer</string>
+    <string name="app_name">Dogmatix</string>
+    <string name="credits_title">Credits</string>
+    <string name="credits_fork_role">Software developer · Dogmatix (UI/UX fork)</string>
+    <string name="credits_fork_name">Rafa Cortina</string>
+    <string name="credits_original_role">Alleged Software Engineer · original Milou author</string>
+    <string name="credits_original_name">santiifm</string>
+    <string name="credits_original_note">Dogmatix is a fork of Milou. All the scraping, indexing and download machinery is his work.</string>
+    <string name="credits_link_github">GitHub</string>
+    <string name="credits_link_linkedin">LinkedIn</string>
+    <string name="credits_link_web">Website</string>
     
     <!-- Navigation -->
     <string name="nav_home">Home</string>
     <string name="nav_downloads">Downloads</string>
     <string name="nav_settings">Settings</string>
+    <string name="nav_sources">Sources</string>
+    <string name="nav_library">Library</string>
     <string name="nav_contact">Contact</string>
+
+    <!-- Gamepad legend -->
+    <string name="pad_download">Download</string>
+    <string name="pad_back">Back</string>
+    <string name="pad_filters">Filters</string>
+    <string name="pad_search">Search</string>
+    <string name="pad_section">Section</string>
+    <string name="pad_panels">Panel</string>
+    <string name="pad_select">Select</string>
+    <string name="pad_open">Open</string>
+    <string name="pad_change">Change</string>
+    <string name="pad_adjust">Adjust</string>
+    <string name="pad_column">Column</string>
+    <string name="pad_none">No gamepad · tap to navigate</string>
+    <string name="pad_games">Game list</string>
+    <string name="pad_options">Options</string>
+    <string name="pad_details">Details</string>
+    <string name="pad_close">Close</string>
+    <string name="pad_scroll">Scroll</string>
+    <string name="details_loading">Looking up game info…</string>
+    <string name="details_not_found">No details found for this game.</string>
+    <string name="details_source">Data from %1$s</string>
+    <string name="details_close">Close</string>
+    <string name="details_download">Download</string>
+    <string name="pad_keyboard">Keyboard</string>
+    <string name="pad_close_keyboard">Close keyboard</string>
+    <string name="owned">In your library</string>
+    <string name="owned_dialog_message">This game is already in your library. Download it again or delete it from storage?</string>
+    <string name="owned_download_again">Download again</string>
+    <string name="owned_delete">Delete</string>
+    <string name="owned_deleted">"%1$s" has been deleted</string>
+    <string name="owned_delete_failed">Could not delete "%1$s"</string>
+    <string name="downloading_badge">Downloading</string>
+    <string name="download_already_active">"%1$s" is already downloading</string>
+    <string name="free_space">%1$s free</string>
+
+    <!-- Library -->
+    <string name="filters">Filters</string>
+    <string name="filter_console">Console</string>
+    <string name="filter_region">Region</string>
+    <string name="filter_language">Language</string>
+    <string name="filter_type">Type</string>
+    <string name="filter_file_type">File type</string>
+    <string name="filter_sort">Sort</string>
+    <string name="filter_any">Any</string>
+    <string name="filter_all">All</string>
+    <string name="filter_selected_count">%1$d selected</string>
+    <string name="filter_show_more">Show more…</string>
+    <string name="filter_show_less">Show less</string>
+    <string name="sort_asc">A → Z</string>
+    <string name="sort_desc">Z → A</string>
+    <string name="results_count">%1$d results</string>
+    <string name="results_count_more">%1$d+ results</string>
+    <string name="no_results">Nothing matches these filters.</string>
+    <string name="show_results">Show results</string>
+    <string name="column_name">NAME</string>
+    <string name="column_tags">TAGS</string>
+    <string name="column_size">SIZE</string>
+
+    <!-- Downloads -->
+    <string name="downloads_summary">%1$d active · %2$d completed</string>
+    <string name="downloads_empty">No downloads yet. Pick a game in the library.</string>
+    <string name="status_downloading">%1$d%%</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_failed">Failed</string>
+    <string name="status_stopped">Stopped</string>
+    <string name="status_copying">Copying to storage…</string>
+    <string name="status_extracting">Extracting…</string>
+
+    <!-- Settings (new) -->
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_hint">Follows the system by default</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_suffix_dark">dark</string>
+    <string name="theme_suffix_light">light</string>
+    <string name="settings_accent">Accent color</string>
+    <string name="settings_accent_hint">Focus, active tab and downloads</string>
+    <string name="settings_download_directory_hint">Where finished downloads are stored</string>
+    <string name="settings_concurrent_label">Concurrent downloads</string>
+    <string name="settings_limit_label">Speed limit</string>
+    <string name="settings_limit_hint">Unlimited at 0</string>
+    <string name="settings_auto_unzip_hint">ZIP and 7z once the download finishes</string>
+    <string name="settings_separate_hint">Works with ES-DE and Daijishō</string>
+    <string name="settings_favorite_languages">Favorite languages</string>
+    <string name="settings_favorite_languages_hint">Shown first in the language filter</string>
+    <string name="settings_favorite_languages_empty">No languages indexed yet</string>
+    <string name="settings_reset_default">Reset</string>
+    <string name="settings_done">Done</string>
+    <string name="settings_about">About &amp; contact</string>
+    <string name="settings_change">Change</string>
+    <string name="settings_not_set">Not set</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_hint">Follows the device language by default</string>
+    <string name="language_system">System</string>
+    <string name="language_en">English</string>
+    <string name="language_es">Español</string>
     
     <!-- Top Bar -->
-    <string name="topbar_title">Milou</string>
-    <string name="topbar_logo_desc">Milou</string>
+    <string name="topbar_title">Dogmatix</string>
+    <string name="topbar_logo_desc">Dogmatix</string>
     
     <!-- Search & Filter -->
     <string name="search_library">Search library</string>
@@ -29,6 +136,8 @@
     <!-- Downloads -->
     <string name="download_started">Download of "%1$s" has been started</string>
     <string name="download_speed">%1$.2f MB/s</string>
+    <string name="download_started_at">Started %1$s</string>
+    <string name="download_finished_at">%1$s</string>
     <string name="download_size">Size: %1$s</string>
     <string name="download_cancel">Cancel Download</string>
     <string name="extracting_files">Extracting files…</string>
@@ -84,11 +193,112 @@
     <string name="error_unknown">Unknown error</string>
     <string name="error_configure_directory">Please configure download directory in settings</string>
     
+    <!-- Sources: merge duplicate console folders -->
+    <string name="merge_folders_notice">%1$d folders match this console: %2$s</string>
+    <string name="merge_folders_action">Merge…</string>
+    <string name="merge_folders_title">Merge console folders</string>
+    <string name="merge_folders_hint">Several folders in the download directory belong to %1$s. Pick the one to keep: files from the others will be moved into it (identical copies are dropped, differing ones with the same name are left in place) and emptied folders removed. You can also leave things as they are.</string>
+    <string name="merge_folders_confirm">Merge into selected</string>
+    <string name="merge_folders_keep">Keep as is</string>
+    <string name="merge_folders_working">Moving files…</string>
+    <string name="merge_folders_result">Moved %1$d files, dropped %2$d identical copies, skipped %3$d, failed %4$d. Removed %5$d empty folders.</string>
+    <string name="merge_folders_done">Done</string>
+
+    <!-- Sources -->
+    <string name="sources_empty_title">No Sources Configured</string>
+    <string name="sources_empty_hint">Add a console to start discovering games</string>
+    <string name="sources_add_console">Add Console</string>
+    <string name="sources_edit_console">Edit Console</string>
+    <string name="sources_rescan_all">Rescan all</string>
+    <string name="sources_rescanning">Rescanning…</string>
+    <string name="sources_rescanning_sources">Rescanning sources…</string>
+    <string name="sources_directory_unset">Not set — tap to choose</string>
+    <string name="sources_choose">Choose</string>
+    <string name="sources_add_url">Add URL</string>
+    <string name="sources_set_custom_path">Set custom download path</string>
+    <string name="sources_refresh_console">Refresh console</string>
+    <string name="sources_delete_console">Delete console</string>
+    <string name="sources_delete_url">Delete URL</string>
+    <string name="sources_edit_url">Edit URL</string>
+    <string name="sources_export">Export sources</string>
+    <string name="sources_import">Import sources</string>
+    <string name="sources_export_share_title">Share sources JSON</string>
+    <string name="sources_export_failed">Could not export sources: %1$s</string>
+    <string name="sources_import_confirm_title">Import sources?</string>
+    <string name="sources_import_confirm_message">The current sources and the indexed game list will be replaced by the JSON file you pick, then every source will be rescanned.</string>
+    <string name="sources_import_pick">Choose file</string>
+    <string name="sources_import_done">Imported %1$d consoles. Rescanning all sources…</string>
+    <string name="sources_import_failed">Could not import sources: %1$s</string>
+    <string name="sources_import_result_title">Import</string>
+    <string name="sources_url_not_added">The source could not be saved. Check the URL or file.</string>
+    <string name="sources_delete_console_title">Delete %1$s?</string>
+    <string name="sources_delete_console_message">The console, its sources and its indexed games will be removed. Downloaded files are kept.</string>
+    <string name="sources_delete_url_title">Delete source?</string>
+    <string name="sources_delete_url_message">%1$s will be removed from this console. Rescan to drop its games from the library.</string>
+    <string name="dialog_delete">Delete</string>
+    <string name="dialog_save">Save</string>
+    <string name="dialog_ok">OK</string>
+    <string name="dialog_edit_source">Edit Source</string>
+    <string name="dialog_short_name">Short name (chip label)</string>
+    <string name="dialog_folder_aliases">Download folder aliases, comma-separated</string>
+    <string name="dialog_aliases_hint">Folder names that count as this console\'s download folder (e.g. gba, Game Boy Advance). Leave empty to use the built-in ones.</string>
+    <string name="sources_expand">Expand</string>
+    <string name="sources_collapse">Collapse</string>
+    <string name="sources_path">Download path: %1$s</string>
+    <string name="sources_path_custom">Download path: %1$s (custom)</string>
+    <string name="sources_path_will_create">Download path: %1$s (will be created)</string>
+    <string name="sources_path_unset">Download path: not set (choose one in Settings)</string>
+    <string name="sources_url_type">Type: %1$s</string>
+    <string name="sources_scrape_start">Starting initial scrape of %1$d consoles…</string>
+    <string name="sources_rescan_start">Starting rescan of %1$d consoles…</string>
+    <string name="sources_processing_console">Processing console %1$d/%2$d: %3$s</string>
+    <string name="sources_refreshing_console">Refreshing %1$s…</string>
+
+    <!-- Sources: dialogs -->
+    <string name="dialog_add_source">Add Source</string>
+    <string name="dialog_add_source_hint">Enter a URL, magnet link, or upload a .torrent file:</string>
+    <string name="dialog_url_label">URL / Magnet</string>
+    <string name="dialog_url_placeholder">https://… or magnet:?</string>
+    <string name="dialog_upload_torrent">Upload .torrent</string>
+    <string name="dialog_content_type">Content type:</string>
+    <string name="dialog_add">Add</string>
+    <string name="dialog_cancel">Cancel</string>
+    <string name="dialog_confirm">Confirm</string>
+    <string name="dialog_console_name_hint">Enter console name:</string>
+    <string name="dialog_name">Name</string>
+    <string name="dialog_manufacturer">Manufacturer:</string>
+    <string name="dialog_new_manufacturer">Or a new manufacturer</string>
+
+    <!-- Library errors -->
+    <string name="error_download_dir_missing">Download directory not configured. Please set a download folder in settings.</string>
+    <string name="error_download_dir_inaccessible">Download directory is not accessible. Please check your folder permissions in settings.</string>
+
     <!-- MIME Types -->
     <string name="mime_octet_stream">application/octet-stream</string>
     
     <!-- HTTP -->
-    <string name="http_user_agent">Milou Downloader/1.0</string>
+    <string name="http_user_agent">Dogmatix Downloader/1.0</string>
     <string name="http_accept">*/*</string>
     <string name="http_method_get">GET</string>
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Welcome to Dogmatix</string>
+    <string name="onboarding_welcome_body">Dogmatix indexes the contents of ROM sources — torrents, magnets and web directories — tags every file by console, region and language, and lets you browse, filter and download straight to your ROMs folder. Archives are extracted automatically.</string>
+    <string name="onboarding_welcome_point_1">Sources are indexed, not downloaded: browse thousands of titles without filling your storage.</string>
+    <string name="onboarding_welcome_point_2">Filter by console, region, language, type and file format; ✓ marks what you already own.</string>
+    <string name="onboarding_welcome_point_3">Downloads land in a folder per console, ready for frontends such as ES-DE.</string>
+    <string name="onboarding_folder_title">Where are your ROMs?</string>
+    <string name="onboarding_folder_body">Pick the root folder of your ROM library. Each console gets its own sub-folder inside it (existing ones like \"gba\" or \"psx\" are reused). You can change it later in Settings.</string>
+    <string name="onboarding_folder_current">Folder: %1$s</string>
+    <string name="onboarding_folder_choose">Choose folder</string>
+    <string name="onboarding_folder_change">Change folder</string>
+    <string name="onboarding_sources_title">Add your sources</string>
+    <string name="onboarding_sources_body">Dogmatix ships with no sources. Import a sources JSON (for example the one shared from another device) and every console in it will be indexed right away. You can also add consoles and URLs by hand later in the Sources tab.</string>
+    <string name="onboarding_sources_import">Import JSON</string>
+    <string name="onboarding_skip">Skip for now</string>
+    <string name="onboarding_continue">Continue</string>
+    <string name="onboarding_start">Get started</string>
+    <string name="onboarding_finish">Finish</string>
+    <string name="onboarding_step">Step %1$d of %2$d</string>
+    <string name="onboarding_select">Select</string>
+    <string name="onboarding_back">Back</string>
 </resources>

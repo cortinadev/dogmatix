@@ -1,0 +1,97 @@
+package com.cortinadev.dogmatix
+
+import android.app.Application
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.util.Log
+import dagger.hilt.android.HiltAndroidApp
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
+import net.sf.sevenzipjbinding.SevenZip
+import java.io.File
+import javax.inject.Inject
+
+@HiltAndroidApp
+class DogmatixApplication : Application() {
+    
+    @Inject
+    lateinit var versionCheckerService: com.cortinadev.dogmatix.data.service.VersionCheckerService
+
+    @Inject
+    lateinit var downloadableFileRepository: com.cortinadev.dogmatix.data.repository.DownloadableFileRepository
+
+    @Inject
+    lateinit var sourcesRepository: com.cortinadev.dogmatix.data.repository.SourcesRepository
+    
+    private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    
+    override fun onCreate() {
+        super.onCreate()
+
+        createNotificationChannel()
+
+        applicationScope.launch {
+            clearStaleCache()
+
+            // Load the native 7-zip library (blocking — must run on IO thread)
+            try {
+                SevenZip.initSevenZipFromPlatformJAR()
+                Log.d("DogmatixApplication", "7-Zip native library loaded")
+            } catch (e: Exception) {
+                Log.e("DogmatixApplication", "Failed to load 7-Zip native library: ${e.message}")
+            }
+        }
+
+        // Check for updates on app startup
+        applicationScope.launch {
+            versionCheckerService.checkForUpdates(this@DogmatixApplication)
+        }
+
+        // Short names / folder aliases configured per console, kept in sync for the static helpers
+        applicationScope.launch {
+            sourcesRepository.aliasOverrides.collect { com.cortinadev.dogmatix.util.ConsoleAliasRegistry.overrides = it }
+        }
+
+        // Files indexed before the search key column existed need it computed once
+        applicationScope.launch {
+            try {
+                downloadableFileRepository.backfillSearchKeys()
+            } catch (e: Exception) {
+                Log.e("DogmatixApplication", "Search key backfill failed: ${e.message}")
+            }
+        }
+    }
+
+    private fun createNotificationChannel() {
+        val channel = NotificationChannel(
+            DOWNLOAD_CHANNEL_ID,
+            "Downloads",
+            NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Active download progress"
+            setShowBadge(false)
+        }
+        getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+    }
+
+    /**
+     * Deletes cache directories left over from downloads that were interrupted before
+     * they could finish copying to the user's storage and clean up after themselves.
+     * Safe to run at startup because no downloads are active yet.
+     */
+    private fun clearStaleCache() {
+        listOf("extraction_temp", "torrent_data").forEach { dir ->
+            val cacheDir = File(cacheDir, dir)
+            if (cacheDir.exists()) {
+                cacheDir.deleteRecursively()
+                Log.d("DogmatixApplication", "Cleared stale cache: $dir")
+            }
+        }
+    }
+
+    companion object {
+        const val DOWNLOAD_CHANNEL_ID = "download_channel"
+    }
+}

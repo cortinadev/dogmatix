@@ -13,3 +13,54 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Docker (local, no versionado)
+Dockerfile
+Dockerfile.*
+*.dockerfile
+docker-compose.yml
+docker-compose.yaml
+docker-compose.*.yml
+docker-compose.*.yaml
+compose.yml
+compose.yaml
+compose.*.yml
+compose.*.yaml
+.dockerignore
+.env
+.env.*
+/docker/
+
+# Diseños / mockups (locales, no versionados)
+/design/
+/designs/
+/mockups/
+/wireframes/
+/screenshots/
+*.dc.html
+*.fig
+*.pen
+*.sketch
+*.xd
+*.psd
+*.afdesign
+/*.html
+/*.png
+/*.jpg
+/*.jpeg
+/*.webp
+/*.pdf
+
+# Kotlin compiler session data
+.kotlin/
+
+# Fuentes exportadas / credenciales (nunca se versionan)
+/dogmatix-sources.json
+/*-sources.json
+/sources*.json
+*.jks
+*.keystore
+/keystore/
+
+# Artefactos de release locales
+/dist/

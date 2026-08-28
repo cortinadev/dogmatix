@@ -7,6 +7,7 @@ composeBom = "2026.03.01"
 hilt = "2.59.2"
 datastorePreferences = "1.2.1"
 coreKtx = "1.18.0"
+appcompat = "1.7.1"
 kotlinxCoroutinesCore = "1.10.2"
 libtorrent4jAndroidArm64V8a = "2.1.0-39"
 libtorrent4jAndroidArmeabiV7a = "2.1.0-39"
@@ -23,10 +24,12 @@ roomCommonJvm = "2.8.4"
 roomKtx = "2.8.4"
 jsoup = "1.22.1"
 sevenZipJBinding = "Release-16.02-2.03"
+coil = "2.7.0"
 
 [libraries]
 # Core Android
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 androidx-documentfile = { module = "androidx.documentfile:documentfile", version.ref = "documentfile" }
 androidx-lifecycle-runtime-ktx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycleRuntimeKtx" }
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose" }
@@ -49,6 +52,9 @@ androidx-navigation-runtime-ktx = { group = "androidx.navigation", name = "navig
 
 # Data Store
 androidx-datastore-preferences = { module = "androidx.datastore:datastore-preferences", version.ref = "datastorePreferences" }
+
+# Images
+coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
 
 # Hilt
 gson = { module = "com.google.code.gson:gson", version.ref = "gson" }

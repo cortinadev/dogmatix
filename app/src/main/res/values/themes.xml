@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-
-    <style name="Theme.Milou" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- AppCompat parent: required by AppCompatActivity, which applies the per-app language on Android 10-12. -->
+    <style name="Theme.Dogmatix" parent="Theme.AppCompat.DayNight.NoActionBar" />
 </resources>
