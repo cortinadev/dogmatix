@@ -28,7 +28,7 @@ Milou was designed for phones and touch. On a handheld with a small landscape sc
 
 ### Gamepad support (new)
 - Controller detection via `InputManager`; the legend at the bottom only appears when a gamepad is connected and is contextual to the focused area.
-- **ZL / ZR** (L2/R2, button or axis) switch section · **LB / RB** switch panel (filters ⇄ list) · **X** toggles filters · **Y** focuses search · **A** confirms · **B** undoes one layer at a time (sheet/dropdown → search → text → filters → focus back to tabs) and never closes the app.
+- **ZL / ZR** (L2/R2, button or axis) switch section · **LB / RB** switch panel (filters ⇄ list) · **X** opens the game details popup on the focused row (B or X closes it) · **Y** focuses search · **A** confirms · **B** undoes one layer at a time (sheet/dropdown → search → text → filters → focus back to tabs) and never closes the app.
 - Every interactive control has a visible focus ring; when changing section the focus parks and the first D-pad press lands on the active tab.
 
 ### Library
@@ -122,12 +122,23 @@ app/src/test/                       JVM unit tests
 | D-pad | Move focus |
 | A | Select / download |
 | B | Back one layer (close sheet, clear search, back to tabs) |
-| X | Toggle filters ⇄ list |
+| X | Game details popup (B or X closes) |
 | Y | Focus search |
 | LB / RB | Switch panel |
 | ZL / ZR | Previous / next section |
 
 Everything is also reachable by touch; the legend only appears while a controller is connected.
+
+## Roadmap
+
+Planned features, in no particular order:
+
+- **Favourites**: mark games as favourites and filter the library by them.
+- **RomM integration**: sync with a [RomM](https://github.com/rommapp/romm) server.
+- **Debrid / TorBox support**: download through debrid services instead of (or in addition to) direct torrenting.
+- **Deep-link API**: open the app with filters pre-applied (console, region, search term…) from other apps or frontends.
+
+Ideas and requests are welcome as [issues](https://github.com/cortinadev/dogmatix/issues).
 
 ## Disclaimer
 
