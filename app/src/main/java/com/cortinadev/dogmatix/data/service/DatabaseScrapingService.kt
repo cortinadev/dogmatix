@@ -6,6 +6,7 @@ import com.cortinadev.dogmatix.data.local.entity.FileTagEntity
 import com.cortinadev.dogmatix.data.model.Manufacturer
 import com.cortinadev.dogmatix.util.FileParsingUtils
 import com.cortinadev.dogmatix.util.HttpHeadersUtils
+import com.cortinadev.dogmatix.util.RommSource
 import com.cortinadev.dogmatix.util.ScrapingConstants
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -17,7 +18,8 @@ import javax.inject.Singleton
 @Singleton
 class DatabaseScrapingService @Inject constructor(
     private val downloadableFileDao: DownloadableFileDao,
-    private val torrentScrapingService: TorrentScrapingService
+    private val torrentScrapingService: TorrentScrapingService,
+    private val rommScrapingService: RommScrapingService
 ) {
 
     private suspend fun makeRequest(url: String): org.jsoup.nodes.Document {
@@ -104,6 +106,7 @@ class DatabaseScrapingService @Inject constructor(
     /**
      * Routes each URL entry to the right scraper:
      *   TORRENT → TorrentScrapingService
+     *   romm:// → RommScrapingService (a platform of the RomM server set in Settings)
      *   HTTP    → scrapeAndInsertToDatabase (unchanged)
      *
      * [onScrapeError] is invoked on [Dispatchers.IO]. Implementations must be thread-safe
@@ -118,6 +121,8 @@ class DatabaseScrapingService @Inject constructor(
                     try {
                         val (files, tags) = if (urlEntry.url.startsWith("magnet:") || urlEntry.url.endsWith(".torrent")) {
                             torrentScrapingService.scrapeAndInsert(urlEntry, console)
+                        } else if (RommSource.isSource(urlEntry.url)) {
+                            rommScrapingService.scrapeAndInsert(urlEntry, console)
                         } else {
                             scrapeAndInsertToDatabase(urlEntry.url, console.id, urlEntry.contentType)
                         }

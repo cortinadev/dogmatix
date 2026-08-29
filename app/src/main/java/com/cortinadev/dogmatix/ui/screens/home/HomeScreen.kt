@@ -7,6 +7,7 @@ import androidx.compose.foundation.focusGroup
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -15,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.lazy.LazyColumn
@@ -44,6 +46,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
@@ -66,6 +69,24 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.layout.layoutId
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.layout.Spacer
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.cortinadev.dogmatix.R
@@ -73,6 +94,7 @@ import com.cortinadev.dogmatix.ui.components.stripExtension
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
 import com.cortinadev.dogmatix.ui.common.Gamepad
 import com.cortinadev.dogmatix.ui.common.GamepadButton
+import com.cortinadev.dogmatix.ui.common.Legend
 import com.cortinadev.dogmatix.ui.components.LegendEntry
 import com.cortinadev.dogmatix.ui.components.focusRing
 import com.cortinadev.dogmatix.ui.components.rememberFocusSource
@@ -88,6 +110,8 @@ import kotlinx.coroutines.launch
 
 private const val SORT_ASC = "asc"
 private const val SORT_DESC = "desc"
+private const val FAV_ALL = "all"
+private const val FAV_ONLY = "only"
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -105,6 +129,8 @@ fun HomeScreen(
     val consolesWithFiles by viewModel.consolesWithFiles.collectAsState()
     val categorizedTags by viewModel.categorizedTags.collectAsState()
     val ownedKeys by viewModel.ownedKeys.collectAsState()
+    val favouriteKeys by viewModel.favouriteKeys.collectAsState()
+    val favouritesOnly by viewModel.favouritesOnly.collectAsState()
     val activeDownloads by viewModel.activeDownloads.collectAsState()
     val favoriteLanguages by viewModel.favoriteLanguages.collectAsState()
     val detailsState by viewModel.details.collectAsState()
@@ -122,10 +148,27 @@ fun HomeScreen(
     var filtersHaveFocus by remember { mutableStateOf(false) }
     var listHasFocus by remember { mutableStateOf(false) }
     var showFilterSheet by remember { mutableStateOf(false) }
+    // Landscape: the filter panel folds into a thin rail (chevron or R3) to give the list more room.
+    var filtersCollapsed by rememberSaveable { mutableStateOf(false) }
+    var railHasFocus by remember { mutableStateOf(false) }
+    // The list is laid out at its wide (rail) width while the panel is folded *and* while it
+    // is sliding back in, so the panel covers it progressively; it narrows once the slide ends.
+    var listWide by rememberSaveable { mutableStateOf(filtersCollapsed) }
     var expandedFilter by remember { mutableStateOf<String?>(null) }
     // Row under the D-pad cursor: X opens its details card.
     var focusedItem by remember { mutableStateOf<DownloadableFileWithTags?>(null) }
     val focusManager = LocalFocusManager.current
+    // Folding hides whichever side holds the focus, so it is handed over explicitly
+    // (two frames later when expanding: the panel has to be laid out first).
+    val collapseFilters = {
+        filtersCollapsed = true
+        listWide = true
+        if (filtersHaveFocus) runCatching { listFocus.requestFocus() }
+    }
+    val expandFilters = {
+        filtersCollapsed = false
+        if (railHasFocus) scope.launch { withFrameNanos { }; withFrameNanos { }; runCatching { filterFocus.requestFocus() } }
+    }
 
     val consoleOptions = remember(consolesWithFiles) {
         consolesWithFiles.map { FilterOption(it.id, ConsoleFormatter.getConsoleFolderName(it.id), ConsoleFormatter.getConsoleShortName(it.id)) }
@@ -147,7 +190,16 @@ fun HomeScreen(
         tagRow(stringResource(R.string.filter_region), categorizedTags?.regions?.tags.orEmpty()),
         tagRow(stringResource(R.string.filter_language), categorizedTags?.languages?.tags.orEmpty(), featured = favoriteLanguages),
         tagRow(stringResource(R.string.filter_type), categorizedTags?.contentTypes?.tags.orEmpty()),
-        tagRow(stringResource(R.string.filter_file_type), categorizedTags?.fileTypes?.tags.orEmpty()),
+        FilterRowSpec(
+            label = stringResource(R.string.filter_favourites),
+            options = listOf(
+                FilterOption(FAV_ALL, stringResource(R.string.filter_all)),
+                FilterOption(FAV_ONLY, stringResource(R.string.favourites_only), stringResource(R.string.favourites_only_short))
+            ),
+            selected = setOf(if (favouritesOnly) FAV_ONLY else FAV_ALL),
+            single = true,
+            onSelectionChange = { viewModel.setFavouritesOnly(FAV_ONLY in it) }
+        ),
         FilterRowSpec(
             label = stringResource(R.string.filter_sort),
             options = listOf(
@@ -159,9 +211,11 @@ fun HomeScreen(
             onSelectionChange = { viewModel.setSortAsc(SORT_ASC in it) }
         )
     )
-    val activeFilterCount = selectedConsoles.size + activeTags.size
+    val activeFilterCount = selectedConsoles.size + activeTags.size + (if (favouritesOnly) 1 else 0)
 
     val startedMessage = stringResource(R.string.download_started, "%s")
+    val favouriteAddedMessage = stringResource(R.string.favourite_added, "%s")
+    val favouriteRemovedMessage = stringResource(R.string.favourite_removed, "%s")
     val deletedMessage = stringResource(R.string.owned_deleted, "%s")
     val deleteFailedMessage = stringResource(R.string.owned_delete_failed, "%s")
     val alreadyDownloadingMessage = stringResource(R.string.download_already_active, "%s")
@@ -175,6 +229,12 @@ fun HomeScreen(
     val download: (DownloadableFileWithTags) -> Unit = { item ->
         scope.launch { viewModel.startDownload(item, context) }
         showMessage(startedMessage.format(item.file.name))
+    }
+    val toggleFavourite: (DownloadableFileWithTags) -> Unit = { item ->
+        scope.launch {
+            val starred = viewModel.toggleFavourite(item)
+            showMessage((if (starred) favouriteAddedMessage else favouriteRemovedMessage).format(stripExtension(item.file.name)))
+        }
     }
     // Tapping a game already on disk asks whether to fetch it again or remove it.
     var ownedDialogItem by remember { mutableStateOf<DownloadableFileWithTags?>(null) }
@@ -213,26 +273,27 @@ fun HomeScreen(
         GameDetailsDialog(
             state = state,
             consoleName = ConsoleFormatter.getConsoleShortName(state.item.file.consoleId),
+            favourite = viewModel.isFavourite(state.item.file, favouriteKeys),
+            onToggleFavourite = { toggleFavourite(state.item) },
             onDownload = { viewModel.closeDetails(); onFileClick(state.item) },
             onDismiss = viewModel::closeDetails
         )
     }
 
-    // Button legend follows where the focus is.
-    // Portrait has no room for the panel entry; X covers that hop there anyway.
-    val panels = if (isLandscape) listOf(LegendEntry("LB · RB", stringResource(R.string.pad_panels))) else emptyList()
+    // Button legend follows where the focus is. Kept short: B (back) and LB / RB are left out
+    // of the list and filter legends so they fit on one line even on 4:3 screens.
+    val filtersKey = if (isLandscape) listOf(LegendEntry("R3", stringResource(R.string.pad_filters))) else emptyList()
     val section = LegendEntry("ZL · ZR", stringResource(R.string.pad_section))
     val legendList = listOf(
-        LegendEntry("A", stringResource(R.string.pad_download)), LegendEntry("B", stringResource(R.string.pad_back)),
-        LegendEntry("X", stringResource(R.string.pad_details)), LegendEntry("Y", stringResource(R.string.pad_search))
-    ) + panels + section
+        LegendEntry("A", stringResource(R.string.pad_download)), LegendEntry("X", stringResource(R.string.pad_details)),
+        LegendEntry("Y", stringResource(R.string.pad_search)), LegendEntry("SELECT", stringResource(R.string.pad_favourite))
+    ) + filtersKey + section
     val legendFilters = listOf(
-        LegendEntry("A", stringResource(R.string.pad_options)), LegendEntry("◀ ▶", stringResource(R.string.pad_change)),
-        LegendEntry("B", stringResource(R.string.pad_back))
-    ) + panels + section
+        LegendEntry("A", stringResource(R.string.pad_options)), LegendEntry("◀ ▶", stringResource(R.string.pad_change))
+    ) + filtersKey + section
     val legendDetails = listOf(
         LegendEntry("A", stringResource(R.string.pad_select)), LegendEntry("B", stringResource(R.string.pad_close)),
-        LegendEntry("▲ ▼", stringResource(R.string.pad_scroll))
+        LegendEntry("SELECT", stringResource(R.string.pad_favourite)), LegendEntry("▲ ▼", stringResource(R.string.pad_scroll))
     )
     val legendSearch = listOf(
         LegendEntry("A", stringResource(R.string.pad_keyboard)), LegendEntry("B", stringResource(R.string.pad_close_keyboard))
@@ -243,9 +304,10 @@ fun HomeScreen(
         filtersHaveFocus || showFilterSheet -> legendFilters
         else -> legendList
     }
-    LaunchedEffect(legend) { Gamepad.legendOverride.value = legend }
+    val published = remember(legend) { Legend(legend) }
+    LaunchedEffect(published) { Gamepad.legendOverride.value = published }
     // Only clear our own legend: another screen may already have published its own during the transition.
-    DisposableEffect(legend) { onDispose { if (Gamepad.legendOverride.value == legend) Gamepad.legendOverride.value = null } }
+    DisposableEffect(published) { onDispose { if (Gamepad.legendOverride.value === published) Gamepad.legendOverride.value = null } }
 
     // B / Back undoes one layer at a time and never leaves the app from here (Home is the root).
     BackHandler {
@@ -264,8 +326,16 @@ fun HomeScreen(
             when (button) {
                 // X shows the details card of the row under the cursor (LB / RB move between panels).
                 GamepadButton.X -> focusedItem?.takeIf { listHasFocus }?.let { viewModel.openDetails(it) }
+                // Select stars the row under the cursor, or the game whose details card is open.
+                GamepadButton.FAVOURITE -> (viewModel.details.value?.item ?: focusedItem?.takeIf { listHasFocus })?.let(toggleFavourite)
                 GamepadButton.Y -> searchActive = true
-                GamepadButton.PREV_PANEL -> if (isLandscape) runCatching { filterFocus.requestFocus() } else showFilterSheet = true
+                GamepadButton.PREV_PANEL -> if (isLandscape) {
+                    filtersCollapsed = false
+                    scope.launch { withFrameNanos { }; withFrameNanos { }; runCatching { filterFocus.requestFocus() } }
+                } else showFilterSheet = true
+                GamepadButton.TOGGLE_FILTERS -> if (isLandscape) {
+                    if (filtersCollapsed) expandFilters() else collapseFilters()
+                } else showFilterSheet = !showFilterSheet
                 GamepadButton.NEXT_PANEL -> if (isLandscape) {
                     if (runCatching { listFocus.requestFocus() }.isFailure) focusManager.moveFocus(FocusDirection.Right)
                 } else showFilterSheet = false
@@ -275,63 +345,156 @@ fun HomeScreen(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        if (isLandscape) {
-            Row(modifier = Modifier.fillMaxSize()) {
-                FilterPanel(
-                    rows = filterRows,
-                    onClear = viewModel::clearAllFilters,
-                    compact = true,
-                    firstRowFocus = filterFocus,
-                    expandedRow = expandedFilter,
-                    onExpandedRowChange = { expandedFilter = it },
-                    modifier = Modifier
-                        .width(216.dp)
-                        .fillMaxHeight()
-                        .onFocusChanged { filtersHaveFocus = it.hasFocus }
-                        .focusGroup(),
-                    footer = {
+        if (isLandscape) BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            // The panel folds into a thin rail. A full recomposition + relayout of this screen
+            // costs ~150 ms on the K56 (debug build), so a toggle must trigger exactly one: panel
+            // and rail stay composed (the hidden one sits off-screen and cannot take focus), every
+            // child is measured once at a fixed size and the animated width is read only while
+            // placing. No alpha fade either: an alpha graphicsLayer renders the panel to an
+            // offscreen buffer and the GPU wait alone was ~190 ms per frame.
+            val panelWidth = 216.dp
+            val railWidth = 48.dp
+            val dividerWidth = 1.dp
+            val targetWidth = if (filtersCollapsed) railWidth else panelWidth
+            val currentWidth = remember { Animatable(targetWidth, Dp.VectorConverter) }
+            // Re-laying out the list at its new width is one heavy frame; let it land before
+            // the slide starts so the animation itself runs at full frame rate.
+            LaunchedEffect(targetWidth) {
+                withFrameNanos { }
+                withFrameNanos { }
+                currentWidth.animateTo(targetWidth, tween(250))
+                listWide = filtersCollapsed
+            }
+            val listWidth = maxWidth - (if (listWide) railWidth else panelWidth) - dividerWidth
+            // The list is anchored to the right edge and only uncovered / covered by the panel:
+            // tags and sizes are right-aligned so they never move, and the name column is
+            // revealed under the sliding edge. Clipping happens in the draw phase (cheap).
+            val listStart = maxWidth - listWidth
+            // Left-anchored content (names, "Name" header) starts where it was and slides to its
+            // final place along with the panel edge; right-anchored tags and sizes never move.
+            val density = LocalDensity.current
+            val contentShift = { with(density) { (currentWidth.value + dividerWidth - listStart).roundToPx() } }
+            val listClip = Modifier.drawWithContent {
+                val left = (currentWidth.value + dividerWidth - listStart).toPx().coerceAtLeast(0f)
+                clipRect(left = left) { this@drawWithContent.drawContent() }
+            }
+            // The single-line table needs room for name + tags + size; on 4:3 screens
+            // (or with the panel open on narrow ones) rows stack name over tags instead.
+            val tableRows = listWidth >= 560.dp
+
+            Layout(
+                modifier = Modifier.fillMaxSize().clipToBounds(),
+                content = {
+                    // Rail underneath, panel sliding over it. Both fade over the last stretch of
+                    // the slide. ModulateAlpha applies the opacity per draw call instead of
+                    // rendering the panel to an offscreen buffer (that GPU wait cost ~190 ms a
+                    // frame on the K56); the lambdas run in the draw phase only. The hidden one
+                    // refuses focus: onEnter is evaluated per focus query, no recomposition.
+                    val fadeSpan = (panelWidth - railWidth) * 0.4f
+                    val panelAlpha = { ((currentWidth.value - railWidth) / fadeSpan).coerceIn(0f, 1f) }
+                    Box(
+                        modifier = Modifier
+                            .layoutId("rail")
+                            .graphicsLayer { alpha = 1f - panelAlpha(); compositingStrategy = CompositingStrategy.ModulateAlpha }
+                            .focusProperties { onEnter = { if (!filtersCollapsed) cancelFocusChange() } }
+                            .onFocusChanged { railHasFocus = it.hasFocus }
+                            .focusGroup()
+                    ) {
+                        FilterRail(count = activeFilterCount, onExpand = { expandFilters() })
+                    }
+                    Column(
+                        modifier = Modifier
+                            .layoutId("panel")
+                            .graphicsLayer { alpha = panelAlpha(); compositingStrategy = CompositingStrategy.ModulateAlpha }
+                            .focusProperties { onEnter = { if (filtersCollapsed) cancelFocusChange() } }
+                            .focusGroup()
+                    ) {
+                    FilterPanel(
+                        rows = filterRows,
+                        onClear = viewModel::clearAllFilters,
+                        compact = true,
+                        firstRowFocus = filterFocus,
+                        expandedRow = expandedFilter,
+                        onExpandedRowChange = { expandedFilter = it },
+                        modifier = Modifier
+                            .weight(1f)
+                            .onFocusChanged { filtersHaveFocus = it.hasFocus }
+                            .focusGroup()
+                    )
+                    // Result count on the left, collapse control at the bottom-right corner (R3 does the same).
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(start = 22.dp, end = 10.dp, bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
                             resultsLabel(results.size, hasMoreResults),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 14.dp)
+                            maxLines = 1,
+                            modifier = Modifier.weight(1f)
+                        )
+                        PanelArrow(R.drawable.ic_arrow_left, stringResource(R.string.collapse_filters)) { collapseFilters() }
+                    }
+                }
+                    VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant, modifier = Modifier.layoutId("divider"))
+                    Box(modifier = Modifier.layoutId("list").then(listClip)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(start = 12.dp, end = 12.dp, top = 12.dp)
+                    ) {
+                        SearchField(
+                            value = query,
+                            onValueChange = viewModel::setSearch,
+                            active = searchActive,
+                            onActivate = { searchActive = true },
+                            onDismiss = { searchActive = false; runCatching { listFocus.requestFocus() } },
+                            focusRequester = searchFocus,
+                            contentShift = contentShift
+                        )
+                        if (tableRows) TableHeader(contentShift) else Text(
+                            resultsLabel(results.size, hasMoreResults),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 6.dp)
+                        )
+                        ResultList(
+                            results = results,
+                            compact = tableRows,
+                            hasMore = hasMoreResults,
+                            isLoadingMore = isLoadingMore,
+                            onLoadMore = { scope.launch { viewModel.loadMore() } },
+                            getConsoleName = { ConsoleFormatter.getConsoleShortName(it) },
+                            onFileClick = onFileClick,
+                            isOwned = { viewModel.isOwned(it.file, ownedKeys) },
+                            isFavourite = { viewModel.isFavourite(it.file, favouriteKeys) },
+                            isDownloading = { viewModel.isDownloading(it.file, activeDownloads) },
+                            onRowFocused = { focusedItem = it },
+                            onRowLongClick = viewModel::openDetails,
+                            modifier = Modifier
+                                .weight(1f)
+                                .onFocusChanged { listHasFocus = it.hasFocus }
+                                .focusGroup(),
+                            firstRowFocus = listFocus,
+                            contentShift = contentShift
                         )
                     }
+                    }
+                }
+            ) { measurables, constraints ->
+                val height = constraints.maxHeight
+                val widths = mapOf(
+                    "panel" to panelWidth.roundToPx(), "rail" to railWidth.roundToPx(),
+                    "divider" to dividerWidth.roundToPx(),
+                    "list" to listWidth.roundToPx()
                 )
-                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(start = 12.dp, end = 12.dp, top = 12.dp)
-                ) {
-                    SearchField(
-                        value = query,
-                        onValueChange = viewModel::setSearch,
-                        active = searchActive,
-                        onActivate = { searchActive = true },
-                        onDismiss = { searchActive = false; runCatching { listFocus.requestFocus() } },
-                        focusRequester = searchFocus
-                    )
-                    TableHeader()
-                    ResultList(
-                        results = results,
-                        compact = true,
-                        hasMore = hasMoreResults,
-                        isLoadingMore = isLoadingMore,
-                        onLoadMore = { scope.launch { viewModel.loadMore() } },
-                        getConsoleName = { ConsoleFormatter.getConsoleShortName(it) },
-                        onFileClick = onFileClick,
-                        isOwned = { viewModel.isOwned(it.file, ownedKeys) },
-                        isDownloading = { viewModel.isDownloading(it.file, activeDownloads) },
-                        onRowFocused = { focusedItem = it },
-                        onRowLongClick = viewModel::openDetails,
-                        modifier = Modifier
-                            .weight(1f)
-                            .onFocusChanged { listHasFocus = it.hasFocus }
-                            .focusGroup(),
-                        firstRowFocus = listFocus
-                    )
+                val placed = measurables.associate { val id = it.layoutId as String; id to it.measure(Constraints.fixed(widths.getValue(id), height)) }
+                layout(constraints.maxWidth, height) {
+                    val edge = currentWidth.value.roundToPx()
+                    placed["list"]?.placeRelative(constraints.maxWidth - widths.getValue("list"), 0)
+                    placed["rail"]?.placeRelative(0, 0)
+                    placed["panel"]?.placeRelative(edge - widths.getValue("panel"), 0)
+                    placed["divider"]?.placeRelative(edge, 0)
                 }
             }
         } else {
@@ -373,6 +536,7 @@ fun HomeScreen(
                     getConsoleName = { ConsoleFormatter.getConsoleShortName(it) },
                     onFileClick = onFileClick,
                     isOwned = { viewModel.isOwned(it.file, ownedKeys) },
+                    isFavourite = { viewModel.isFavourite(it.file, favouriteKeys) },
                     isDownloading = { viewModel.isDownloading(it.file, activeDownloads) },
                     onRowFocused = { focusedItem = it },
                     onRowLongClick = viewModel::openDetails,
@@ -408,7 +572,7 @@ fun HomeScreen(
                         modifier = Modifier.onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             when (event.key) {
-                                Key.ButtonR1 -> { showFilterSheet = false; true }
+                                Key.ButtonR1, Key.ButtonThumbRight -> { showFilterSheet = false; true }
                                 Key.ButtonY -> { showFilterSheet = false; searchActive = true; true }
                                 Key.ButtonL2 -> { showFilterSheet = false; Gamepad.presses.tryEmit(GamepadButton.PREV_TAB); true }
                                 Key.ButtonR2 -> { showFilterSheet = false; Gamepad.presses.tryEmit(GamepadButton.NEXT_TAB); true }
@@ -454,7 +618,7 @@ private fun resultsLabel(count: Int, hasMore: Boolean): String =
     stringResource(if (hasMore) R.string.results_count_more else R.string.results_count, count)
 
 @Composable
-private fun TableHeader() {
+private fun TableHeader(contentShift: () -> Int = { 0 }) {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     val style = MaterialTheme.typography.labelMedium
     Row(
@@ -465,7 +629,10 @@ private fun TableHeader() {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(stringResource(R.string.column_name), style = style, color = color, modifier = Modifier.weight(1f))
+        Text(
+            stringResource(R.string.column_name), style = style, color = color,
+            modifier = Modifier.weight(1f).clipToBounds().offset { IntOffset(contentShift(), 0) }
+        )
         Text(stringResource(R.string.column_tags), style = style, color = color, modifier = Modifier.width(300.dp))
         Text(stringResource(R.string.column_size), style = style, color = color, textAlign = TextAlign.End, modifier = Modifier.width(64.dp))
     }
@@ -481,11 +648,13 @@ private fun ResultList(
     getConsoleName: (String) -> String,
     onFileClick: (DownloadableFileWithTags) -> Unit,
     isOwned: (DownloadableFileWithTags) -> Boolean,
+    isFavourite: (DownloadableFileWithTags) -> Boolean,
     isDownloading: (DownloadableFileWithTags) -> Boolean,
     onRowFocused: (DownloadableFileWithTags) -> Unit,
     onRowLongClick: (DownloadableFileWithTags) -> Unit,
     modifier: Modifier = Modifier,
-    firstRowFocus: FocusRequester? = null
+    firstRowFocus: FocusRequester? = null,
+    contentShift: () -> Int = { 0 }
 ) {
     if (results.isEmpty()) {
         Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
@@ -528,7 +697,9 @@ private fun ResultList(
                 onClick = { onFileClick(item) },
                 onLongClick = { onRowLongClick(item) },
                 owned = isOwned(item),
+                favourite = isFavourite(item),
                 downloading = isDownloading(item),
+                contentShift = contentShift,
                 // RB from the filters lands on the first row currently on screen.
                 modifier = when {
                     index == pendingFocusIndex -> Modifier.focusRequester(newPageFocus)
@@ -558,6 +729,50 @@ private fun ResultList(
                 }
             }
         }
+    }
+}
+
+/** Plain arrow (same tint and size as the filter dropdown arrows) that folds / unfolds the filter panel. */
+@Composable
+private fun PanelArrow(icon: Int, description: String, onClick: () -> Unit) {
+    val source = rememberFocusSource()
+    Icon(
+        painterResource(icon),
+        contentDescription = description,
+        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .focusRing(source, 6.dp)
+            .clickable(interactionSource = source, indication = null, onClick = onClick)
+            .padding(6.dp)
+            .size(16.dp)
+    )
+}
+
+/** Collapsed filter panel: a thin rail with the active-filter count and, at the bottom, the button that brings it back. */
+@Composable
+private fun FilterRail(count: Int, onExpand: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        modifier = Modifier
+            .fillMaxHeight()
+            .requiredWidth(48.dp)
+            .padding(top = 12.dp, bottom = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        if (count > 0) {
+            Text(
+                count.toString(),
+                style = MaterialTheme.typography.labelSmall,
+                color = scheme.onPrimary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(scheme.primary)
+                    .padding(horizontal = 6.dp, vertical = 1.dp)
+            )
+        }
+        Spacer(Modifier.weight(1f))
+        PanelArrow(R.drawable.ic_arrow_right, stringResource(R.string.expand_filters), onExpand)
     }
 }
 

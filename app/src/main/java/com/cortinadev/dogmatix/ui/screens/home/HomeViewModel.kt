@@ -10,6 +10,7 @@ import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
 import com.cortinadev.dogmatix.data.model.CategorizedTags
 import com.cortinadev.dogmatix.data.repository.ConsoleRepository
 import com.cortinadev.dogmatix.data.repository.DownloadableFileRepository
+import com.cortinadev.dogmatix.data.repository.FavouritesRepository
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.data.service.LibraryIndexService
 import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
@@ -17,6 +18,8 @@ import com.cortinadev.dogmatix.data.service.DownloadService
 import com.cortinadev.dogmatix.data.service.GameMetadataService
 import com.cortinadev.dogmatix.data.model.GameDetails
 import kotlinx.coroutines.Job
+import com.cortinadev.dogmatix.data.state.LibraryFilterRequest
+import com.cortinadev.dogmatix.data.state.PendingLibraryFilters
 import com.cortinadev.dogmatix.data.state.RescanStateHolder
 import com.cortinadev.dogmatix.util.ConsoleFormatter
 import com.cortinadev.dogmatix.util.StorageHelper
@@ -28,6 +31,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -41,8 +45,25 @@ class HomeViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val rescanStateHolder: RescanStateHolder,
     private val libraryIndex: LibraryIndexService,
-    private val metadataService: GameMetadataService
+    private val metadataService: GameMetadataService,
+    private val favourites: FavouritesRepository,
+    private val pendingFilters: PendingLibraryFilters
 ) : ViewModel() {
+
+    /** `consoleId|fileName` keys of starred games; see [isFavourite]. */
+    val favouriteKeys: StateFlow<Set<String>> = favourites.keys
+
+    fun isFavourite(file: DownloadableFileEntity, keys: Set<String>): Boolean = favourites.isFavourite(file, keys)
+
+    /** Star / un-star; returns the new state. */
+    suspend fun toggleFavourite(item: DownloadableFileWithTags): Boolean = favourites.toggle(item.file)
+
+    private val _favouritesOnly = MutableStateFlow(false)
+    val favouritesOnly: StateFlow<Boolean> = _favouritesOnly.asStateFlow()
+
+    fun setFavouritesOnly(only: Boolean) {
+        _favouritesOnly.value = only
+    }
 
     /** The game whose details card is open, if any, and what we know about it so far. */
     private val _details = MutableStateFlow<DetailsState?>(null)
@@ -117,12 +138,18 @@ class HomeViewModel @Inject constructor(
     private val pageSize = 100
 
     init {
+        // Deep links (dogmatix://library?…): apply whatever is waiting, now and on every new link.
+        viewModelScope.launch {
+            pendingFilters.request.collect { if (it != null) pendingFilters.consume()?.let(::applyRequest) }
+        }
         viewModelScope.launch {
             combine(
                 combine(_searchQuery, _selectedConsoles, _activeTags) { q, c, t -> Triple(q, c, t) },
-                combine(_sortAsc, rescanStateHolder.lastRescanTime) { s, r -> s to r }
-            ) { (query, consoles, tags), (sortAsc, _) ->
-                FilterParams(query = query, consoles = consoles, tags = tags, sortAsc = sortAsc)
+                combine(_sortAsc, _favouritesOnly, rescanStateHolder.lastRescanTime) { s, f, r -> Triple(s, f, r) },
+                // Re-query when a star changes while "Favourites only" is on, else the row would linger.
+                combine(_favouritesOnly, favourites.keys) { only, keys -> if (only) keys else emptySet() }.distinctUntilChanged()
+            ) { (query, consoles, tags), (sortAsc, favouritesOnly, _), _ ->
+                FilterParams(query = query, consoles = consoles, tags = tags, sortAsc = sortAsc, favouritesOnly = favouritesOnly)
             }.collect { params ->
                 currentOffset = 0
                 val initialResults = performSearch(params)
@@ -132,6 +159,13 @@ class HomeViewModel @Inject constructor(
                 loadAvailableTags(params.query, params.consoles)
             }
         }
+    }
+
+    private fun applyRequest(request: LibraryFilterRequest) {
+        _selectedConsoles.value = request.consoles
+        _activeTags.value = request.tags
+        _searchQuery.value = request.query.orEmpty()
+        request.favouritesOnly?.let { _favouritesOnly.value = it }
     }
 
     fun toggleConsoleFilter(consoleId: String) {
@@ -188,6 +222,7 @@ class HomeViewModel @Inject constructor(
         _activeTags.value = emptySet()
         _selectedConsoles.value = emptySet()
         _sortAsc.value = true
+        _favouritesOnly.value = false
     }
 
     private suspend fun performSearch(params: FilterParams): List<DownloadableFileWithTags> {
@@ -196,6 +231,7 @@ class HomeViewModel @Inject constructor(
             query = params.query,
             consoleIds = params.consoles,
             tags = params.tags,
+            favouritesOnly = params.favouritesOnly,
             sortAsc = params.sortAsc,
             limit = pageSize,
             offset = 0
@@ -234,6 +270,7 @@ class HomeViewModel @Inject constructor(
             query = _searchQuery.value,
             consoleIds = _selectedConsoles.value,
             tags = _activeTags.value,
+            favouritesOnly = _favouritesOnly.value,
             sortAsc = _sortAsc.value,
             limit = pageSize,
             offset = currentOffset
@@ -269,7 +306,8 @@ data class FilterParams(
     val query: String,
     val consoles: Set<String>,
     val tags: Set<String>,
-    val sortAsc: Boolean
+    val sortAsc: Boolean,
+    val favouritesOnly: Boolean = false
 )
 
 data class DetailsState(

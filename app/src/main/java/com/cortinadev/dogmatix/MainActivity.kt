@@ -1,5 +1,6 @@
 package com.cortinadev.dogmatix
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.os.Bundle
 import android.view.KeyEvent
@@ -51,6 +52,8 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.cortinadev.dogmatix.data.model.DownloadStatus
+import com.cortinadev.dogmatix.data.state.PendingLibraryFilters
+import com.cortinadev.dogmatix.util.DeepLinkParser
 import com.cortinadev.dogmatix.ui.common.Gamepad
 import com.cortinadev.dogmatix.ui.common.GamepadButton
 import com.cortinadev.dogmatix.ui.common.StorageStatusViewModel
@@ -69,20 +72,25 @@ import com.cortinadev.dogmatix.ui.screens.home.HomeScreen
 import com.cortinadev.dogmatix.ui.screens.onboarding.OnboardingScreen
 import com.cortinadev.dogmatix.ui.screens.settings.SettingsScreen
 import com.cortinadev.dogmatix.ui.screens.settings.SettingsViewModel
+import com.cortinadev.dogmatix.ui.screens.settings.romm.RommScreen
 import com.cortinadev.dogmatix.ui.screens.sources.SourcesScreen
 import com.cortinadev.dogmatix.ui.screens.sources.SourcesViewModel
 import com.cortinadev.dogmatix.ui.theme.DogmatixTheme
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
 import dagger.hilt.android.AndroidEntryPoint
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
+
+    @Inject lateinit var pendingFilters: PendingLibraryFilters
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
         hideSystemBars()
         Gamepad.startWatching(this)
+        handleDeepLink(intent)
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val settings by settingsViewModel.uiState.collectAsState()
@@ -91,10 +99,22 @@ class MainActivity : AppCompatActivity() {
                 when (onboardingDone) {
                     null -> Unit                      // DataStore not read yet: avoid flashing the wrong screen
                     false -> OnboardingHost()
-                    true -> DogmatixApp()
+                    true -> DogmatixApp(pendingFilters)
                 }
             }
         }
+    }
+
+    /** singleTask: a deep link while the app is running arrives here instead of a new instance. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleDeepLink(intent)
+    }
+
+    private fun handleDeepLink(intent: Intent?) {
+        if (intent?.action != Intent.ACTION_VIEW) return
+        DeepLinkParser.parse(intent.dataString)?.let(pendingFilters::submit)
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean =
@@ -154,7 +174,7 @@ private fun OnboardingHost() {
 }
 
 @Composable
-private fun DogmatixApp() {
+private fun DogmatixApp(pendingFilters: PendingLibraryFilters) {
     val context = LocalContext.current
     val sourcesViewModel: SourcesViewModel = hiltViewModel()
     val downloadViewModel: DownloadViewModel = hiltViewModel()
@@ -186,6 +206,13 @@ private fun DogmatixApp() {
     val currentRoute = navBackStackEntry?.destination?.route ?: NavRoutes.Home.route
 
     Gamepad.currentRoute = currentRoute
+    // A deep link lands on the Library tab; HomeViewModel picks the filters up from the holder.
+    val pendingVersion by pendingFilters.version.collectAsState()
+    LaunchedEffect(pendingVersion) {
+        if (pendingVersion > 0 && navController.currentBackStackEntry?.destination?.route != NavRoutes.Home.route) {
+            navController.switchTo(NavRoutes.Home)
+        }
+    }
     // After a gamepad section switch the focus ring goes away: focus is parked on an invisible
     // sink (clearing it would make Compose re-focus the first tab). The next D-pad press puts
     // it back on the active tab (see Gamepad.interceptKey).
@@ -257,11 +284,12 @@ private fun DogmatixApp() {
                     composable(NavRoutes.Sources.route) { SourcesScreen() }
                     composable(NavRoutes.Settings.route) { SettingsScreen(navController) }
                     composable(NavRoutes.Contact.route) { ContactScreen(navController) }
+                    composable(NavRoutes.Romm.route) { RommScreen() }
                 }
             }
 
             if (gamepadConnected) {
-                GamepadLegend(entries = legendOverride ?: legendFor(currentRoute), trailing = if (isLandscape) ({ FreeSpaceText(freeBytes) }) else null)
+                GamepadLegend(entries = legendOverride?.entries ?: legendFor(currentRoute), trailing = if (isLandscape) ({ FreeSpaceText(freeBytes) }) else null)
             } else if (isLandscape) {
                 NoGamepadHint(trailing = { FreeSpaceText(freeBytes) })
             }
@@ -269,7 +297,7 @@ private fun DogmatixApp() {
             if (!isLandscape) {
                 BottomTabs(
                     currentRoute = currentRoute,
-                    activeDownloads = downloads.count { it.status == DownloadStatus.DOWNLOADING },
+                    activeDownloads = downloads.count { it.status == DownloadStatus.DOWNLOADING || it.status == DownloadStatus.QUEUED },
                     onSelect = navController::switchTo
                 )
             }

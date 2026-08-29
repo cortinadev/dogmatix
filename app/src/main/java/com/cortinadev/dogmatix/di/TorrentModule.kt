@@ -35,8 +35,9 @@ object TorrentModule {
     @Provides
     @Singleton
     fun provideTorrentHandleRegistry(
-        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context
-    ): TorrentHandleRegistry = TorrentHandleRegistry(context)
+        @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
+        settingsRepository: com.cortinadev.dogmatix.data.repository.SettingsRepository
+    ): TorrentHandleRegistry = TorrentHandleRegistry(context, settingsRepository)
 
     @Provides
     @Singleton

@@ -34,7 +34,9 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import com.cortinadev.dogmatix.ui.common.Gamepad
 import com.cortinadev.dogmatix.ui.common.GamepadButton
+import com.cortinadev.dogmatix.ui.common.Legend
 import com.cortinadev.dogmatix.ui.components.LegendEntry
+import com.cortinadev.dogmatix.ui.components.TruncatedText
 import com.cortinadev.dogmatix.ui.components.legendFor
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,11 +61,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.ui.components.Stepper
+import com.cortinadev.dogmatix.ui.screens.settings.components.ApiKeyDialog
 import com.cortinadev.dogmatix.ui.screens.settings.components.FavoriteLanguagesDialog
+import com.cortinadev.dogmatix.ui.screens.settings.components.maskedSecret
 import com.cortinadev.dogmatix.ui.components.focusRing
 import com.cortinadev.dogmatix.ui.components.rememberFocusSource
 import com.cortinadev.dogmatix.ui.navigation.NavRoutes
+import com.cortinadev.dogmatix.data.model.DebridProvider
 import com.cortinadev.dogmatix.ui.theme.AccentPresets
+import com.cortinadev.dogmatix.util.TorrentConstants
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
 import com.cortinadev.dogmatix.ui.theme.ThemeMode
 import androidx.appcompat.app.AppCompatDelegate
@@ -115,6 +121,9 @@ fun SettingsScreen(
     }
     fun adjustConcurrent(delta: Int) =
         viewModel.onConcurrentDownloadsChanged(context, (ui.concurrentDownloads + delta).coerceIn(1, 10))
+    fun adjustMetadataTimeout(delta: Int) = viewModel.onMetadataTimeoutChanged(
+        context, (ui.metadataTimeoutSeconds + delta * 10).coerceIn(TorrentConstants.MIN_METADATA_TIMEOUT_S, TorrentConstants.MAX_METADATA_TIMEOUT_S)
+    )
     val limitKb = if (ui.limitSpeed == Float.POSITIVE_INFINITY) 0 else ui.limitSpeed.toInt()
     fun adjustLimit(delta: Int) {
         val next = (limitKb + delta * SPEED_STEP).coerceIn(0, SPEED_MAX)
@@ -145,8 +154,33 @@ fun SettingsScreen(
         )
     }
 
-    val rows: List<@Composable () -> Unit> = listOf(
-        {
+    val debrid = ui.debridProvider
+    fun cycleDebrid(delta: Int) {
+        val providers = DebridProvider.entries
+        viewModel.onDebridProviderChanged(context, providers[((debrid.ordinal + delta) % providers.size + providers.size) % providers.size])
+    }
+    val debridKey = when (debrid) {
+        DebridProvider.TORBOX -> ui.torboxApiKey
+        DebridProvider.REAL_DEBRID -> ui.realDebridApiKey
+        DebridProvider.NONE -> ""
+    }
+    val debridKeyTitle = stringResource(R.string.settings_debrid_key, debrid.label)
+    var showDebridKeyDialog by remember { mutableStateOf(false) }
+    if (showDebridKeyDialog && debrid != DebridProvider.NONE) {
+        ApiKeyDialog(
+            title = debridKeyTitle,
+            hint = stringResource(if (debrid == DebridProvider.TORBOX) R.string.settings_torbox_key_dialog_hint else R.string.settings_realdebrid_key_dialog_hint),
+            value = debridKey,
+            onTest = { viewModel.testDebridApiKey(context, debrid, it) },
+            onSave = { viewModel.onDebridApiKeyChanged(context, debrid, it) },
+            onDismiss = { showDebridKeyDialog = false }
+        )
+    }
+
+    // Portrait shows the rows in this order; landscape splits them into two columns (`right`),
+    // so related rows (debrid service + its API key) stay stacked in the same column.
+    val ordered: List<SettingsRow> = listOf(
+        SettingsRow(right = false) {
             SettingRow(
                 title = stringResource(R.string.settings_download_directory),
                 hint = ui.downloadDirectory.ifBlank { stringResource(R.string.settings_not_set) },
@@ -155,7 +189,7 @@ fun SettingsScreen(
                 PillButton(stringResource(R.string.settings_change)) { launcher.launch(null) }
             }
         },
-        {
+        SettingsRow(right = true) {
             SettingRow(
                 title = stringResource(R.string.settings_theme),
                 hint = stringResource(R.string.settings_theme_hint),
@@ -165,7 +199,7 @@ fun SettingsScreen(
                 Stepper(themeLabel, onDecrement = { cycleTheme(-1) }, onIncrement = { cycleTheme(1) }, valueWidth = 110.dp)
             }
         },
-        {
+        SettingsRow(right = false) {
             SettingRow(
                 title = stringResource(R.string.settings_language),
                 hint = stringResource(R.string.settings_language_hint),
@@ -175,7 +209,7 @@ fun SettingsScreen(
                 Stepper(stringResource(appLanguage.label), onDecrement = { cycleLanguage(-1) }, onIncrement = { cycleLanguage(1) }, valueWidth = 96.dp)
             }
         },
-        {
+        SettingsRow(right = true) {
             SettingRow(
                 title = stringResource(R.string.settings_accent),
                 hint = stringResource(R.string.settings_accent_hint),
@@ -187,7 +221,7 @@ fun SettingsScreen(
                 }
             }
         },
-        {
+        SettingsRow(right = false) {
             SettingRow(
                 title = stringResource(R.string.settings_concurrent_label),
                 hint = null,
@@ -197,7 +231,7 @@ fun SettingsScreen(
                 Stepper(ui.concurrentDownloads.toString(), onDecrement = { adjustConcurrent(-1) }, onIncrement = { adjustConcurrent(1) })
             }
         },
-        {
+        SettingsRow(right = true) {
             SettingRow(
                 title = stringResource(R.string.settings_limit_label),
                 hint = stringResource(R.string.settings_limit_hint),
@@ -208,11 +242,21 @@ fun SettingsScreen(
                     if (limitKb == 0) stringResource(R.string.settings_unrestricted) else "$limitKb KB/s",
                     onDecrement = { adjustLimit(-1) },
                     onIncrement = { adjustLimit(1) },
-                    valueWidth = 96.dp
+                    valueWidth = 110.dp
                 )
             }
         },
-        {
+        SettingsRow(right = true) {
+            SettingRow(
+                title = stringResource(R.string.settings_metadata_timeout),
+                hint = stringResource(R.string.settings_metadata_timeout_hint),
+                onClick = { adjustMetadataTimeout(1) },
+                onAdjust = ::adjustMetadataTimeout
+            ) {
+                Stepper(stringResource(R.string.seconds_short, ui.metadataTimeoutSeconds), onDecrement = { adjustMetadataTimeout(-1) }, onIncrement = { adjustMetadataTimeout(1) })
+            }
+        },
+        SettingsRow(right = false) {
             SettingRow(
                 title = stringResource(R.string.settings_auto_unzip),
                 hint = stringResource(R.string.settings_auto_unzip_hint),
@@ -222,7 +266,7 @@ fun SettingsScreen(
                 ThemedSwitch(ui.autoUnzip) { viewModel.onAutoUnzipChanged(context, it) }
             }
         },
-        {
+        SettingsRow(right = true) {
             SettingRow(
                 title = stringResource(R.string.settings_separate_by_console),
                 hint = stringResource(R.string.settings_separate_hint),
@@ -232,7 +276,26 @@ fun SettingsScreen(
                 ThemedSwitch(ui.separateByConsole) { viewModel.onSeparateByConsoleChanged(context, it) }
             }
         },
-        {
+        SettingsRow(right = true) {
+            SettingRow(
+                title = stringResource(R.string.settings_debrid),
+                hint = stringResource(R.string.settings_debrid_hint),
+                onClick = { cycleDebrid(1) },
+                onAdjust = ::cycleDebrid
+            ) {
+                Stepper(debrid.label, onDecrement = { cycleDebrid(-1) }, onIncrement = { cycleDebrid(1) }, valueWidth = 110.dp)
+            }
+        },
+        SettingsRow(right = true) {
+            if (debrid != DebridProvider.NONE) SettingRow(
+                title = debridKeyTitle,
+                hint = maskedSecret(debridKey),
+                onClick = { showDebridKeyDialog = true }
+            ) {
+                PillButton(stringResource(R.string.settings_change)) { showDebridKeyDialog = true }
+            }
+        },
+        SettingsRow(right = false) {
             SettingRow(
                 title = stringResource(R.string.settings_favorite_languages),
                 hint = ui.favoriteLanguages.sorted().joinToString(" · ")
@@ -242,7 +305,16 @@ fun SettingsScreen(
                 PillButton(stringResource(R.string.settings_change)) { showLanguagesDialog = true }
             }
         },
-        {
+        SettingsRow(right = false) {
+            SettingRow(
+                title = stringResource(R.string.settings_romm),
+                hint = ui.rommUrl.ifBlank { stringResource(R.string.settings_romm_hint) },
+                onClick = { navController.navigate(NavRoutes.Romm.route) }
+            ) {
+                Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        },
+        SettingsRow(right = false) {
             SettingRow(
                 title = stringResource(R.string.settings_about),
                 hint = stringResource(R.string.credits_fork_name) + " · " + stringResource(R.string.credits_original_name),
@@ -252,6 +324,11 @@ fun SettingsScreen(
             }
         }
     )
+    val rows: List<@Composable () -> Unit> = if (!isLandscape) ordered.map { it.content } else {
+        val left = ordered.filter { !it.right }.map { it.content }
+        val right = ordered.filter { it.right }.map { it.content }
+        (0 until maxOf(left.size, right.size)).flatMap { i -> listOf(left.getOrNull(i) ?: {}, right.getOrNull(i) ?: {}) }
+    }
 
     // LB / RB (landscape): hop between the two columns, staying on the same grid row.
     val columns = if (isLandscape) 2 else 1
@@ -273,10 +350,10 @@ fun SettingsScreen(
     if (isLandscape) {
         val base = legendFor(NavRoutes.Settings.route)
         val column = LegendEntry("LB · RB", stringResource(R.string.pad_column))
-        val legend = remember(base, column) { base.toMutableList().also { it.add(it.lastIndex, column) }.toList() }
+        val legend = remember(base, column) { Legend(base.toMutableList().also { it.add(it.lastIndex, column) }) }
         LaunchedEffect(legend) { Gamepad.legendOverride.value = legend }
         // Only clear our own legend: the previous screen's onDispose can run after ours is set.
-        DisposableEffect(legend) { onDispose { if (Gamepad.legendOverride.value == legend) Gamepad.legendOverride.value = null } }
+        DisposableEffect(legend) { onDispose { if (Gamepad.legendOverride.value === legend) Gamepad.legendOverride.value = null } }
     }
 
     Column(
@@ -302,12 +379,15 @@ fun SettingsScreen(
     }
 }
 
+/** One Settings entry; [right] puts it in the right-hand column of the landscape grid. */
+private class SettingsRow(val right: Boolean, val content: @Composable () -> Unit)
+
 /**
  * A focusable settings row. Click / A runs [onClick]; while focused, D-pad left/right
  * calls [onAdjust] with -1 / +1 so steppers, switches and swatches work from a gamepad.
  */
 @Composable
-private fun SettingRow(
+internal fun SettingRow(
     title: String,
     hint: String?,
     onClick: () -> Unit,
@@ -336,7 +416,7 @@ private fun SettingRow(
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.bodyLarge)
+            TruncatedText(title, style = MaterialTheme.typography.bodyLarge)
             hint?.let {
                 Text(
                     it,
@@ -353,7 +433,7 @@ private fun SettingRow(
 }
 
 @Composable
-private fun PillButton(label: String, onClick: () -> Unit) {
+internal fun PillButton(label: String, onClick: () -> Unit) {
     val source = rememberFocusSource()
     Box(
         modifier = Modifier
@@ -394,7 +474,7 @@ private fun AccentSwatches(selected: Color, size: androidx.compose.ui.unit.Dp, o
 }
 
 @Composable
-private fun ThemedSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
+internal fun ThemedSwitch(checked: Boolean, onChange: (Boolean) -> Unit) {
     val scheme = MaterialTheme.colorScheme
     Switch(
         checked = checked,

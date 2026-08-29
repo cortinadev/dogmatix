@@ -1,6 +1,5 @@
 package com.cortinadev.dogmatix.ui.screens.home.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -25,6 +24,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.foundation.layout.offset
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusProperties
@@ -58,7 +63,12 @@ fun SearchField(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester = remember { FocusRequester() },
-    trailing: @Composable (() -> Unit)? = null
+    trailing: @Composable (() -> Unit)? = null,
+    /**
+     * Horizontal shift (px) of the box's left edge and content, read in the draw / placement
+     * phases only: lets the filter panel animation drag the field along without re-measuring it.
+     */
+    contentShift: () -> Int = { 0 }
 ) {
     val scheme = MaterialTheme.colorScheme
     val source = remember { MutableInteractionSource() }
@@ -83,8 +93,16 @@ fun SearchField(
             .fillMaxWidth()
             .height(44.dp)
             .clip(RoundedCornerShape(10.dp))
-            .background(scheme.surfaceContainer)
-            .focusRing(source, 10.dp)
+            .drawBehind {
+                val shift = contentShift().toFloat()
+                drawRoundRect(
+                    scheme.surfaceContainer,
+                    topLeft = Offset(shift, 0f),
+                    size = Size(size.width - shift, size.height),
+                    cornerRadius = CornerRadius(10.dp.toPx())
+                )
+            }
+            .focusRing(source, 10.dp, startShift = contentShift)
             // pointerInput (not clickable): no focusable node, so the D-pad never lands on the box
             // and no focusProperties are needed here. A `canFocus = false` on this Row would leak
             // into the text field whenever the Row has no focus target of its own.
@@ -100,6 +118,11 @@ fun SearchField(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
+        Row(
+            modifier = Modifier.weight(1f).offset { IntOffset(contentShift(), 0) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
         Icon(
             painterResource(R.drawable.ic_search),
             contentDescription = null,
@@ -155,6 +178,7 @@ fun SearchField(
                 }
             }
         )
+        }
         trailing?.invoke()
     }
 }

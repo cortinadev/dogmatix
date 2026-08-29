@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +62,8 @@ import kotlinx.coroutines.launch
 fun GameDetailsDialog(
     state: DetailsState,
     consoleName: String,
+    favourite: Boolean,
+    onToggleFavourite: () -> Unit,
     onDownload: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -72,7 +75,14 @@ fun GameDetailsDialog(
     val rom = state.item.file
 
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        LaunchedEffect(Unit) { runCatching { downloadFocus.requestFocus() } }
+        // The button is not attached on the first frame: retry for a few frames so the first
+        // gamepad press acts instead of merely initialising focus.
+        LaunchedEffect(Unit) {
+            repeat(5) {
+                if (runCatching { downloadFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+                withFrameNanos { }
+            }
+        }
         Column(
             modifier = Modifier
                 .padding(horizontal = if (isLandscape) 48.dp else 16.dp, vertical = 24.dp)
@@ -83,6 +93,8 @@ fun GameDetailsDialog(
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (event.key) {
                         Key.ButtonX -> { onDismiss(); true }
+                        // The dialog is its own window, so Select never reaches the Activity's gamepad bus.
+                        Key.ButtonSelect, Key.ButtonThumbLeft -> { onToggleFavourite(); true }
                         Key.DirectionUp -> scroll.maxValue > 0 && scroll.value > 0 && scope.launch { scroll.animateScrollBy(-SCROLL_STEP) }.let { true }
                         Key.DirectionDown -> scroll.maxValue > 0 && scroll.value < scroll.maxValue && scope.launch { scroll.animateScrollBy(SCROLL_STEP) }.let { true }
                         else -> false
@@ -105,6 +117,10 @@ fun GameDetailsDialog(
             }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End), modifier = Modifier.fillMaxWidth()) {
+                val favouriteSource = rememberFocusSource()
+                TextButton(onClick = onToggleFavourite, interactionSource = favouriteSource, modifier = Modifier.focusRing(favouriteSource, 20.dp)) {
+                    Text(stringResource(if (favourite) R.string.details_unfavourite else R.string.details_favourite))
+                }
                 val closeSource = rememberFocusSource()
                 TextButton(onClick = onDismiss, interactionSource = closeSource, modifier = Modifier.focusRing(closeSource, 20.dp)) {
                     Text(stringResource(R.string.details_close))

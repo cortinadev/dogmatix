@@ -24,7 +24,11 @@ class DogmatixApplication : Application() {
 
     @Inject
     lateinit var sourcesRepository: com.cortinadev.dogmatix.data.repository.SourcesRepository
-    
+
+    /** Injected so it starts watching finished downloads from the first one. */
+    @Inject
+    lateinit var rommUploadService: com.cortinadev.dogmatix.data.service.RommUploadService
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
     override fun onCreate() {

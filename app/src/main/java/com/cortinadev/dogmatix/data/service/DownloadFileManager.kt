@@ -56,6 +56,15 @@ class DownloadFileManager @Inject constructor(
         )
     }
 
+    /** The partially written file of a previous attempt, if any. */
+    fun findExistingFile(file: DownloadableFileEntity, downloadDirectoryUri: String, subPath: String): DocumentFile? {
+        val name = FileParsingUtils.decodeUrlEncodedFileName(file.fileName)
+        return runCatching { StorageHelper.createDirectory(context, downloadDirectoryUri, subPath)?.findFile(name)?.takeIf { it.isFile } }.getOrNull()
+    }
+
+    fun getAppendOutputStream(documentFile: DocumentFile): java.io.OutputStream? =
+        runCatching { context.contentResolver.openOutputStream(documentFile.uri, "wa") }.getOrNull()
+
     fun getOutputStream(documentFile: DocumentFile): java.io.OutputStream? {
         return StorageHelper.getOutputStream(context, documentFile)
     }

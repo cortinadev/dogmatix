@@ -3,6 +3,8 @@ package com.cortinadev.dogmatix.data.model
 import com.cortinadev.dogmatix.R
 
 enum class DownloadStatus {
+    /** Handed to a debrid service (TorBox, Real-Debrid); waiting for it to fetch the torrent server-side. */
+    QUEUED,
     DOWNLOADING,
     COPYING,
     UNZIPPING,
@@ -49,6 +51,13 @@ data class DownloadItemModel(
         get() = status == DownloadStatus.COMPLETED || status == DownloadStatus.FAILED || status == DownloadStatus.STOPPED
 }
 fun DownloadItemModel.getStatusAssets(): StatusAssets = when (status) {
+    DownloadStatus.QUEUED ->
+        StatusAssets(
+            currentStatusIcon = R.drawable.ic_web,
+            availableStatusIcons = intArrayOf(
+                R.drawable.ic_stop
+            )
+        )
     DownloadStatus.DOWNLOADING ->
         StatusAssets(
             currentStatusIcon = R.drawable.ic_arrow_down,

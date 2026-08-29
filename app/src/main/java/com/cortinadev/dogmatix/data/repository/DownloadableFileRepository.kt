@@ -20,6 +20,7 @@ class DownloadableFileRepository @Inject constructor(
         manufacturer: String? = null,
         consoleIds: Set<String> = emptySet(),
         tags: Set<String> = emptySet(),
+        favouritesOnly: Boolean = false,
         sortAsc: Boolean = true,
         limit: Int = 100,
         offset: Int = 0
@@ -42,6 +43,7 @@ class DownloadableFileRepository @Inject constructor(
             contentTypesCount = kind(TagKind.CONTENT_TYPE).size,
             fileTypes = kind(TagKind.FILE_TYPE),
             fileTypesCount = kind(TagKind.FILE_TYPE).size,
+            favouritesOnly = favouritesOnly,
             sortAsc = sortAsc,
             limit = limit,
             offset = offset

@@ -17,6 +17,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -33,6 +34,8 @@ import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.model.DownloadItemModel
 import com.cortinadev.dogmatix.data.model.DownloadStatus
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
+import com.cortinadev.dogmatix.data.service.UploadState
+import com.cortinadev.dogmatix.data.service.UploadStatus
 import com.cortinadev.dogmatix.ui.components.TagRow
 import com.cortinadev.dogmatix.ui.components.focusRing
 import com.cortinadev.dogmatix.ui.components.formatBytes
@@ -53,7 +56,8 @@ fun DownloadItem(
     details: DownloadableFileWithTags?,
     compact: Boolean,
     viewModel: DownloadViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    upload: UploadState? = null
 ) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
@@ -72,8 +76,10 @@ fun DownloadItem(
         DownloadStatus.COPYING -> R.drawable.ic_folder
         DownloadStatus.UNZIPPING -> R.drawable.ic_extract
         DownloadStatus.DOWNLOADING -> R.drawable.ic_arrow_down
+        DownloadStatus.QUEUED -> R.drawable.ic_web
     }
     val statusLabel = when (status) {
+        DownloadStatus.QUEUED -> stringResource(R.string.status_queued_debrid, viewModel.debridLabel.collectAsState().value, (item.progress * 100).toInt())
         DownloadStatus.COMPLETED -> stringResource(R.string.status_completed)
         DownloadStatus.FAILED -> stringResource(R.string.status_failed)
         DownloadStatus.STOPPED -> stringResource(R.string.status_stopped)
@@ -95,7 +101,8 @@ fun DownloadItem(
             "  ·  ${formatBytes(item.downloadedBytes)} / ${formatBytes(item.fileSize)}"
         else -> formatBytes(item.fileSize)
     } + (timeLabel?.let { "  ·  $it" } ?: "")
-    val busy = status == DownloadStatus.COPYING || status == DownloadStatus.UNZIPPING
+    val busy = status == DownloadStatus.COPYING || status == DownloadStatus.UNZIPPING ||
+        (status == DownloadStatus.QUEUED && item.progress <= 0f)
     val actionSize: Dp = if (compact) 36.dp else 44.dp
 
     Row(
@@ -154,6 +161,14 @@ fun DownloadItem(
                 )
             }
             Text(detail, style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant, maxLines = 1)
+            upload?.let { up ->
+                val (label, color) = when (up.status) {
+                    UploadStatus.UPLOADING -> stringResource(R.string.romm_upload_progress, (up.progress * 100).toInt()) to scheme.primary
+                    UploadStatus.DONE -> stringResource(R.string.romm_uploaded) to scheme.tertiary
+                    UploadStatus.FAILED -> stringResource(R.string.romm_upload_failed, up.message) to scheme.error
+                }
+                Text(label, style = MaterialTheme.typography.bodySmall, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
             details?.let {
                 TagRow(
                     console = ConsoleFormatter.getConsoleShortName(it.file.consoleId),
@@ -166,11 +181,16 @@ fun DownloadItem(
 
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             when (status) {
-                DownloadStatus.DOWNLOADING, DownloadStatus.UNZIPPING -> ActionButton(R.drawable.ic_stop, stringResource(R.string.download_cancel), actionSize, scheme.onSurface) {
+                DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.UNZIPPING -> ActionButton(R.drawable.ic_stop, stringResource(R.string.download_cancel), actionSize, scheme.onSurface) {
                     scope.launch { viewModel.cancelDownload(item.fileName) }
                 }
                 DownloadStatus.COPYING -> Unit
                 DownloadStatus.COMPLETED, DownloadStatus.STOPPED, DownloadStatus.FAILED -> {
+                    if (upload?.status == UploadStatus.FAILED) {
+                        ActionButton(R.drawable.ic_arrow_up, stringResource(R.string.romm_upload_retry), actionSize, scheme.primary) {
+                            viewModel.retryUpload(item.fileName)
+                        }
+                    }
                     ActionButton(R.drawable.ic_retry, stringResource(R.string.download_retry), actionSize, scheme.onSurface) {
                         scope.launch { viewModel.retryDownload(item.fileName) }
                     }

@@ -128,6 +128,7 @@ class DownloadProgressTracker @Inject constructor(
 
     fun hasActiveDownloads(): Boolean {
         return _downloads.value.any {
+            it.status == DownloadStatus.QUEUED ||
             it.status == DownloadStatus.DOWNLOADING ||
             it.status == DownloadStatus.COPYING ||
             it.status == DownloadStatus.UNZIPPING

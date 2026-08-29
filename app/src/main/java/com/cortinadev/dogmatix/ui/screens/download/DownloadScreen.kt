@@ -35,9 +35,10 @@ fun DownloadScreen(
 ) {
     val downloads by viewModel.downloads.collectAsState()
     val details by viewModel.downloadDetails.collectAsState()
+    val uploads by viewModel.uploads.collectAsState()
     val showDeleteConfirmation by viewModel.showDeleteConfirmation.collectAsState()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val active = downloads.count { it.status == DownloadStatus.DOWNLOADING }
+    val active = downloads.count { it.status == DownloadStatus.DOWNLOADING || it.status == DownloadStatus.QUEUED }
     val completed = downloads.count { it.status == DownloadStatus.COMPLETED }
 
     Column(
@@ -76,6 +77,7 @@ fun DownloadScreen(
                     DownloadItem(
                         item = item,
                         details = details[item.fileName],
+                        upload = uploads[item.fileName],
                         compact = isLandscape,
                         viewModel = viewModel
                     )

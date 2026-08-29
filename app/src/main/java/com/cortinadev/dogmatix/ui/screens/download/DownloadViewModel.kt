@@ -6,6 +6,9 @@ import com.cortinadev.dogmatix.data.model.DownloadItemModel
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
 import com.cortinadev.dogmatix.data.repository.DownloadRepository
 import com.cortinadev.dogmatix.data.repository.DownloadableFileRepository
+import com.cortinadev.dogmatix.data.repository.SettingsRepository
+import com.cortinadev.dogmatix.data.service.RommUploadService
+import com.cortinadev.dogmatix.data.service.UploadState
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -19,10 +22,21 @@ import javax.inject.Inject
 @HiltViewModel
 class DownloadViewModel @Inject constructor(
     private val repository: DownloadRepository,
-    private val fileRepository: DownloadableFileRepository
+    private val fileRepository: DownloadableFileRepository,
+    private val rommUploadService: RommUploadService,
+    settingsRepository: SettingsRepository
 ) : ViewModel() {
 
+    /** Name of the debrid service shown on QUEUED rows ("TorBox 40%"). */
+    val debridLabel: StateFlow<String> = settingsRepository.debridProvider.map { it.label }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
+
     val downloads: StateFlow<List<DownloadItemModel>> = repository.downloads
+
+    /** RomM upload state per download (see [RommUploadService]). */
+    val uploads: StateFlow<Map<String, UploadState>> = rommUploadService.uploads
+
+    fun retryUpload(fileName: String) = rommUploadService.retry(fileName)
 
     private val detailsCache = mutableMapOf<String, DownloadableFileWithTags?>()
 

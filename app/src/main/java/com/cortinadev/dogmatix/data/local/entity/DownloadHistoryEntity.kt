@@ -1,5 +1,6 @@
 package com.cortinadev.dogmatix.data.local.entity
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import com.cortinadev.dogmatix.data.model.DownloadItemModel
@@ -24,7 +25,11 @@ data class DownloadHistoryEntity(
     /** Epoch millis when the download was (last) started. */
     val startedAt: Long,
     /** Epoch millis when it reached COMPLETED / FAILED / STOPPED; null while in progress. */
-    val finishedAt: Long?
+    val finishedAt: Long?,
+    /** Debrid service + its torrent/file ids while a debrid download is in flight, so a retry can resume it. */
+    @ColumnInfo(defaultValue = "NULL") val debridProvider: String? = null,
+    @ColumnInfo(defaultValue = "NULL") val debridTorrentId: String? = null,
+    @ColumnInfo(defaultValue = "NULL") val debridFileId: Int? = null
 ) {
     fun toEntity(): DownloadableFileEntity = DownloadableFileEntity(
         name = name,
@@ -40,7 +45,7 @@ data class DownloadHistoryEntity(
     /** In-flight statuses can't be resumed after a process death, so they come back as STOPPED. */
     fun toItem(): DownloadItemModel {
         val restored = when (val s = DownloadStatus.valueOf(status)) {
-            DownloadStatus.DOWNLOADING, DownloadStatus.COPYING, DownloadStatus.UNZIPPING -> DownloadStatus.STOPPED
+            DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.COPYING, DownloadStatus.UNZIPPING -> DownloadStatus.STOPPED
             else -> s
         }
         return DownloadItemModel(

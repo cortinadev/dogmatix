@@ -51,16 +51,26 @@
     <string name="owned_deleted">"%1$s" has been deleted</string>
     <string name="owned_delete_failed">Could not delete "%1$s"</string>
     <string name="downloading_badge">Downloading</string>
+    <string name="favourite">Favourite</string>
+    <string name="favourites_only">Favourites only</string>
+    <string name="favourites_only_short">★</string>
+    <string name="filter_favourites">Favourites</string>
+    <string name="favourite_added">★ "%1$s" added to favourites</string>
+    <string name="favourite_removed">"%1$s" removed from favourites</string>
+    <string name="details_favourite">☆ Favourite</string>
+    <string name="details_unfavourite">★ Unfavourite</string>
+    <string name="pad_favourite">Favourite</string>
     <string name="download_already_active">"%1$s" is already downloading</string>
     <string name="free_space">%1$s free</string>
 
     <!-- Library -->
     <string name="filters">Filters</string>
+    <string name="collapse_filters">Hide filters</string>
+    <string name="expand_filters">Show filters</string>
     <string name="filter_console">Console</string>
     <string name="filter_region">Region</string>
     <string name="filter_language">Language</string>
     <string name="filter_type">Type</string>
-    <string name="filter_file_type">File type</string>
     <string name="filter_sort">Sort</string>
     <string name="filter_any">Any</string>
     <string name="filter_all">All</string>
@@ -85,6 +95,41 @@
     <string name="status_failed">Failed</string>
     <string name="status_stopped">Stopped</string>
     <string name="status_copying">Copying to storage…</string>
+    <string name="status_queued_debrid">%1$s %2$d%%</string>
+    <string name="settings_debrid">Debrid service</string>
+    <string name="settings_debrid_hint">Torrents are fetched by the service and downloaded over HTTP</string>
+    <string name="settings_debrid_key">%1$s API key</string>
+    <string name="settings_torbox_key_dialog_hint">From torbox.app → Settings → API. Stored on this device only.</string>
+    <string name="settings_realdebrid_key_dialog_hint">From real-debrid.com/apitoken (premium account needed). Stored on this device only.</string>
+    <string name="settings_test">Test</string>
+    <string name="api_key_label">API key</string>
+    <string name="debrid_key_valid">%1$s: connected as %2$s</string>
+    <string name="debrid_key_invalid">%1$s: %2$s</string>
+    <string name="nav_romm">RomM</string>
+    <string name="settings_romm">RomM server</string>
+    <string name="settings_romm_hint">Upload finished downloads to a RomM library</string>
+    <string name="romm_server_url">Server URL</string>
+    <string name="romm_url_dialog_hint">e.g. https://romm.example.com (no trailing path)</string>
+    <string name="romm_token">API token</string>
+    <string name="romm_token_dialog_hint">A client API token (rmm_…) from Administration → Client API Tokens, or user:password.</string>
+    <string name="romm_test_connection">Test connection</string>
+    <string name="romm_testing">Testing…</string>
+    <string name="romm_connected">RomM: connected, %1$d platforms</string>
+    <string name="romm_connection_failed">RomM: %1$s</string>
+    <string name="romm_platforms_none">No platforms loaded yet</string>
+    <string name="romm_platforms_count">%1$d platforms on the server</string>
+    <string name="romm_auto_upload">Upload finished downloads</string>
+    <string name="romm_auto_upload_hint">Only consoles mapped to a platform below</string>
+    <string name="romm_platforms_header">Console → platform</string>
+    <string name="romm_platforms_hint">◀ ▶ picks the RomM platform each console uploads to</string>
+    <string name="romm_apply_suggestions">Apply suggestions</string>
+    <string name="romm_suggestions_applied">%1$d console(s) mapped</string>
+    <string name="romm_not_mapped">Not mapped</string>
+    <string name="romm_suggested">%1$s · suggested</string>
+    <string name="romm_upload_progress">↑ RomM %1$d%%</string>
+    <string name="romm_uploaded">↑ Uploaded to RomM</string>
+    <string name="romm_upload_failed">↑ RomM upload failed: %1$s</string>
+    <string name="romm_upload_retry">Retry RomM upload</string>
     <string name="status_extracting">Extracting…</string>
 
     <!-- Settings (new) -->
@@ -101,6 +146,9 @@
     <string name="settings_concurrent_label">Concurrent downloads</string>
     <string name="settings_limit_label">Speed limit</string>
     <string name="settings_limit_hint">Unlimited at 0</string>
+    <string name="settings_metadata_timeout">Metadata timeout</string>
+    <string name="settings_metadata_timeout_hint">How long to wait for a magnet\'s file list (rescan and torrent downloads)</string>
+    <string name="seconds_short">%1$d s</string>
     <string name="settings_auto_unzip_hint">ZIP and 7z once the download finishes</string>
     <string name="settings_separate_hint">Works with ES-DE and Daijishō</string>
     <string name="settings_favorite_languages">Favorite languages</string>
@@ -256,9 +304,10 @@
 
     <!-- Sources: dialogs -->
     <string name="dialog_add_source">Add Source</string>
-    <string name="dialog_add_source_hint">Enter a URL, magnet link, or upload a .torrent file:</string>
+    <string name="dialog_add_source_hint">Enter a URL, magnet link, upload a .torrent file, or pick a RomM platform:</string>
+    <string name="dialog_from_romm">From your RomM server:</string>
     <string name="dialog_url_label">URL / Magnet</string>
-    <string name="dialog_url_placeholder">https://… or magnet:?</string>
+    <string name="dialog_url_placeholder">https://…, magnet:? or romm://psp</string>
     <string name="dialog_upload_torrent">Upload .torrent</string>
     <string name="dialog_content_type">Content type:</string>
     <string name="dialog_add">Add</string>
@@ -284,7 +333,7 @@
     <string name="onboarding_welcome_title">Welcome to Dogmatix</string>
     <string name="onboarding_welcome_body">Dogmatix indexes the contents of ROM sources — torrents, magnets and web directories — tags every file by console, region and language, and lets you browse, filter and download straight to your ROMs folder. Archives are extracted automatically.</string>
     <string name="onboarding_welcome_point_1">Sources are indexed, not downloaded: browse thousands of titles without filling your storage.</string>
-    <string name="onboarding_welcome_point_2">Filter by console, region, language, type and file format; ✓ marks what you already own.</string>
+    <string name="onboarding_welcome_point_2">Filter by console, region, language and type; ✓ marks what you already own.</string>
     <string name="onboarding_welcome_point_3">Downloads land in a folder per console, ready for frontends such as ES-DE.</string>
     <string name="onboarding_folder_title">Where are your ROMs?</string>
     <string name="onboarding_folder_body">Pick the root folder of your ROM library. Each console gets its own sub-folder inside it (existing ones like \"gba\" or \"psx\" are reused). You can change it later in Settings.</string>

@@ -171,6 +171,8 @@ fun SourcesScreen(
     }
 
     val dialog by viewModel.dialog.collectAsState()
+
+    val rommPlatforms by viewModel.rommPlatforms.collectAsState()
     val importMessage by viewModel.importMessage.collectAsState()
 
     val mergeConsoleId by viewModel.mergeConsoleId.collectAsState()
@@ -206,11 +208,13 @@ fun SourcesScreen(
             onConfirm = { values -> viewModel.updateConsole(d.console.id, values.name, values.shortName, values.aliases) }
         )
         is SourcesDialog.AddUrl -> AddUrlDialog(
+            rommPlatforms = rommPlatforms,
             onDismiss = { viewModel.dismissDialog() },
             onConfirm = { url, contentType -> viewModel.addUrl(d.consoleId, url, contentType) }
         )
         is SourcesDialog.EditUrl -> AddUrlDialog(
             existing = d.entry,
+            rommPlatforms = rommPlatforms,
             onDismiss = { viewModel.dismissDialog() },
             onConfirm = { url, contentType -> viewModel.updateUrl(d.consoleId, d.index, url, contentType) }
         )

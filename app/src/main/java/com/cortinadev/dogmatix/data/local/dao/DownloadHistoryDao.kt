@@ -21,6 +21,12 @@ interface DownloadHistoryDao {
     @Query("UPDATE download_history SET status = :status, startedAt = :startedAt, finishedAt = NULL WHERE fileName = :fileName")
     suspend fun markRestarted(fileName: String, status: String, startedAt: Long)
 
+    @Query("SELECT * FROM download_history WHERE fileName = :fileName LIMIT 1")
+    suspend fun getByFileName(fileName: String): DownloadHistoryEntity?
+
+    @Query("UPDATE download_history SET debridProvider = :provider, debridTorrentId = :torrentId, debridFileId = :fileId WHERE fileName = :fileName")
+    suspend fun setDebrid(fileName: String, provider: String?, torrentId: String?, fileId: Int?)
+
     @Query("DELETE FROM download_history WHERE fileName = :fileName")
     suspend fun delete(fileName: String)
 }

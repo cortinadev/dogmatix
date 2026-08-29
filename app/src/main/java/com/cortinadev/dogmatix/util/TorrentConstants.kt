@@ -1,7 +1,10 @@
 package com.cortinadev.dogmatix.util
 
 object TorrentConstants {
-    const val METADATA_FETCH_TIMEOUT_MS = 20_000L
+    /** Default for the "Metadata timeout" setting (seconds); the registry reads the live value. */
+    const val DEFAULT_METADATA_TIMEOUT_S = 20
+    const val MIN_METADATA_TIMEOUT_S = 10
+    const val MAX_METADATA_TIMEOUT_S = 180
     const val METADATA_POLL_INTERVAL_MS = 500L
     const val SESSION_FLAGS = 0x003L
 

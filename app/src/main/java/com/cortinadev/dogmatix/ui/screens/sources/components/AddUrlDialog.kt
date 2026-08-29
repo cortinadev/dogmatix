@@ -14,6 +14,8 @@ import androidx.compose.ui.unit.dp
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.model.ContentType
 import com.cortinadev.dogmatix.data.model.UrlEntry
+import com.cortinadev.dogmatix.data.service.RommPlatform
+import com.cortinadev.dogmatix.util.RommSource
 import com.cortinadev.dogmatix.ui.components.DialogButton
 import com.cortinadev.dogmatix.ui.components.closeOnGamepadB
 import com.cortinadev.dogmatix.ui.components.focusRing
@@ -27,6 +29,8 @@ import com.cortinadev.dogmatix.ui.components.rememberInitialFocus
 @Composable
 fun AddUrlDialog(
     existing: UrlEntry? = null,
+    /** Platforms of the RomM server from Settings; one chip each sets the URL to `romm://<slug>`. */
+    rommPlatforms: List<RommPlatform> = emptyList(),
     onDismiss: () -> Unit,
     onConfirm: (String, ContentType) -> Unit
 ) {
@@ -76,6 +80,13 @@ fun AddUrlDialog(
                     }
                 }
 
+                if (rommPlatforms.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(stringResource(R.string.dialog_from_romm), style = MaterialTheme.typography.titleSmall)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    RommPlatformChips(platforms = rommPlatforms, selected = RommSource.slugOf(url)) { url = RommSource.sourceFor(it.slug) }
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(stringResource(R.string.dialog_content_type), style = MaterialTheme.typography.titleSmall)
@@ -94,6 +105,27 @@ fun AddUrlDialog(
             DialogButton(text = stringResource(R.string.dialog_cancel), onClick = onDismiss)
         }
     )
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun RommPlatformChips(platforms: List<RommPlatform>, selected: String?, onPick: (RommPlatform) -> Unit) {
+    FlowRow(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        platforms.forEach { platform ->
+            val source = rememberFocusSource()
+            FilterChip(
+                selected = selected != null && (platform.slug.equals(selected, true) || platform.fsSlug.equals(selected, true)),
+                onClick = { onPick(platform) },
+                label = { Text(platform.label, maxLines = 1) },
+                interactionSource = source,
+                modifier = Modifier.focusRing(source, 8.dp)
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalLayoutApi::class)

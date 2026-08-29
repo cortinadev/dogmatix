@@ -2,11 +2,13 @@ package com.cortinadev.dogmatix.data.service
 
 import android.content.Context
 import android.util.Log
+import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.util.FileParsingUtils
 import com.cortinadev.dogmatix.util.TorrentConstants
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -21,7 +23,8 @@ import javax.inject.Singleton
 
 @Singleton
 class TorrentHandleRegistry @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val settingsRepository: SettingsRepository
 ) {
 
     private val session = SessionManager()
@@ -151,7 +154,8 @@ class TorrentHandleRegistry @Inject constructor(
         }
 
     private suspend fun waitForMetadata(handle: TorrentHandle, uri: String): TorrentHandle {
-        val result = withTimeoutOrNull(TorrentConstants.METADATA_FETCH_TIMEOUT_MS) {
+        val timeoutS = settingsRepository.metadataTimeoutSeconds.first()
+        val result = withTimeoutOrNull(timeoutS * 1000L) {
             while (!Thread.currentThread().isInterrupted) {
                 try {
                     if (handle.isValid && handle.torrentFile() != null) {
@@ -177,7 +181,7 @@ class TorrentHandleRegistry @Inject constructor(
                 if (handle.isValid) session.swig().remove_torrent(handle.swig())
             } catch (_: Exception) {}
             throw TorrentMetadataTimeoutException(
-                "Metadata fetch timed out after ${TorrentConstants.METADATA_FETCH_TIMEOUT_MS / 1000}s for: $uri"
+                "Metadata fetch timed out after ${timeoutS}s for: $uri"
             )
         }
         handle.pause()

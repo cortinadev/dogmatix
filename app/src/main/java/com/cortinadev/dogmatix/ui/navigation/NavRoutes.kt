@@ -8,10 +8,11 @@ sealed class NavRoutes(val route: String, val labelRes: Int, val icon: Int) {
     object Sources : NavRoutes("sources", R.string.nav_sources, R.drawable.ic_folder)
     object Settings : NavRoutes("settings", R.string.nav_settings, R.drawable.ic_settings)
     object Contact : NavRoutes("contact", R.string.nav_contact, R.drawable.ic_edit)
+    object Romm : NavRoutes("romm", R.string.nav_romm, R.drawable.ic_arrow_up)
 
     companion object {
-        /** The four sections shown as tabs; Contact is reached from Settings. */
+        /** The four sections shown as tabs; Contact and RomM are reached from Settings. */
         val tabs by lazy { listOf(Home, Downloads, Sources, Settings) }
-        val allRoutes by lazy { tabs + Contact }
+        val allRoutes by lazy { tabs + Contact + Romm }
     }
 }

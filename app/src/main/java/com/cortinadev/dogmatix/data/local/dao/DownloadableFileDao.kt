@@ -48,6 +48,9 @@ interface DownloadableFileDao {
           AND (:fileTypesCount = 0 OR EXISTS (
                 SELECT 1 FROM downloadable_file_tags t_fileTypes WHERE t_fileTypes.fileId = df.id AND t_fileTypes.tag IN (:fileTypes)
           ))
+          AND (:favouritesOnly = 0 OR EXISTS (
+                SELECT 1 FROM favourites f WHERE f.consoleId = df.consoleId AND f.fileName = df.fileName
+          ))
         GROUP BY df.id, df.name, df.fileName, df.consoleId, df.downloadUrl, df.fileSize,
                  df.fileExtension, df.torrentFileIndex, df.torrentMagnet
         ORDER BY
@@ -70,6 +73,7 @@ interface DownloadableFileDao {
         contentTypesCount: Int,
         fileTypes: List<String>,
         fileTypesCount: Int,
+        favouritesOnly: Boolean,
         sortAsc: Boolean,
         limit: Int = 100,
         offset: Int = 0

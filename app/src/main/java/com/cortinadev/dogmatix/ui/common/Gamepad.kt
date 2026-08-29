@@ -14,9 +14,10 @@ import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * Buttons the app handles itself. A / B / D-pad go through the normal focus system.
- * ZL / ZR switch sections, LB / RB switch panels inside a screen.
+ * ZL / ZR switch sections, LB / RB switch panels inside a screen, Select stars a game,
+ * R3 collapses / expands the filter panel.
  */
-enum class GamepadButton { PREV_TAB, NEXT_TAB, PREV_PANEL, NEXT_PANEL, X, Y, FOCUS_TAB }
+enum class GamepadButton { PREV_TAB, NEXT_TAB, PREV_PANEL, NEXT_PANEL, X, Y, FAVOURITE, TOGGLE_FILTERS, FOCUS_TAB }
 
 /**
  * Process-wide gamepad state: whether one is connected (drives the button legend)
@@ -38,8 +39,13 @@ object Gamepad {
     /** Requester of the active section tab (screens hand focus back to the header with B). */
     val sectionFocus: FocusRequester get() = tabFocus[currentRoute] ?: tabFocus.getValue("home")
 
-    /** A screen can publish a context-specific button legend here (null = the section default). */
-    val legendOverride = MutableStateFlow<List<LegendEntry>?>(null)
+    /**
+     * A screen can publish a context-specific button legend here (null = the section default).
+     * Wrapped in [Legend] (identity equality) on purpose: StateFlow conflates equal values, and two
+     * screens with the same entries (Settings and RomM) would otherwise share one stored reference
+     * and the outgoing screen's onDispose would wipe the incoming one's legend.
+     */
+    val legendOverride = MutableStateFlow<Legend?>(null)
 
     private var listener: InputManager.InputDeviceListener? = null
 
@@ -86,6 +92,8 @@ object Gamepad {
             KeyEvent.KEYCODE_BUTTON_R1 -> GamepadButton.NEXT_PANEL
             KeyEvent.KEYCODE_BUTTON_X -> GamepadButton.X
             KeyEvent.KEYCODE_BUTTON_Y -> GamepadButton.Y
+            KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_BUTTON_THUMBL -> GamepadButton.FAVOURITE
+            KeyEvent.KEYCODE_BUTTON_THUMBR -> GamepadButton.TOGGLE_FILTERS
             else -> null
         }
         if (shortcut != null) {
@@ -128,3 +136,6 @@ object Gamepad {
         return false
     }
 }
+
+/** One published legend; plain class so two lists with equal entries are still distinct. */
+class Legend(val entries: List<LegendEntry>)

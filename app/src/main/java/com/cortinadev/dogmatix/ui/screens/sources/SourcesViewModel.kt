@@ -15,6 +15,8 @@ import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.data.repository.SourcesRepository
 import com.cortinadev.dogmatix.data.service.ConsoleDownloadPathResolver
 import com.cortinadev.dogmatix.data.service.DatabaseScrapingService
+import com.cortinadev.dogmatix.data.service.RommClient
+import com.cortinadev.dogmatix.data.service.RommPlatform
 import com.cortinadev.dogmatix.data.service.DefaultSourcesLoader
 import com.cortinadev.dogmatix.data.service.FolderMergeService
 import com.cortinadev.dogmatix.data.service.LibraryIndexService
@@ -44,8 +46,19 @@ class SourcesViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     private val pathResolver: ConsoleDownloadPathResolver,
     private val folderMergeService: FolderMergeService,
-    private val libraryIndexService: LibraryIndexService
+    private val libraryIndexService: LibraryIndexService,
+    private val rommClient: RommClient
 ) : ViewModel() {
+
+    /** RomM platforms offered in the source dialog; empty when RomM is not configured or unreachable. */
+    private val _rommPlatforms = MutableStateFlow<List<RommPlatform>>(emptyList())
+    val rommPlatforms: StateFlow<List<RommPlatform>> = _rommPlatforms.asStateFlow()
+
+    private fun loadRommPlatforms() {
+        viewModelScope.launch {
+            _rommPlatforms.value = runCatching { rommClient.platforms().sortedBy { it.label.lowercase() } }.getOrDefault(emptyList())
+        }
+    }
 
     val manufacturers: Flow<List<Manufacturer>> = sources.manufacturers
 
@@ -148,8 +161,8 @@ class SourcesViewModel @Inject constructor(
 
     fun showAddConsoleDialog() { _dialog.value = Dialog.AddConsole }
     fun showEditConsoleDialog(console: Console) { _dialog.value = Dialog.EditConsole(console) }
-    fun showAddUrlDialog(consoleId: String) { _dialog.value = Dialog.AddUrl(consoleId) }
-    fun showEditUrlDialog(consoleId: String, index: Int, entry: UrlEntry) { _dialog.value = Dialog.EditUrl(consoleId, index, entry) }
+    fun showAddUrlDialog(consoleId: String) { loadRommPlatforms(); _dialog.value = Dialog.AddUrl(consoleId) }
+    fun showEditUrlDialog(consoleId: String, index: Int, entry: UrlEntry) { loadRommPlatforms(); _dialog.value = Dialog.EditUrl(consoleId, index, entry) }
     fun confirmDeleteConsole(console: Console) { _dialog.value = Dialog.ConfirmDeleteConsole(console.id, console.name) }
     fun confirmDeleteUrl(consoleId: String, index: Int, entry: UrlEntry) { _dialog.value = Dialog.ConfirmDeleteUrl(consoleId, index, entry.url) }
     fun confirmImport() { _dialog.value = Dialog.ConfirmImport }
