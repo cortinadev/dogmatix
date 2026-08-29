@@ -22,6 +22,7 @@ import com.cortinadev.dogmatix.data.state.LibraryFilterRequest
 import com.cortinadev.dogmatix.data.state.PendingLibraryFilters
 import com.cortinadev.dogmatix.data.state.RescanStateHolder
 import com.cortinadev.dogmatix.util.ConsoleFormatter
+import com.cortinadev.dogmatix.util.DeepLinkResolver
 import com.cortinadev.dogmatix.util.StorageHelper
 import com.cortinadev.dogmatix.util.ToastUtil
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -35,7 +36,11 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
+
+/** How long a deep link waits for consoles / tag catalogue before applying what it has. */
+private const val RESOLVE_TIMEOUT_MS = 5_000L
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -140,7 +145,7 @@ class HomeViewModel @Inject constructor(
     init {
         // Deep links (dogmatix://library?…): apply whatever is waiting, now and on every new link.
         viewModelScope.launch {
-            pendingFilters.request.collect { if (it != null) pendingFilters.consume()?.let(::applyRequest) }
+            pendingFilters.request.collect { if (it != null) pendingFilters.consume()?.let { request -> applyRequest(request) } }
         }
         viewModelScope.launch {
             combine(
@@ -161,9 +166,23 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    private fun applyRequest(request: LibraryFilterRequest) {
-        _selectedConsoles.value = request.consoles
-        _activeTags.value = request.tags
+    /**
+     * Deep-link values are loose (`console=snes`, `region=japan`): resolve them against the
+     * console list and the tag catalogue, waiting briefly for both if the link arrived during a
+     * cold start. Unknown consoles are dropped; unknown tags are applied verbatim.
+     */
+    private suspend fun applyRequest(request: LibraryFilterRequest) {
+        val consoleIds = if (request.consoles.isEmpty()) emptySet() else {
+            val consoles = withTimeoutOrNull(RESOLVE_TIMEOUT_MS) { _consoles.first { it.isNotEmpty() } } ?: _consoles.value
+            DeepLinkResolver.resolveConsoles(request.consoles, consoles.map { it.id })
+        }
+        val tags = if (request.tags.isEmpty()) emptySet() else {
+            val catalogue = withTimeoutOrNull(RESOLVE_TIMEOUT_MS) { _categorizedTags.first { it != null } } ?: _categorizedTags.value
+            val known = catalogue?.let { it.regions.tags + it.languages.tags + it.videoStandards.tags + it.contentTypes.tags + it.fileTypes.tags }.orEmpty()
+            DeepLinkResolver.resolveTags(request.tags, known)
+        }
+        _selectedConsoles.value = consoleIds
+        _activeTags.value = tags
         _searchQuery.value = request.query.orEmpty()
         request.favouritesOnly?.let { _favouritesOnly.value = it }
     }

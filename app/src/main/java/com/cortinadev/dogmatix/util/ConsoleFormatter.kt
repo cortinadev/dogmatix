@@ -71,9 +71,19 @@ object ConsoleFormatter {
         ConsoleAliasRegistry.shortNameFor(consoleId) ?: getDefaultShortName(consoleId)
 
     /** Built-in abbreviation for [consoleId] (what the app uses when none is configured). */
-    fun getDefaultShortName(consoleId: String): String {
-        val key = consoleId.substringAfter("_", consoleId).lowercase()
-        return shortNames[key] ?: getConsoleFolderName(consoleId)
+    fun getDefaultShortName(consoleId: String): String =
+        shortNames[consoleKey(consoleId)] ?: getConsoleFolderName(consoleId)
+
+    /**
+     * Table key for [consoleId]. Ids are usually `manufacturer_console` (`nintendo_gameboy_advance`
+     * → `gameboy_advance`), but imported sources may use the bare console name
+     * (`super_nintendo_entertainment_system`); those are keys already and must not be trimmed,
+     * or SNES would inherit NES's entry.
+     */
+    fun consoleKey(consoleId: String): String {
+        val id = consoleId.lowercase()
+        if (id in shortNames || ConsoleFolderAliases.hasDefaultsFor(id)) return id
+        return id.substringAfter("_", id)
     }
 
     fun getConsoleDisplayName(consoleId: String): String {

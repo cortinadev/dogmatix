@@ -35,9 +35,11 @@ object ConsoleFolderAliases {
     fun normalize(name: String): String =
         name.lowercase().replace(Regex("[\\s_\\-]"), "")
 
-    /** Console part of a console id: `nintendo_gameboy` → `gameboy`. */
-    private fun consoleKey(consoleId: String): String =
-        if (consoleId.contains("_")) consoleId.substringAfter("_") else consoleId
+    /** Console part of a console id: `nintendo_gameboy` → `gameboy` (see [ConsoleFormatter.consoleKey]). */
+    private fun consoleKey(consoleId: String): String = ConsoleFormatter.consoleKey(consoleId)
+
+    /** Whether [key] (already lower-case) has a built-in alias list. */
+    fun hasDefaultsFor(key: String): Boolean = key in aliases
 
     /** Built-in aliases for [consoleId] (without the configured ones), in listing order. */
     fun defaultAliasesFor(consoleId: String): List<String> = aliases[consoleKey(consoleId)].orEmpty()

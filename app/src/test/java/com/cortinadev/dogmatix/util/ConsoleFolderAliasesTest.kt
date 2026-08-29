@@ -30,6 +30,17 @@ class ConsoleFolderAliasesTest {
     }
 
     @Test
+    fun `bare console ids keep their own entry instead of the trimmed one`() {
+        // Trimming to the first underscore would turn SNES into NES's key.
+        assertEquals("SNES", ConsoleFormatter.getDefaultShortName("super_nintendo_entertainment_system"))
+        assertEquals("NES", ConsoleFormatter.getDefaultShortName("nintendo_entertainment_system"))
+        assertEquals(false, ConsoleFolderAliases.matches("super_nintendo_entertainment_system", "nes"))
+        assertEquals(true, ConsoleFolderAliases.matches("super_nintendo_entertainment_system", "snes"))
+        assertEquals(true, ConsoleFolderAliases.matches("nintendo_entertainment_system", "famicom"))
+        assertEquals("GBA", ConsoleFormatter.getDefaultShortName("nintendo_gameboy_advance"))
+    }
+
+    @Test
     fun `matchingFolders is empty when nothing matches`() {
         assertEquals(emptyList<String>(), ConsoleFolderAliases.matchingFolders(folders, "nintendo_64"))
         assertNull(ConsoleFolderAliases.pickExistingFolder(folders, "nintendo_64"))

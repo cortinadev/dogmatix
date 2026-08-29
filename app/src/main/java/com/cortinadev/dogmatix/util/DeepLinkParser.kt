@@ -7,9 +7,11 @@ import java.net.URLDecoder
 /**
  * `dogmatix://library?console=nintendo_snes&region=USA,Europe&lang=En&type=GAME&q=mario&fav=1`
  *
- * - `console`: console ids (as in Sources), comma-separated.
- * - `region`, `lang`, `type`, `filetype`, `tag`: library tags, comma-separated. They all end up
- *   in the same tag set; the kind is derived from the value (see `TagCategorizer`).
+ * - `console`: console ids (as in Sources), short names (`snes`) or folder aliases, comma-separated.
+ * - `region`, `lang`, `type`, `filetype`, `tag`: library tags, comma-separated, any case. They all
+ *   end up in the same tag set; the kind is derived from the value (see `TagCategorizer`).
+ *
+ * Values are kept verbatim here; `DeepLinkResolver` maps them onto real ids / tag spellings.
  * - `q`: search text. `fav`: `1`/`true` shows favourites only, `0`/`false` all games.
  *
  * Pure JVM (no `android.net.Uri`) so it can be unit-tested.
