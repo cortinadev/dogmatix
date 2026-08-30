@@ -35,6 +35,14 @@ class TorrentProgressBridge @Inject constructor(
 
     // Single map replaces the old separate `tracked` (fileName→index) and `handles` (fileName→handle).
     private val tracked = mutableMapOf<String, TrackedFile>()
+
+    /**
+     * Last observation per download, to derive a per-file rate from [TorrentHandle.fileProgress]
+     * deltas: `status().downloadPayloadRate()` is the whole torrent's rate, so sibling files from
+     * one torrent would all show the same (total) speed. Guarded by the same monitor as [tracked].
+     */
+    private class RateState(var bytes: Long, var nanos: Long, var emaBytesPerSec: Float = 0f)
+    private val rates = mutableMapOf<String, RateState>()
     // Polling runs on IO — avoids JNI calls on the main thread.
     private val scope = CoroutineScope(Dispatchers.IO + Job())
     private var pollingJob: Job? = null
@@ -44,6 +52,7 @@ class TorrentProgressBridge @Inject constructor(
         val expectedSize = handle.torrentFile()?.files()?.fileSize(fileIndex) ?: 0L
         synchronized(this) {
             tracked[fileName] = TrackedFile(fileIndex, handle, expectedSize)
+            rates.remove(fileName)
             startPolling()
         }
         Log.d(TAG, "Tracking $fileName at index $fileIndex")
@@ -52,6 +61,7 @@ class TorrentProgressBridge @Inject constructor(
     fun untrackDownload(fileName: String, fileIndex: Int) {
         synchronized(this) {
             tracked.remove(fileName)
+            rates.remove(fileName)
             if (tracked.isEmpty()) stopPolling()
         }
     }
@@ -93,7 +103,21 @@ class TorrentProgressBridge @Inject constructor(
                 (status.progress() * total).toLong()
             }
             val progress = (downloaded.toFloat() / total.toFloat()).coerceIn(0f, 1f)
-            val speedMBs = status.downloadPayloadRate() / (1024f * 1024f)
+            val now = System.nanoTime()
+            val speedMBs: Float
+            synchronized(this) {
+                val rate = rates.getOrPut(fileName) { RateState(downloaded, now) }
+                val dtSeconds = (now - rate.nanos) / 1e9f
+                if (dtSeconds > 0.2f) {
+                    val instant = (downloaded - rate.bytes).coerceAtLeast(0L) / dtSeconds
+                    // Light smoothing: per-file deltas jitter because pieces finish out of order.
+                    rate.emaBytesPerSec =
+                        if (rate.emaBytesPerSec == 0f) instant else rate.emaBytesPerSec * 0.6f + instant * 0.4f
+                    rate.bytes = downloaded
+                    rate.nanos = now
+                }
+                speedMBs = rate.emaBytesPerSec / (1024f * 1024f)
+            }
 
             val state = status.state()
             val isChecking = state == org.libtorrent4j.TorrentStatus.State.CHECKING_FILES ||
