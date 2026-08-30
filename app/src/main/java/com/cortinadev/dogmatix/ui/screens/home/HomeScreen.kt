@@ -191,7 +191,7 @@ fun HomeScreen(
         ),
         tagRow(stringResource(R.string.filter_region), categorizedTags?.regions?.tags.orEmpty()),
         tagRow(stringResource(R.string.filter_language), categorizedTags?.languages?.tags.orEmpty(), featured = favoriteLanguages),
-        tagRow(stringResource(R.string.filter_tag), categorizedTags?.other?.tags.orEmpty()),
+        tagRow(stringResource(R.string.filter_tag), categorizedTags?.contentTypes?.tags.orEmpty()),
         FilterRowSpec(
             label = stringResource(R.string.filter_favourites),
             options = listOf(

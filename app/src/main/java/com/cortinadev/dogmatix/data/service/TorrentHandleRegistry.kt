@@ -13,7 +13,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
-import org.libtorrent4j.SessionHandle
 import org.libtorrent4j.SessionManager
 import org.libtorrent4j.TorrentFlags
 import org.libtorrent4j.TorrentHandle
@@ -100,7 +99,16 @@ class TorrentHandleRegistry @Inject constructor(
                 try {
                     // Nothing else tracks this torrent any more: drop whatever it left in
                     // cacheDir/torrent_data (cancelled or failed partials would pile up otherwise).
-                    session.remove(handle, SessionHandle.DELETE_FILES)
+                    // The files are deleted here, synchronously, NOT via remove(DELETE_FILES):
+                    // libtorrent runs that deletion asynchronously, and when the next queued
+                    // download re-adds the same torrent right after this release, the pending
+                    // deletion wipes the fresh download's files (FILE_ERROR → failed downloads).
+                    val partials = partialFilePaths(handle)
+                    // libtorrent keeps pieces of IGNOREd sibling files in ".<infohash>.parts";
+                    // stale partfiles must not be reused by a later re-add of the same magnet.
+                    val partfile = try { ".${handle.infoHash()}.parts" } catch (e: Exception) { null }
+                    session.remove(handle)
+                    deleteFromCache(partials + listOfNotNull(partfile))
                 } catch (e: Exception) {
                     Log.e(TAG, "Error removing torrent: ${e.message}")
                 }
@@ -109,6 +117,34 @@ class TorrentHandleRegistry @Inject constructor(
         fetchMutexes.remove(optimizedMagnet)
         handleCount = handles.size
         Log.i(TAG, "Released handle for $optimizedMagnet (${handles.size} remaining)")
+    }
+
+    /** Relative paths (within torrent_data) of this torrent's files that have any bytes on disk. */
+    private fun partialFilePaths(handle: TorrentHandle): List<String> = try {
+        val info = handle.torrentFile() ?: return emptyList()
+        val progress = handle.fileProgress()
+        (0 until info.numFiles())
+            .filter { it < progress.size && progress[it] > 0L }
+            .map { info.files().filePath(it) }
+    } catch (e: Exception) {
+        emptyList()
+    }
+
+    private fun deleteFromCache(relativePaths: List<String>) {
+        if (relativePaths.isEmpty()) return
+        val root = File(context.cacheDir, "torrent_data")
+        var deleted = 0
+        relativePaths.forEach { path ->
+            val f = File(root, path)
+            if (f.exists() && f.delete()) deleted++
+            // Drop now-empty parents up to (but not including) torrent_data itself.
+            var dir = f.parentFile
+            while (dir != null && dir != root && dir.list()?.isEmpty() == true) {
+                if (!dir.delete()) break
+                dir = dir.parentFile
+            }
+        }
+        if (deleted > 0) Log.i(TAG, "Deleted $deleted partial file(s) from torrent cache")
     }
 
     fun session(): SessionManager = session
@@ -215,7 +251,9 @@ class TorrentHandleRegistry @Inject constructor(
 
         if (result == null) {
             try {
-                if (handle.isValid) session.swig().remove_torrent(handle.swig(), SessionHandle.DELETE_FILES)
+                // Upload mode wrote nothing, so a plain remove is enough (and DELETE_FILES
+                // could race a concurrent re-add of the same magnet; see releaseHandle).
+                if (handle.isValid) session.swig().remove_torrent(handle.swig())
             } catch (_: Exception) {}
             throw TorrentMetadataTimeoutException(
                 "Metadata fetch timed out after ${timeoutS}s without progress for: $uri"

@@ -43,8 +43,8 @@ interface DownloadableFileDao {
           AND (:videoStandardsCount = 0 OR EXISTS (
                 SELECT 1 FROM downloadable_file_tags t_videoStandards WHERE t_videoStandards.fileId = df.id AND t_videoStandards.tag IN (:videoStandards)
           ))
-          AND (:otherTagsCount = 0 OR EXISTS (
-                SELECT 1 FROM downloadable_file_tags t_other WHERE t_other.fileId = df.id AND t_other.tag IN (:otherTags)
+          AND (:contentTypesCount = 0 OR EXISTS (
+                SELECT 1 FROM downloadable_file_tags t_contentTypes WHERE t_contentTypes.fileId = df.id AND t_contentTypes.tag IN (:contentTypes)
           ))
           AND (:fileTypesCount = 0 OR EXISTS (
                 SELECT 1 FROM downloadable_file_tags t_fileTypes WHERE t_fileTypes.fileId = df.id AND t_fileTypes.tag IN (:fileTypes)
@@ -74,8 +74,8 @@ interface DownloadableFileDao {
         languagesCount: Int,
         videoStandards: List<String>,
         videoStandardsCount: Int,
-        otherTags: List<String>,
-        otherTagsCount: Int,
+        contentTypes: List<String>,
+        contentTypesCount: Int,
         fileTypes: List<String>,
         fileTypesCount: Int,
         favouritesOnly: Boolean,

@@ -186,7 +186,7 @@ class HomeViewModel @Inject constructor(
         }
         val tags = if (request.tags.isEmpty()) emptySet() else {
             val catalogue = withTimeoutOrNull(RESOLVE_TIMEOUT_MS) { _categorizedTags.first { it != null } } ?: _categorizedTags.value
-            val known = catalogue?.let { it.regions.tags + it.languages.tags + it.videoStandards.tags + it.other.tags + it.fileTypes.tags }.orEmpty()
+            val known = catalogue?.let { it.regions.tags + it.languages.tags + it.videoStandards.tags + it.contentTypes.tags + it.fileTypes.tags }.orEmpty()
             DeepLinkResolver.resolveTags(request.tags, known)
         }
         _selectedConsoles.value = consoleIds

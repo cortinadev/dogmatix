@@ -3,6 +3,18 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
+## [1.1.3] – 2026-08-31
+
+### Fixed
+- **Queued downloads from the same torrent failing** (1.1.2 regression): releasing a finished
+  torrent deleted its cached files asynchronously, which could wipe the files of the same
+  torrent when the next queued download re-added it (flashing Failed/Completed rows, endless
+  partfile errors, nothing copied to the ROMs folder). Partial files — the partfile included —
+  are now deleted synchronously and individually. Verified on device with six queued downloads
+  from one torrent.
+- The *Tag* filter lists the fixed set of content-type tags again (Game, Demo, Beta, Proto…),
+  as *Type* did before 1.1.1 — only the filter's name changed.
+
 ## [1.1.2] – 2026-08-30
 
 ### Fixed
