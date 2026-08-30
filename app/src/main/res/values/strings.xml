@@ -70,7 +70,11 @@
     <string name="filter_console">Console</string>
     <string name="filter_region">Region</string>
     <string name="filter_language">Language</string>
-    <string name="filter_type">Type</string>
+    <string name="filter_tag">Tag</string>
+    <string name="filter_source">Source</string>
+    <string name="source_torrent">Torrent</string>
+    <string name="source_romm">RomM</string>
+    <string name="source_direct">Direct link</string>
     <string name="filter_sort">Sort</string>
     <string name="filter_any">Any</string>
     <string name="filter_all">All</string>
@@ -147,7 +151,7 @@
     <string name="settings_limit_label">Speed limit</string>
     <string name="settings_limit_hint">Unlimited at 0</string>
     <string name="settings_metadata_timeout">Metadata timeout</string>
-    <string name="settings_metadata_timeout_hint">How long to wait for a magnet\'s file list (rescan and torrent downloads)</string>
+    <string name="settings_metadata_timeout_hint">How long to wait for a magnet\'s file list with no progress (rescan and torrent downloads); the clock restarts while data keeps arriving</string>
     <string name="seconds_short">%1$d s</string>
     <string name="settings_auto_unzip_hint">ZIP and 7z once the download finishes</string>
     <string name="settings_separate_hint">Works with ES-DE and Daijishō</string>
@@ -333,7 +337,7 @@
     <string name="onboarding_welcome_title">Welcome to Dogmatix</string>
     <string name="onboarding_welcome_body">Dogmatix indexes the contents of ROM sources — torrents, magnets and web directories — tags every file by console, region and language, and lets you browse, filter and download straight to your ROMs folder. Archives are extracted automatically.</string>
     <string name="onboarding_welcome_point_1">Sources are indexed, not downloaded: browse thousands of titles without filling your storage.</string>
-    <string name="onboarding_welcome_point_2">Filter by console, region, language and type; ✓ marks what you already own.</string>
+    <string name="onboarding_welcome_point_2">Filter by console, region, language, tag and source; ✓ marks what you already own.</string>
     <string name="onboarding_welcome_point_3">Downloads land in a folder per console, ready for frontends such as ES-DE.</string>
     <string name="onboarding_folder_title">Where are your ROMs?</string>
     <string name="onboarding_folder_body">Pick the root folder of your ROM library. Each console gets its own sub-folder inside it (existing ones like \"gba\" or \"psx\" are reused). You can change it later in Settings.</string>

@@ -92,6 +92,7 @@ import androidx.navigation.NavController
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.ui.components.stripExtension
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
+import com.cortinadev.dogmatix.data.model.SourceFilter
 import com.cortinadev.dogmatix.ui.common.Gamepad
 import com.cortinadev.dogmatix.ui.common.GamepadButton
 import com.cortinadev.dogmatix.ui.common.Legend
@@ -131,6 +132,7 @@ fun HomeScreen(
     val ownedKeys by viewModel.ownedKeys.collectAsState()
     val favouriteKeys by viewModel.favouriteKeys.collectAsState()
     val favouritesOnly by viewModel.favouritesOnly.collectAsState()
+    val sourceFilter by viewModel.source.collectAsState()
     val activeDownloads by viewModel.activeDownloads.collectAsState()
     val favoriteLanguages by viewModel.favoriteLanguages.collectAsState()
     val detailsState by viewModel.details.collectAsState()
@@ -189,7 +191,7 @@ fun HomeScreen(
         ),
         tagRow(stringResource(R.string.filter_region), categorizedTags?.regions?.tags.orEmpty()),
         tagRow(stringResource(R.string.filter_language), categorizedTags?.languages?.tags.orEmpty(), featured = favoriteLanguages),
-        tagRow(stringResource(R.string.filter_type), categorizedTags?.contentTypes?.tags.orEmpty()),
+        tagRow(stringResource(R.string.filter_tag), categorizedTags?.other?.tags.orEmpty()),
         FilterRowSpec(
             label = stringResource(R.string.filter_favourites),
             options = listOf(
@@ -199,6 +201,18 @@ fun HomeScreen(
             selected = setOf(if (favouritesOnly) FAV_ONLY else FAV_ALL),
             single = true,
             onSelectionChange = { viewModel.setFavouritesOnly(FAV_ONLY in it) }
+        ),
+        FilterRowSpec(
+            label = stringResource(R.string.filter_source),
+            options = listOf(
+                FilterOption(SourceFilter.ALL.name, stringResource(R.string.filter_all)),
+                FilterOption(SourceFilter.TORRENT.name, stringResource(R.string.source_torrent)),
+                FilterOption(SourceFilter.ROMM.name, stringResource(R.string.source_romm)),
+                FilterOption(SourceFilter.DIRECT.name, stringResource(R.string.source_direct))
+            ),
+            selected = setOf(sourceFilter.name),
+            single = true,
+            onSelectionChange = { sel -> viewModel.setSource(sel.firstOrNull()?.let { SourceFilter.valueOf(it) } ?: SourceFilter.ALL) }
         ),
         FilterRowSpec(
             label = stringResource(R.string.filter_sort),
@@ -211,7 +225,7 @@ fun HomeScreen(
             onSelectionChange = { viewModel.setSortAsc(SORT_ASC in it) }
         )
     )
-    val activeFilterCount = selectedConsoles.size + activeTags.size + (if (favouritesOnly) 1 else 0)
+    val activeFilterCount = selectedConsoles.size + activeTags.size + (if (favouritesOnly) 1 else 0) + (if (sourceFilter != SourceFilter.ALL) 1 else 0)
 
     val startedMessage = stringResource(R.string.download_started, "%s")
     val favouriteAddedMessage = stringResource(R.string.favourite_added, "%s")

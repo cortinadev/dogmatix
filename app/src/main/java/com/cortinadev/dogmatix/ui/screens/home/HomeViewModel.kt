@@ -8,6 +8,7 @@ import com.cortinadev.dogmatix.data.local.entity.ConsoleEntity
 import com.cortinadev.dogmatix.data.local.dao.ConsoleWithFileCount
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
 import com.cortinadev.dogmatix.data.model.CategorizedTags
+import com.cortinadev.dogmatix.data.model.SourceFilter
 import com.cortinadev.dogmatix.data.repository.ConsoleRepository
 import com.cortinadev.dogmatix.data.repository.DownloadableFileRepository
 import com.cortinadev.dogmatix.data.repository.FavouritesRepository
@@ -68,6 +69,13 @@ class HomeViewModel @Inject constructor(
 
     fun setFavouritesOnly(only: Boolean) {
         _favouritesOnly.value = only
+    }
+
+    private val _source = MutableStateFlow(SourceFilter.ALL)
+    val source: StateFlow<SourceFilter> = _source.asStateFlow()
+
+    fun setSource(source: SourceFilter) {
+        _source.value = source
     }
 
     /** The game whose details card is open, if any, and what we know about it so far. */
@@ -150,11 +158,11 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 combine(_searchQuery, _selectedConsoles, _activeTags) { q, c, t -> Triple(q, c, t) },
-                combine(_sortAsc, _favouritesOnly, rescanStateHolder.lastRescanTime) { s, f, r -> Triple(s, f, r) },
+                combine(_sortAsc, _favouritesOnly, _source, rescanStateHolder.lastRescanTime) { s, f, src, _ -> Triple(s, f, src) },
                 // Re-query when a star changes while "Favourites only" is on, else the row would linger.
                 combine(_favouritesOnly, favourites.keys) { only, keys -> if (only) keys else emptySet() }.distinctUntilChanged()
-            ) { (query, consoles, tags), (sortAsc, favouritesOnly, _), _ ->
-                FilterParams(query = query, consoles = consoles, tags = tags, sortAsc = sortAsc, favouritesOnly = favouritesOnly)
+            ) { (query, consoles, tags), (sortAsc, favouritesOnly, source), _ ->
+                FilterParams(query = query, consoles = consoles, tags = tags, sortAsc = sortAsc, favouritesOnly = favouritesOnly, source = source)
             }.collect { params ->
                 currentOffset = 0
                 val initialResults = performSearch(params)
@@ -178,7 +186,7 @@ class HomeViewModel @Inject constructor(
         }
         val tags = if (request.tags.isEmpty()) emptySet() else {
             val catalogue = withTimeoutOrNull(RESOLVE_TIMEOUT_MS) { _categorizedTags.first { it != null } } ?: _categorizedTags.value
-            val known = catalogue?.let { it.regions.tags + it.languages.tags + it.videoStandards.tags + it.contentTypes.tags + it.fileTypes.tags }.orEmpty()
+            val known = catalogue?.let { it.regions.tags + it.languages.tags + it.videoStandards.tags + it.other.tags + it.fileTypes.tags }.orEmpty()
             DeepLinkResolver.resolveTags(request.tags, known)
         }
         _selectedConsoles.value = consoleIds
@@ -242,6 +250,7 @@ class HomeViewModel @Inject constructor(
         _selectedConsoles.value = emptySet()
         _sortAsc.value = true
         _favouritesOnly.value = false
+        _source.value = SourceFilter.ALL
     }
 
     private suspend fun performSearch(params: FilterParams): List<DownloadableFileWithTags> {
@@ -251,6 +260,7 @@ class HomeViewModel @Inject constructor(
             consoleIds = params.consoles,
             tags = params.tags,
             favouritesOnly = params.favouritesOnly,
+            source = params.source,
             sortAsc = params.sortAsc,
             limit = pageSize,
             offset = 0
@@ -290,6 +300,7 @@ class HomeViewModel @Inject constructor(
             consoleIds = _selectedConsoles.value,
             tags = _activeTags.value,
             favouritesOnly = _favouritesOnly.value,
+            source = _source.value,
             sortAsc = _sortAsc.value,
             limit = pageSize,
             offset = currentOffset
@@ -326,7 +337,8 @@ data class FilterParams(
     val consoles: Set<String>,
     val tags: Set<String>,
     val sortAsc: Boolean,
-    val favouritesOnly: Boolean = false
+    val favouritesOnly: Boolean = false,
+    val source: SourceFilter = SourceFilter.ALL
 )
 
 data class DetailsState(

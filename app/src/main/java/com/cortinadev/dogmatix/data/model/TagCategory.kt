@@ -11,28 +11,29 @@ data class CategorizedTags(
     val regions: TagCategory,
     val languages: TagCategory,
     val videoStandards: TagCategory,
-    val contentTypes: TagCategory,
+    /** Everything that is not a region, language, video standard or extension: Game, Demo, Proto, Rev… */
+    val other: TagCategory,
     val fileTypes: TagCategory
 )
 
 /** Which filter group a tag belongs to. Tags of the same kind are OR-ed, different kinds are AND-ed. */
-enum class TagKind { REGION, LANGUAGE, VIDEO_STANDARD, CONTENT_TYPE, FILE_TYPE }
+enum class TagKind { REGION, LANGUAGE, VIDEO_STANDARD, OTHER, FILE_TYPE }
 
 object TagCategorizer {
 
     /** Order matters: some tags (e.g. "PAL") would also match the looser language/region checks. */
-    fun kindOf(tag: String): TagKind? = when {
+    fun kindOf(tag: String): TagKind = when {
         isVideoStandard(tag) -> TagKind.VIDEO_STANDARD
-        isContentType(tag) -> TagKind.CONTENT_TYPE
+        isContentType(tag) -> TagKind.OTHER
         isRegion(tag) -> TagKind.REGION
         isLanguage(tag) -> TagKind.LANGUAGE
         isFileType(tag) -> TagKind.FILE_TYPE
-        else -> null
+        else -> TagKind.OTHER
     }
 
-    /** Groups [tags] by kind; tags of unknown kind are dropped. */
+    /** Groups [tags] by kind. */
     fun groupByKind(tags: Collection<String>): Map<TagKind, Set<String>> =
-        tags.mapNotNull { tag -> kindOf(tag)?.let { it to tag } }
+        tags.map { tag -> kindOf(tag) to tag }
             .groupBy({ it.first }, { it.second })
             .mapValues { it.value.toSet() }
 
@@ -44,7 +45,7 @@ object TagCategorizer {
             regions = category("Regions", TagKind.REGION),
             languages = category("Languages", TagKind.LANGUAGE),
             videoStandards = category("Video Standards", TagKind.VIDEO_STANDARD),
-            contentTypes = category("Content Types", TagKind.CONTENT_TYPE),
+            other = category("Tags", TagKind.OTHER),
             fileTypes = category("File Types", TagKind.FILE_TYPE)
         )
     }

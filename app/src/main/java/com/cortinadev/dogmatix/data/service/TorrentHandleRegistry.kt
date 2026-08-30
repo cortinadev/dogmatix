@@ -37,6 +37,11 @@ class TorrentHandleRegistry @Inject constructor(
     fun start() {
         if (!session.isRunning) {
             session.start()
+            // libtorrent rejects info dicts above 3 MiB by default (peers get disconnected with
+            // "metadata too large" and re-tried forever); multi-TB collection torrents need more.
+            session.applySettings(
+                org.libtorrent4j.SettingsPack().apply { setMaxMetadataSize(TorrentConstants.MAX_METADATA_SIZE_BYTES) }
+            )
             TorrentConstants.DHT_BOOTSTRAP_NODES.forEach { (host, port) ->
                 try { session.swig().add_dht_node(org.libtorrent4j.swig.string_int_pair(host, port)) }
                 catch (e: Exception) { Log.w(TAG, "DHT node $host:$port failed: ${e.message}") }
@@ -153,9 +158,20 @@ class TorrentHandleRegistry @Inject constructor(
             waitForMetadata(handle, uri)
         }
 
+    /**
+     * Waits for the torrent's metadata. The configured timeout is an *inactivity* timeout: it is
+     * re-armed every time the swarm shows signs of life (bytes received — ut_metadata pieces count
+     * as protocol traffic in [TorrentStatus.totalDownload] — or new peers connected), so huge
+     * info dicts (e.g. whole-archive torrents with hundreds of thousands of files) can take
+     * minutes as long as they keep progressing.
+     */
     private suspend fun waitForMetadata(handle: TorrentHandle, uri: String): TorrentHandle {
         val timeoutS = settingsRepository.metadataTimeoutSeconds.first()
-        val result = withTimeoutOrNull(timeoutS * 1000L) {
+        val timeoutMs = timeoutS * 1000L
+        var lastDownloaded = -1L
+        var lastPeers = -1
+        var deadline = System.currentTimeMillis() + timeoutMs
+        val result = withTimeoutOrNull(timeoutMs * MAX_INACTIVITY_RESETS) {
             while (!Thread.currentThread().isInterrupted) {
                 try {
                     if (handle.isValid && handle.torrentFile() != null) {
@@ -168,9 +184,23 @@ class TorrentHandleRegistry @Inject constructor(
                         }
                         return@withTimeoutOrNull handle
                     }
+                    if (handle.isValid) {
+                        val status = handle.status()
+                        val downloaded = status.totalDownload()
+                        val peers = status.numPeers()
+                        if (downloaded > lastDownloaded || peers > lastPeers) {
+                            if (lastDownloaded >= 0 && downloaded > lastDownloaded) {
+                                Log.d(TAG, "Metadata progress: $downloaded bytes, $peers peers")
+                            }
+                            deadline = System.currentTimeMillis() + timeoutMs
+                        }
+                        lastDownloaded = maxOf(lastDownloaded, downloaded)
+                        lastPeers = maxOf(lastPeers, peers)
+                    }
                 } catch (e: Exception) {
                     return@withTimeoutOrNull null
                 }
+                if (System.currentTimeMillis() >= deadline) return@withTimeoutOrNull null
                 delay(TorrentConstants.METADATA_POLL_INTERVAL_MS)
             }
             null
@@ -181,14 +211,18 @@ class TorrentHandleRegistry @Inject constructor(
                 if (handle.isValid) session.swig().remove_torrent(handle.swig())
             } catch (_: Exception) {}
             throw TorrentMetadataTimeoutException(
-                "Metadata fetch timed out after ${timeoutS}s for: $uri"
+                "Metadata fetch timed out after ${timeoutS}s without progress for: $uri"
             )
         }
         handle.pause()
         return handle
     }
 
-    companion object { private const val TAG = "TorrentHandleRegistry" }
+    companion object {
+        private const val TAG = "TorrentHandleRegistry"
+        /** Hard cap: a fetch can never last more than this many inactivity windows. */
+        private const val MAX_INACTIVITY_RESETS = 30
+    }
 }
 
 class TorrentMetadataTimeoutException(message: String) : Exception(message)

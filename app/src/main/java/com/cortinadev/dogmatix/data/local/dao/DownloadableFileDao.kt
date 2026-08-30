@@ -20,7 +20,8 @@ interface DownloadableFileDao {
 
     /**
      * Tag filters: each category (regions, languages, …) is OR-ed within itself and AND-ed
-     * with the others, e.g. (GBC ∨ GBA) ∧ (ES) ∧ (RETROACHIEVEMENTS).
+     * with the others, e.g. (GBC ∨ GBA) ∧ (ES) ∧ (RETROACHIEVEMENTS). [source] narrows by origin:
+     * RomM rows are recognised by their `/api/roms/{id}/content/` download URL (see RommSource).
      */
     @Query("""
         SELECT df.id, df.name, df.fileName, df.consoleId, df.downloadUrl, df.fileSize,
@@ -42,8 +43,8 @@ interface DownloadableFileDao {
           AND (:videoStandardsCount = 0 OR EXISTS (
                 SELECT 1 FROM downloadable_file_tags t_videoStandards WHERE t_videoStandards.fileId = df.id AND t_videoStandards.tag IN (:videoStandards)
           ))
-          AND (:contentTypesCount = 0 OR EXISTS (
-                SELECT 1 FROM downloadable_file_tags t_contentTypes WHERE t_contentTypes.fileId = df.id AND t_contentTypes.tag IN (:contentTypes)
+          AND (:otherTagsCount = 0 OR EXISTS (
+                SELECT 1 FROM downloadable_file_tags t_other WHERE t_other.fileId = df.id AND t_other.tag IN (:otherTags)
           ))
           AND (:fileTypesCount = 0 OR EXISTS (
                 SELECT 1 FROM downloadable_file_tags t_fileTypes WHERE t_fileTypes.fileId = df.id AND t_fileTypes.tag IN (:fileTypes)
@@ -51,6 +52,10 @@ interface DownloadableFileDao {
           AND (:favouritesOnly = 0 OR EXISTS (
                 SELECT 1 FROM favourites f WHERE f.consoleId = df.consoleId AND f.fileName = df.fileName
           ))
+          AND (:source = 0
+               OR (:source = 1 AND df.torrentFileIndex IS NOT NULL)
+               OR (:source = 2 AND df.downloadUrl LIKE '%/api/roms/%/content/%')
+               OR (:source = 3 AND df.torrentFileIndex IS NULL AND df.downloadUrl NOT LIKE '%/api/roms/%/content/%'))
         GROUP BY df.id, df.name, df.fileName, df.consoleId, df.downloadUrl, df.fileSize,
                  df.fileExtension, df.torrentFileIndex, df.torrentMagnet
         ORDER BY
@@ -69,11 +74,13 @@ interface DownloadableFileDao {
         languagesCount: Int,
         videoStandards: List<String>,
         videoStandardsCount: Int,
-        contentTypes: List<String>,
-        contentTypesCount: Int,
+        otherTags: List<String>,
+        otherTagsCount: Int,
         fileTypes: List<String>,
         fileTypesCount: Int,
         favouritesOnly: Boolean,
+        /** [com.cortinadev.dogmatix.data.model.SourceFilter] ordinal: 0 all, 1 torrent, 2 RomM, 3 direct HTTP. */
+        source: Int,
         sortAsc: Boolean,
         limit: Int = 100,
         offset: Int = 0

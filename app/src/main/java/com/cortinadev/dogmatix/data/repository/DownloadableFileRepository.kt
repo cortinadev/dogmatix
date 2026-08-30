@@ -6,6 +6,7 @@ import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
 import com.cortinadev.dogmatix.data.model.CategorizedTags
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
 import com.cortinadev.dogmatix.data.model.TagCategorizer
+import com.cortinadev.dogmatix.data.model.SourceFilter
 import com.cortinadev.dogmatix.data.model.TagKind
 import com.cortinadev.dogmatix.util.SearchNormalizer
 import javax.inject.Inject
@@ -21,6 +22,7 @@ class DownloadableFileRepository @Inject constructor(
         consoleIds: Set<String> = emptySet(),
         tags: Set<String> = emptySet(),
         favouritesOnly: Boolean = false,
+        source: SourceFilter = SourceFilter.ALL,
         sortAsc: Boolean = true,
         limit: Int = 100,
         offset: Int = 0
@@ -39,11 +41,12 @@ class DownloadableFileRepository @Inject constructor(
             languagesCount = kind(TagKind.LANGUAGE).size,
             videoStandards = kind(TagKind.VIDEO_STANDARD),
             videoStandardsCount = kind(TagKind.VIDEO_STANDARD).size,
-            contentTypes = kind(TagKind.CONTENT_TYPE),
-            contentTypesCount = kind(TagKind.CONTENT_TYPE).size,
+            otherTags = kind(TagKind.OTHER),
+            otherTagsCount = kind(TagKind.OTHER).size,
             fileTypes = kind(TagKind.FILE_TYPE),
             fileTypesCount = kind(TagKind.FILE_TYPE).size,
             favouritesOnly = favouritesOnly,
+            source = source.ordinal,
             sortAsc = sortAsc,
             limit = limit,
             offset = offset

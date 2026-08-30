@@ -66,7 +66,11 @@
     <string name="filter_console">Consola</string>
     <string name="filter_region">Región</string>
     <string name="filter_language">Idioma</string>
-    <string name="filter_type">Tipo</string>
+    <string name="filter_tag">Etiqueta</string>
+    <string name="filter_source">Fuente</string>
+    <string name="source_torrent">Torrent</string>
+    <string name="source_romm">RomM</string>
+    <string name="source_direct">Enlace directo</string>
     <string name="filter_sort">Orden</string>
     <string name="filter_any">Todas</string>
     <string name="filter_all">Todo</string>
@@ -141,7 +145,7 @@
     <string name="settings_limit_label">Límite de velocidad</string>
     <string name="settings_limit_hint">Sin límite en 0</string>
     <string name="settings_metadata_timeout">Tiempo de espera de metadatos</string>
-    <string name="settings_metadata_timeout_hint">Cuánto esperar la lista de ficheros de un magnet (reescaneo y descargas torrent)</string>
+    <string name="settings_metadata_timeout_hint">Cuánto esperar sin progreso la lista de ficheros de un magnet (reescaneo y descargas torrent); el contador se reinicia mientras sigan llegando datos</string>
     <string name="seconds_short">%1$d s</string>
     <string name="settings_auto_unzip_hint">ZIP y 7z al terminar la descarga</string>
     <string name="settings_separate_hint">Compatible con ES-DE y Daijishō</string>
@@ -302,7 +306,7 @@
     <string name="onboarding_welcome_title">Bienvenido a Dogmatix</string>
     <string name="onboarding_welcome_body">Dogmatix indexa el contenido de fuentes de ROMs — torrents, magnets y directorios web —, etiqueta cada archivo por consola, región e idioma y te deja explorar, filtrar y descargar directamente a tu carpeta de ROMs. Los archivos comprimidos se extraen solos.</string>
     <string name="onboarding_welcome_point_1">Las fuentes se indexan, no se descargan: explora miles de títulos sin llenar el almacenamiento.</string>
-    <string name="onboarding_welcome_point_2">Filtra por consola, región, idioma y tipo; ✓ marca lo que ya tienes.</string>
+    <string name="onboarding_welcome_point_2">Filtra por consola, región, idioma, etiqueta y fuente; ✓ marca lo que ya tienes.</string>
     <string name="onboarding_welcome_point_3">Las descargas van a una carpeta por consola, listas para frontends como ES-DE.</string>
     <string name="onboarding_folder_title">¿Dónde están tus ROMs?</string>
     <string name="onboarding_folder_body">Elige la carpeta raíz de tu biblioteca de ROMs. Cada consola tendrá su subcarpeta dentro (se reutilizan las que ya existan, como \"gba\" o \"psx\"). Puedes cambiarla luego en Ajustes.</string>
