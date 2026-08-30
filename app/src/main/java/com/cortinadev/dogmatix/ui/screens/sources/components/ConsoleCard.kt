@@ -10,6 +10,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -30,6 +31,7 @@ fun ConsoleCard(
     onDeleteConsole: () -> Unit,
     onEditUrl: (Int, com.cortinadev.dogmatix.data.model.UrlEntry) -> Unit,
     onDeleteUrl: (Int, com.cortinadev.dogmatix.data.model.UrlEntry) -> Unit,
+    onToggleUrl: (Int, Boolean) -> Unit,
     onSetCustomDownloadPath: () -> Unit,
     onRefreshConsole: () -> Unit,
     onMergeFolders: () -> Unit = {}
@@ -144,7 +146,8 @@ fun ConsoleCard(
                         UrlItem(
                             urlEntry = urlEntry,
                             onEdit = { onEditUrl(index, urlEntry) },
-                            onDelete = { onDeleteUrl(index, urlEntry) }
+                            onDelete = { onDeleteUrl(index, urlEntry) },
+                            onToggle = { onToggleUrl(index, it) }
                         )
                     }
                 }
@@ -157,8 +160,11 @@ fun ConsoleCard(
 private fun UrlItem(
     urlEntry: com.cortinadev.dogmatix.data.model.UrlEntry,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onToggle: (Boolean) -> Unit
 ) {
+    // Disabled sources stay listed but visibly muted; the switch is the first control in the row.
+    val contentAlpha = if (urlEntry.enabled) 1f else 0.45f
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -173,7 +179,7 @@ private fun UrlItem(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f).alpha(contentAlpha)
             ) {
                 val displayText = if (urlEntry.url.length > 200) {
                     urlEntry.url.take(197) + "..."
@@ -185,12 +191,14 @@ private fun UrlItem(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    text = stringResource(R.string.sources_url_type, urlEntry.contentType.name.lowercase()),
+                    text = if (urlEntry.enabled) stringResource(R.string.sources_url_type, urlEntry.contentType.name.lowercase())
+                           else stringResource(R.string.sources_url_disabled),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
 
+            com.cortinadev.dogmatix.ui.screens.settings.ThemedSwitch(checked = urlEntry.enabled, onChange = onToggle)
             IconButton(onClick = onEdit) {
                 Icon(
                     painterResource(R.drawable.ic_edit),

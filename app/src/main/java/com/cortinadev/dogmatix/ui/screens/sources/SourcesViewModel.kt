@@ -219,6 +219,10 @@ class SourcesViewModel @Inject constructor(
         viewModelScope.launch { sources.deleteUrl(consoleId, index) }
     }
 
+    fun setUrlEnabled(consoleId: String, index: Int, enabled: Boolean) {
+        viewModelScope.launch { sources.setUrlEnabled(consoleId, index, enabled) }
+    }
+
     // ---- Scraping -----------------------------------------------------------------------------
 
     /**

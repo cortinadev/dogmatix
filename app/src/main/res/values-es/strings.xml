@@ -281,6 +281,7 @@
     <string name="sources_path_custom">Carpeta de descarga: %1$s (personalizada)</string>
     <string name="sources_path_will_create">Carpeta de descarga: %1$s (se creará)</string>
     <string name="sources_path_unset">Carpeta de descarga: sin configurar (elige una en Ajustes)</string>
+    <string name="sources_url_disabled">Desactivada: se omite al reescanear</string>
     <string name="sources_url_type">Tipo: %1$s</string>
     <string name="sources_scrape_start">Iniciando el escaneo inicial de %1$d consolas…</string>
     <string name="sources_rescan_start">Iniciando el reescaneo de %1$d consolas…</string>

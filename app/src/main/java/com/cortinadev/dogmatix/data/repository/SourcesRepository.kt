@@ -145,6 +145,17 @@ class SourcesRepository @Inject constructor(
         return true
     }
 
+    /** Turns the entry at [index] on or off; a source going off releases its torrent handle. */
+    suspend fun setUrlEnabled(consoleId: String, index: Int, enabled: Boolean) {
+        val console = consoleDao.getConsoleById(consoleId) ?: return
+        val urls = SourcesJson.parseUrlEntries(console.urls).toMutableList()
+        val old = urls.getOrNull(index) ?: return
+        if (old.enabled == enabled) return
+        if (!enabled) releaseSource(old.url)
+        urls[index] = old.copy(enabled = enabled)
+        consoleDao.updateConsole(console.copy(urls = SourcesJson.serializeUrlEntries(urls)))
+    }
+
     suspend fun deleteUrl(consoleId: String, index: Int) {
         val console = consoleDao.getConsoleById(consoleId) ?: return
         val urls = SourcesJson.parseUrlEntries(console.urls).toMutableList()

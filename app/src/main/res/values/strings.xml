@@ -303,6 +303,7 @@
     <string name="sources_path_will_create">Download path: %1$s (will be created)</string>
     <string name="sources_path_unset">Download path: not set (choose one in Settings)</string>
     <string name="sources_url_type">Type: %1$s</string>
+    <string name="sources_url_disabled">Disabled — skipped when rescanning</string>
     <string name="sources_scrape_start">Starting initial scrape of %1$d consoles…</string>
     <string name="sources_rescan_start">Starting rescan of %1$d consoles…</string>
     <string name="sources_processing_console">Processing console %1$d/%2$d: %3$s</string>

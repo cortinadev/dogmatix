@@ -26,6 +26,21 @@ class SourcesJsonTest {
     """.trimIndent()
 
     @Test
+    fun enabledFlagDefaultsToTrueAndRoundTripsWhenOff() {
+        val doc = SourcesJson.parseDocument(bundledAssetStyle)
+        assertTrue(doc[0].consoles[0].urls.all { it.enabled })
+
+        val entries = listOf(
+            UrlEntry("magnet:?xt=urn:btih:abc", ContentType.GAME, enabled = false),
+            UrlEntry("https://example.org/on", ContentType.GAME)
+        )
+        val json = SourcesJson.serializeUrlEntries(entries)
+        assertTrue(json.contains("\"enabled\""))
+        val back = SourcesJson.parseUrlEntries(json)
+        assertEquals(listOf(false, true), back.map { it.enabled })
+    }
+
+    @Test
     fun parsesTheBundledAssetLayoutAndFormatsNames() {
         val doc = SourcesJson.parseDocument(bundledAssetStyle)
 

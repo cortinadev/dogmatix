@@ -117,7 +117,7 @@ class DatabaseScrapingService @Inject constructor(
             var totalFiles = 0
             var totalTags = 0
             manufacturer.consoles.forEach { console ->
-                console.urls.forEach { urlEntry ->
+                console.urls.filter { it.enabled }.forEach { urlEntry ->
                     try {
                         val (files, tags) = if (urlEntry.url.startsWith("magnet:") || urlEntry.url.endsWith(".torrent")) {
                             torrentScrapingService.scrapeAndInsert(urlEntry, console)

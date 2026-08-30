@@ -159,6 +159,7 @@ fun SourcesScreen(
                     onDeleteConsole = { viewModel.confirmDeleteConsole(console) },
                     onEditUrl = { index, entry -> viewModel.showEditUrlDialog(console.id, index, entry) },
                     onDeleteUrl = { index, entry -> viewModel.confirmDeleteUrl(console.id, index, entry) },
+                    onToggleUrl = { index, enabled -> viewModel.setUrlEnabled(console.id, index, enabled) },
                     onSetCustomDownloadPath = {
                         viewModel.beginPickingDownloadPath(console.id)
                         directoryPicker.launch(null)

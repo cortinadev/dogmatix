@@ -123,7 +123,8 @@ object SourcesJson {
             val contentType = obj.stringOrNull("contentType")
                 ?.let { runCatching { ContentType.valueOf(it.uppercase()) }.getOrNull() }
                 ?: ContentType.GAME
-            UrlEntry(url = url, contentType = contentType, folders = parseStrings(obj.get("folders")))
+            val enabled = obj.get("enabled")?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive?.let { runCatching { it.asBoolean }.getOrNull() } ?: true
+            UrlEntry(url = url, contentType = contentType, folders = parseStrings(obj.get("folders")), enabled = enabled)
         }
     }
 
@@ -134,6 +135,7 @@ object SourcesJson {
             obj.addProperty("url", entry.url)
             obj.addProperty("contentType", entry.contentType.name)
             if (entry.folders.isNotEmpty()) obj.add("folders", stringsToJson(entry.folders))
+            if (!entry.enabled) obj.addProperty("enabled", false)
             array.add(obj)
         }
         return array
