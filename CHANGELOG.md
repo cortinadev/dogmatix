@@ -3,7 +3,7 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
-## [Unreleased]
+## [1.2] – 2026-08-31
 
 ### Added
 - Each source URL now has an on/off switch in Sources: disabled sources are kept (and
