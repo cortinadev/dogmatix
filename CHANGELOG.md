@@ -3,14 +3,12 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
-## [1.2] – 2026-08-31
+## [1.1.4] – 2026-08-31
 
 ### Added
 - Each source URL now has an on/off switch in Sources: disabled sources are kept (and
   exported/imported) but skipped when rescanning, so their games drop out of the library on
   the next rescan and come back when re-enabled.
-
-## [1.1.4] – 2026-08-31
 
 ### Fixed
 - **Retry button did nothing on "Completed" rows.** Downloads that the 1.1.2 bug had falsely
