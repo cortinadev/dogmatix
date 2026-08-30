@@ -102,6 +102,9 @@ class TorrentProgressBridge @Inject constructor(
 
             val currentItem = progressTracker.downloads.value.find { it.fileName == fileName }
             val currentStatus = currentItem?.status
+            // A file/torrent error alert may have failed this row while libtorrent still
+            // reports full fileProgress; never resurrect terminal rows from the poll.
+            if (currentStatus == DownloadStatus.FAILED || currentStatus == DownloadStatus.STOPPED) return@forEach
 
             when {
                 isFinished && currentStatus != DownloadStatus.COMPLETED &&
@@ -160,7 +163,9 @@ class TorrentProgressBridge @Inject constructor(
             .forEach { (fn, _) ->
                 val currentItem = progressTracker.downloads.value.find { it.fileName == fn }
                 if (currentItem?.status != DownloadStatus.UNZIPPING &&
-                    currentItem?.status != DownloadStatus.COMPLETED) {
+                    currentItem?.status != DownloadStatus.COMPLETED &&
+                    currentItem?.status != DownloadStatus.FAILED &&
+                    currentItem?.status != DownloadStatus.STOPPED) {
                     progressTracker.updateDownloadStatus(fn, DownloadStatus.COMPLETED)
                     Log.i(TAG, "Torrent finished: $fn — Now moving")
                 }

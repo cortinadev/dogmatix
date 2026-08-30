@@ -283,7 +283,12 @@ class DownloadService @Inject constructor(
                 waitedMs += 500
             }
             if (internalFile.length() < expectedSize) {
-                Log.w(TAG, "Disk flush incomplete for ${file.fileName}: ${internalFile.length()}/$expectedSize bytes written")
+                // Copying a truncated file to the ROMs folder would mark a broken download as
+                // completed (seen with ENOSPC on the cache partition: 0 bytes were "flushed").
+                throw Exception(
+                    "Incomplete torrent data for ${file.fileName}: " +
+                    "${internalFile.length()}/$expectedSize bytes (disk full or write error)"
+                )
             }
 
             val subPath = downloadFileManager.getSubPath(file)

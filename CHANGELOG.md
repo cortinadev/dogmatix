@@ -3,6 +3,16 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
+## [1.1.5] – 2026-08-31
+
+### Fixed
+- **Downloads marked "Completed" with nothing (or a 0-byte file) in the ROMs folder.** When
+  writing to the download cache failed (e.g. the internal storage filled up mid-download),
+  the truncated file was still copied into place and the row marked completed; a later
+  progress tick could also overwrite a failed status with "completed". Incomplete data now
+  fails the download honestly, failed/stopped rows stay failed until retried, and the retry
+  starts clean.
+
 ## [1.1.4] – 2026-08-31
 
 ### Added
