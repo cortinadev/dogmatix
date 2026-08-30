@@ -198,19 +198,23 @@ private fun UrlItem(
                 )
             }
 
-            com.cortinadev.dogmatix.ui.screens.settings.ThemedSwitch(checked = urlEntry.enabled, onChange = onToggle)
-            IconButton(onClick = onEdit) {
-                Icon(
-                    painterResource(R.drawable.ic_edit),
-                    contentDescription = stringResource(R.string.sources_edit_url)
-                )
+            Box(modifier = Modifier.padding(start = 12.dp)) {
+                com.cortinadev.dogmatix.ui.screens.settings.ThemedSwitch(checked = urlEntry.enabled, onChange = onToggle)
             }
-            IconButton(onClick = onDelete) {
-                Icon(
-                    painterResource(R.drawable.ic_trash),
-                    contentDescription = stringResource(R.string.sources_delete_url),
-                    tint = MaterialTheme.colorScheme.error
-                )
+            Row(horizontalArrangement = Arrangement.spacedBy((-12).dp)) {
+                IconButton(onClick = onEdit) {
+                    Icon(
+                        painterResource(R.drawable.ic_edit),
+                        contentDescription = stringResource(R.string.sources_edit_url)
+                    )
+                }
+                IconButton(onClick = onDelete) {
+                    Icon(
+                        painterResource(R.drawable.ic_trash),
+                        contentDescription = stringResource(R.string.sources_delete_url),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
     }
