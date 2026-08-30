@@ -95,6 +95,9 @@
     <string name="status_completed">Completada</string>
     <string name="status_failed">Fallida</string>
     <string name="status_stopped">Detenida</string>
+    <string name="status_paused">En pausa</string>
+    <string name="download_pause">Pausar</string>
+    <string name="download_resume">Reanudar</string>
     <string name="status_queued_debrid">%1$s %2$d%%</string>
     <string name="settings_debrid">Servicio debrid</string>
     <string name="settings_debrid_hint">El servicio obtiene los torrents y se descargan por HTTP</string>

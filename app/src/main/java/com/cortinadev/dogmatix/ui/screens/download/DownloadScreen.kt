@@ -60,7 +60,7 @@ fun DownloadScreen(
                 // Re-read the live status: it may have changed since the row took focus.
                 downloads.find { it.fileName == focusedRow?.fileName }?.let { row ->
                     if (row.status == DownloadStatus.COMPLETED || row.status == DownloadStatus.STOPPED ||
-                        row.status == DownloadStatus.FAILED) {
+                        row.status == DownloadStatus.FAILED || row.status == DownloadStatus.PAUSED) {
                         viewModel.deleteDownloadWithConfirmation(row.fileName, row.status == DownloadStatus.COMPLETED)
                     }
                 }

@@ -63,6 +63,10 @@ class DownloadViewModel @Inject constructor(
         }
     }
 
+    fun pauseDownload(fileName: String) {
+        viewModelScope.launch { repository.pauseDownload(fileName) }
+    }
+
     fun retryDownload(fileName: String) {
         viewModelScope.launch { 
             repository.retryDownload(fileName) 

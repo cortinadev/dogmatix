@@ -100,6 +100,9 @@
     <string name="status_completed">Completed</string>
     <string name="status_failed">Failed</string>
     <string name="status_stopped">Stopped</string>
+    <string name="status_paused">Paused</string>
+    <string name="download_pause">Pause</string>
+    <string name="download_resume">Resume</string>
     <string name="status_copying">Copying to storage…</string>
     <string name="status_queued_debrid">%1$s %2$d%%</string>
     <string name="settings_debrid">Debrid service</string>

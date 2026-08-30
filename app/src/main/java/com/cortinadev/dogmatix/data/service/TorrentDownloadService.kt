@@ -125,6 +125,28 @@ class TorrentDownloadService @Inject constructor(
         }
     }
 
+    /**
+     * Parks [file]: its priority drops to IGNORE and the bridge stops tracking it, but the
+     * handle and the partial data in the cache stay, so resuming (the retry flow) continues
+     * from the pieces already on disk. With nothing else active the torrent is paused.
+     */
+    suspend fun pauseDownload(file: DownloadableFileEntity) = withContext(Dispatchers.IO) {
+        val magnet = file.torrentMagnet ?: return@withContext
+        val fileIndex = file.torrentFileIndex ?: return@withContext
+        progressBridge.untrackDownload(file.fileName, fileIndex)
+        val handle = registry.getCachedHandle(magnet) ?: return@withContext
+        val torrentInfo = handle.torrentFile() ?: return@withContext
+        val priorities = Array(torrentInfo.numFiles()) { Priority.IGNORE }
+        for (idx in progressBridge.getTrackedFileIndicesForHandle(handle)) {
+            if (idx < priorities.size) priorities[idx] = Priority.DEFAULT
+        }
+        handle.prioritizeFiles(priorities)
+        if (progressBridge.countTrackedForHandle(handle) == 0) {
+            try { handle.pause() } catch (e: Exception) { Log.w(TAG, "pause: ${e.message}") }
+        }
+        Log.i(TAG, "Paused ${file.fileName} (cache kept)")
+    }
+
     suspend fun cancelDownload(file: DownloadableFileEntity) = withContext(Dispatchers.IO) {
         val magnet = file.torrentMagnet ?: return@withContext
         val fileIndex = file.torrentFileIndex ?: return@withContext

@@ -3,6 +3,18 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
+## [Unreleased]
+
+### Added
+- **Pause / resume for torrent downloads**: a pause button on active rows (A on the gamepad)
+  parks the download keeping its data; play resumes from the pieces already on disk — even
+  if the app was left and the torrent session restarted in between.
+- Direct HTTP and RomM downloads keep their partial file when they stop or fail (connection
+  drop included) and the retry continues it with a Range request instead of starting over.
+
+### Fixed
+- Per-file download speed: rows from the same torrent showed the torrent's total rate.
+
 ## [1.1.4] – 2026-08-31
 
 ### Added

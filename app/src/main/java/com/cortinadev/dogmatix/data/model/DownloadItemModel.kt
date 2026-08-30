@@ -10,7 +10,9 @@ enum class DownloadStatus {
     UNZIPPING,
     COMPLETED,
     FAILED,
-    STOPPED
+    STOPPED,
+    /** Torrent parked by the user: cache kept, no job running; resume continues from the pieces on disk. */
+    PAUSED
 }
 
 data class StatusAssets(
@@ -98,6 +100,14 @@ fun DownloadItemModel.getStatusAssets(): StatusAssets = when (status) {
             currentStatusIcon = R.drawable.ic_stop,
             availableStatusIcons = intArrayOf(
                 R.drawable.ic_retry,
+                R.drawable.ic_trash
+            )
+        )
+    DownloadStatus.PAUSED ->
+        StatusAssets(
+            currentStatusIcon = R.drawable.ic_pause,
+            availableStatusIcons = intArrayOf(
+                R.drawable.ic_play,
                 R.drawable.ic_trash
             )
         )

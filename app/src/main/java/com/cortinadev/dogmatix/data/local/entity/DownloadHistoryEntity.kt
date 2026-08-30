@@ -45,7 +45,9 @@ data class DownloadHistoryEntity(
     /** In-flight statuses can't be resumed after a process death, so they come back as STOPPED. */
     fun toItem(): DownloadItemModel {
         val restored = when (val s = DownloadStatus.valueOf(status)) {
-            DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.COPYING, DownloadStatus.UNZIPPING -> DownloadStatus.STOPPED
+            // PAUSED comes back as STOPPED too: the startup sweep clears the cache its resume relied on.
+            DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.COPYING, DownloadStatus.UNZIPPING,
+            DownloadStatus.PAUSED -> DownloadStatus.STOPPED
             else -> s
         }
         return DownloadItemModel(

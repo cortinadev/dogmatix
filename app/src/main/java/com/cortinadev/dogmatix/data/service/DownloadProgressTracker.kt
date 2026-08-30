@@ -120,7 +120,7 @@ class DownloadProgressTracker @Inject constructor(
         return _downloads.value.any {
             it.fileName == fileName &&
             (it.status == DownloadStatus.FAILED || it.status == DownloadStatus.STOPPED ||
-             it.status == DownloadStatus.COMPLETED)
+             it.status == DownloadStatus.COMPLETED || it.status == DownloadStatus.PAUSED)
         }
     }
 

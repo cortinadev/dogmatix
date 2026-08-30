@@ -77,6 +77,8 @@ class DownloadService @Inject constructor(
     private val extractedFilesMap = ConcurrentHashMap<String, List<String>>()
     /** Debrid client + torrent id per file being fetched through the debrid route (see [performDebridDownload]). */
     private val debridTorrents = ConcurrentHashMap<String, Pair<DebridClient, String>>()
+    /** Files whose job is being cancelled by a pause (they land on PAUSED instead of STOPPED). */
+    private val pausingFiles = ConcurrentHashMap.newKeySet<String>()
 
     // Single supervised scope for all internal coroutines — tied to this singleton's lifetime
     // so jobs are not orphaned if the service is destroyed.
@@ -131,7 +133,7 @@ class DownloadService @Inject constructor(
                     perform(file)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
-                updateStatus(file.fileName, DownloadStatus.STOPPED)
+                updateStatus(file.fileName, if (pausingFiles.remove(file.fileName)) DownloadStatus.PAUSED else DownloadStatus.STOPPED)
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Download failed for ${file.fileName}: ${e.message}")
@@ -149,7 +151,8 @@ class DownloadService @Inject constructor(
         when {
             debrid != null -> performDebridDownload(file, debrid)
             file.isTorrent -> performTorrentDownload(file)
-            else -> performHttpDownload(file)
+            // Plain HTTP / RomM keep their partial and continue with a Range request on retry.
+            else -> performHttpDownload(file, resumable = true)
         }
     }
 
@@ -176,6 +179,19 @@ class DownloadService @Inject constructor(
         }
     }
 
+    /** Parks a torrent download: cache and handle survive, so retry resumes from disk. */
+    fun pauseDownload(fileName: String) {
+        val entity = downloadEntities[fileName] ?: return
+        if (!entity.isTorrent || !downloadProgressTracker.isActive(fileName)) return
+        pausingFiles.add(fileName)
+        downloadJobs.remove(fileName)?.cancel()
+        serviceScope.launch {
+            torrentDownloadService.pauseDownload(entity)
+            updateStatus(fileName, DownloadStatus.PAUSED)
+            checkServiceLifecycle()
+        }
+    }
+
     fun retryDownload(fileName: String) {
         if (!downloadProgressTracker.canRetryDownload(fileName)) return
         val entity = downloadEntities[fileName] ?: return
@@ -192,7 +208,7 @@ class DownloadService @Inject constructor(
                     perform(entity)
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
-                updateStatus(entity.fileName, DownloadStatus.STOPPED)
+                updateStatus(entity.fileName, if (pausingFiles.remove(entity.fileName)) DownloadStatus.PAUSED else DownloadStatus.STOPPED)
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Retry failed for ${entity.fileName}: ${e.message}")

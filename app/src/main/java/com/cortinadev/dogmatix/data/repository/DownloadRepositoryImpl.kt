@@ -30,6 +30,10 @@ class DownloadRepositoryImpl @Inject constructor(
         downloadService.retryDownload(fileName)
     }
 
+    override suspend fun pauseDownload(fileName: String) {
+        downloadService.pauseDownload(fileName)
+    }
+
     override suspend fun deleteDownload(fileName: String, deleteFile: Boolean) {
         downloadService.deleteDownload(fileName, deleteFile)
     }

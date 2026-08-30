@@ -10,5 +10,6 @@ interface DownloadRepository {
     suspend fun startDownload(file: DownloadableFileEntity)
     suspend fun cancelDownload(fileName: String)
     suspend fun retryDownload(fileName: String)
+    suspend fun pauseDownload(fileName: String)
     suspend fun deleteDownload(fileName: String, deleteFile: Boolean = false)
 }

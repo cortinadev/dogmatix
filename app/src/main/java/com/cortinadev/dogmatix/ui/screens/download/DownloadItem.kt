@@ -68,13 +68,14 @@ fun DownloadItem(
     val statusColor = when (status) {
         DownloadStatus.COMPLETED -> scheme.tertiary
         DownloadStatus.FAILED -> scheme.error
-        DownloadStatus.STOPPED -> scheme.onSurfaceVariant
+        DownloadStatus.STOPPED, DownloadStatus.PAUSED -> scheme.onSurfaceVariant
         else -> scheme.primary
     }
     val statusIcon = when (status) {
         DownloadStatus.COMPLETED -> R.drawable.ic_check
         DownloadStatus.FAILED -> R.drawable.ic_error
         DownloadStatus.STOPPED -> R.drawable.ic_stop
+        DownloadStatus.PAUSED -> R.drawable.ic_pause
         DownloadStatus.COPYING -> R.drawable.ic_folder
         DownloadStatus.UNZIPPING -> R.drawable.ic_extract
         DownloadStatus.DOWNLOADING -> R.drawable.ic_arrow_down
@@ -85,6 +86,7 @@ fun DownloadItem(
         DownloadStatus.COMPLETED -> stringResource(R.string.status_completed)
         DownloadStatus.FAILED -> stringResource(R.string.status_failed)
         DownloadStatus.STOPPED -> stringResource(R.string.status_stopped)
+        DownloadStatus.PAUSED -> stringResource(R.string.status_paused)
         DownloadStatus.COPYING -> stringResource(R.string.status_copying)
         DownloadStatus.UNZIPPING -> stringResource(R.string.status_extracting)
         DownloadStatus.DOWNLOADING -> stringResource(R.string.status_downloading, (item.progress * 100).toInt())
@@ -109,13 +111,16 @@ fun DownloadItem(
 
     // A (or a tap) on the row runs the primary action; the side buttons stay for touch and
     // are skipped by D-pad focus search (they sit inside the focused row's bounds).
+    val isTorrent = details?.file?.isTorrent == true
     val primaryAction: () -> Unit = {
-        when (status) {
-            DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.UNZIPPING ->
+        when {
+            status == DownloadStatus.DOWNLOADING && isTorrent -> viewModel.pauseDownload(item.fileName)
+            status == DownloadStatus.QUEUED || status == DownloadStatus.DOWNLOADING || status == DownloadStatus.UNZIPPING ->
                 scope.launch { viewModel.cancelDownload(item.fileName) }
-            DownloadStatus.COMPLETED, DownloadStatus.STOPPED, DownloadStatus.FAILED ->
+            status == DownloadStatus.COMPLETED || status == DownloadStatus.STOPPED ||
+            status == DownloadStatus.FAILED || status == DownloadStatus.PAUSED ->
                 scope.launch { viewModel.retryDownload(item.fileName) }
-            DownloadStatus.COPYING -> Unit
+            else -> Unit
         }
     }
     Row(
@@ -195,10 +200,25 @@ fun DownloadItem(
 
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             when (status) {
-                DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.UNZIPPING -> ActionButton(R.drawable.ic_stop, stringResource(R.string.download_cancel), actionSize, scheme.onSurface) {
-                    scope.launch { viewModel.cancelDownload(item.fileName) }
+                DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.UNZIPPING -> {
+                    if (status == DownloadStatus.DOWNLOADING && isTorrent) {
+                        ActionButton(R.drawable.ic_pause, stringResource(R.string.download_pause), actionSize, scheme.onSurface) {
+                            viewModel.pauseDownload(item.fileName)
+                        }
+                    }
+                    ActionButton(R.drawable.ic_stop, stringResource(R.string.download_cancel), actionSize, scheme.onSurface) {
+                        scope.launch { viewModel.cancelDownload(item.fileName) }
+                    }
                 }
                 DownloadStatus.COPYING -> Unit
+                DownloadStatus.PAUSED -> {
+                    ActionButton(R.drawable.ic_play, stringResource(R.string.download_resume), actionSize, scheme.primary) {
+                        scope.launch { viewModel.retryDownload(item.fileName) }
+                    }
+                    ActionButton(R.drawable.ic_trash, stringResource(R.string.download_delete), actionSize, scheme.error) {
+                        viewModel.deleteDownloadWithConfirmation(item.fileName, false)
+                    }
+                }
                 DownloadStatus.COMPLETED, DownloadStatus.STOPPED, DownloadStatus.FAILED -> {
                     if (upload?.status == UploadStatus.FAILED) {
                         ActionButton(R.drawable.ic_arrow_up, stringResource(R.string.romm_upload_retry), actionSize, scheme.primary) {
