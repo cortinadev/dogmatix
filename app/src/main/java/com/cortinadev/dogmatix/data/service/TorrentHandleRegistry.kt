@@ -13,7 +13,9 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import org.libtorrent4j.SessionHandle
 import org.libtorrent4j.SessionManager
+import org.libtorrent4j.TorrentFlags
 import org.libtorrent4j.TorrentHandle
 import org.libtorrent4j.TorrentInfo
 import java.io.File
@@ -96,7 +98,9 @@ class TorrentHandleRegistry @Inject constructor(
         handles.remove(optimizedMagnet)?.let { handle ->
             if (handle.isValid) {
                 try {
-                    session.remove(handle)
+                    // Nothing else tracks this torrent any more: drop whatever it left in
+                    // cacheDir/torrent_data (cancelled or failed partials would pile up otherwise).
+                    session.remove(handle, SessionHandle.DELETE_FILES)
                 } catch (e: Exception) {
                     Log.e(TAG, "Error removing torrent: ${e.message}")
                 }
@@ -154,6 +158,9 @@ class TorrentHandleRegistry @Inject constructor(
                 Log.w(TAG, "Failed to pause handle: ${e.message}")
             }
 
+            // Upload mode still exchanges metadata but never requests pieces: otherwise the
+            // swarm starts filling the cache with random files until we get to set priorities.
+            try { handle.setFlags(TorrentFlags.UPLOAD_MODE) } catch (e: Exception) { Log.w(TAG, "upload_mode: ${e.message}") }
             handle.resume() // Resume just to fetch metadata
             waitForMetadata(handle, uri)
         }
@@ -208,7 +215,7 @@ class TorrentHandleRegistry @Inject constructor(
 
         if (result == null) {
             try {
-                if (handle.isValid) session.swig().remove_torrent(handle.swig())
+                if (handle.isValid) session.swig().remove_torrent(handle.swig(), SessionHandle.DELETE_FILES)
             } catch (_: Exception) {}
             throw TorrentMetadataTimeoutException(
                 "Metadata fetch timed out after ${timeoutS}s without progress for: $uri"

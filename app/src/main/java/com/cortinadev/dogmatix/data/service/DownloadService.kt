@@ -329,6 +329,9 @@ class DownloadService @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Error processing torrent file for ${file.fileName}: ${e.message}", e)
             updateStatus(file.fileName, DownloadStatus.FAILED)
+            // Untrack and, if nothing else uses the torrent, release it (deletes the cached data);
+            // a retry re-fetches the metadata and starts clean instead of leaving a partial behind.
+            runCatching { torrentDownloadService.finishDownload(file) }
         }
     }
 

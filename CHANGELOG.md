@@ -3,6 +3,15 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
+## [1.1.2] – 2026-08-30
+
+### Fixed
+- **App cache growing to gigabytes.** Torrent downloads are staged in the app cache and were
+  only removed after a successful copy: stopping or failing a download left the partial file
+  behind for the rest of the session, and every rescan wrote a few random pieces while the
+  metadata was being fetched. Torrents are now removed together with their files when stopped,
+  failed or timed out, and metadata is fetched in upload mode (no pieces requested).
+
 ## [1.1.1] – 2026-08-30
 
 ### Added

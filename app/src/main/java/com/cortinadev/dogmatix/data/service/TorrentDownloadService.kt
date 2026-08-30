@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.libtorrent4j.Priority
+import org.libtorrent4j.TorrentFlags
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -89,6 +90,9 @@ class TorrentDownloadService @Inject constructor(
             if (idx < priorities.size) priorities[idx] = Priority.DEFAULT
         }
         handle.prioritizeFiles(priorities)
+        // The registry fetched metadata in upload mode (no piece requests); lift it now that
+        // only the wanted files have a priority.
+        handle.unsetFlags(TorrentFlags.UPLOAD_MODE)
 
         // Only move storage if the torrent isn't already downloading to our cache directory.
         // Calling moveStorage() is asynchronous — redundant calls on the same handle fire
