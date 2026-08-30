@@ -3,6 +3,17 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
+## [1.1.4] – 2026-08-31
+
+### Fixed
+- **Retry button did nothing on "Completed" rows.** Downloads that the 1.1.2 bug had falsely
+  marked completed showed a retry button that was silently refused; retrying a finished
+  download (i.e. downloading it again) is now allowed.
+- **Downloads are now fully gamepad-accessible**: the per-row buttons could not be reached
+  with the D-pad. A on a focused row retries (or stops an active download), X deletes it —
+  with a confirmation dialog on completed rows that starts focused on "Keep file" and closes
+  with B. The button legend shows the new shortcuts.
+
 ## [1.1.3] – 2026-08-31
 
 ### Fixed

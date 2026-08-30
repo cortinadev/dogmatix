@@ -23,6 +23,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.res.painterResource
@@ -57,7 +58,8 @@ fun DownloadItem(
     compact: Boolean,
     viewModel: DownloadViewModel,
     modifier: Modifier = Modifier,
-    upload: UploadState? = null
+    upload: UploadState? = null,
+    onRowFocused: (DownloadItemModel) -> Unit = {}
 ) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
@@ -105,12 +107,24 @@ fun DownloadItem(
         (status == DownloadStatus.QUEUED && item.progress <= 0f)
     val actionSize: Dp = if (compact) 36.dp else 44.dp
 
+    // A (or a tap) on the row runs the primary action; the side buttons stay for touch and
+    // are skipped by D-pad focus search (they sit inside the focused row's bounds).
+    val primaryAction: () -> Unit = {
+        when (status) {
+            DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.UNZIPPING ->
+                scope.launch { viewModel.cancelDownload(item.fileName) }
+            DownloadStatus.COMPLETED, DownloadStatus.STOPPED, DownloadStatus.FAILED ->
+                scope.launch { viewModel.retryDownload(item.fileName) }
+            DownloadStatus.COPYING -> Unit
+        }
+    }
     Row(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
             .focusRing(source)
-            .clickable(interactionSource = source, indication = null) {}
+            .onFocusChanged { if (it.isFocused) onRowFocused(item) }
+            .clickable(interactionSource = source, indication = null, onClick = primaryAction)
             .defaultMinSize(minHeight = if (compact) 70.dp else 88.dp)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

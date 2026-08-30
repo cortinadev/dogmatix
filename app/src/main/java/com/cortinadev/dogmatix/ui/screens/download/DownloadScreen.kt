@@ -25,8 +25,18 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import com.cortinadev.dogmatix.R
+import com.cortinadev.dogmatix.data.model.DownloadItemModel
 import com.cortinadev.dogmatix.data.model.DownloadStatus
+import com.cortinadev.dogmatix.ui.common.Gamepad
+import com.cortinadev.dogmatix.ui.common.GamepadButton
+import com.cortinadev.dogmatix.ui.components.DialogButton
+import com.cortinadev.dogmatix.ui.components.closeOnGamepadB
+import com.cortinadev.dogmatix.ui.components.rememberInitialFocus
 
 @Composable
 fun DownloadScreen(
@@ -40,6 +50,23 @@ fun DownloadScreen(
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
     val active = downloads.count { it.status == DownloadStatus.DOWNLOADING || it.status == DownloadStatus.QUEUED }
     val completed = downloads.count { it.status == DownloadStatus.COMPLETED }
+
+    // Row under the D-pad cursor: X deletes it (the in-row buttons are touch-only — they sit
+    // inside the focused row's bounds, out of reach of directional focus search).
+    var focusedRow by remember { mutableStateOf<DownloadItemModel?>(null) }
+    LaunchedEffect(Unit) {
+        Gamepad.presses.collect { button ->
+            if (button == GamepadButton.X) {
+                // Re-read the live status: it may have changed since the row took focus.
+                downloads.find { it.fileName == focusedRow?.fileName }?.let { row ->
+                    if (row.status == DownloadStatus.COMPLETED || row.status == DownloadStatus.STOPPED ||
+                        row.status == DownloadStatus.FAILED) {
+                        viewModel.deleteDownloadWithConfirmation(row.fileName, row.status == DownloadStatus.COMPLETED)
+                    }
+                }
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -79,7 +106,8 @@ fun DownloadScreen(
                         details = details[item.fileName],
                         upload = uploads[item.fileName],
                         compact = isLandscape,
-                        viewModel = viewModel
+                        viewModel = viewModel,
+                        onRowFocused = { focusedRow = it }
                     )
                 }
             }
@@ -88,18 +116,15 @@ fun DownloadScreen(
 
     showDeleteConfirmation?.let { fileName ->
         AlertDialog(
+            modifier = Modifier.closeOnGamepadB { viewModel.cancelDeleteConfirmation() },
             onDismissRequest = { viewModel.cancelDeleteConfirmation() },
             title = { Text(text = stringResource(R.string.delete_download_title)) },
             text = { Text(text = stringResource(R.string.delete_download_message)) },
             confirmButton = {
-                TextButton(onClick = { viewModel.confirmDeleteRemoveFile(fileName) }) {
-                    Text(stringResource(R.string.delete_file))
-                }
+                DialogButton(stringResource(R.string.delete_file), onClick = { viewModel.confirmDeleteRemoveFile(fileName) })
             },
             dismissButton = {
-                TextButton(onClick = { viewModel.confirmDeleteKeepFile(fileName) }) {
-                    Text(stringResource(R.string.keep_file))
-                }
+                DialogButton(stringResource(R.string.keep_file), onClick = { viewModel.confirmDeleteKeepFile(fileName) }, initialFocus = rememberInitialFocus())
             }
         )
     }

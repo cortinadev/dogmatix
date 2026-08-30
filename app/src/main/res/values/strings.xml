@@ -27,6 +27,8 @@
     <string name="pad_section">Section</string>
     <string name="pad_panels">Panel</string>
     <string name="pad_select">Select</string>
+    <string name="pad_retry">Retry / Stop</string>
+    <string name="pad_delete">Delete</string>
     <string name="pad_open">Open</string>
     <string name="pad_change">Change</string>
     <string name="pad_adjust">Adjust</string>

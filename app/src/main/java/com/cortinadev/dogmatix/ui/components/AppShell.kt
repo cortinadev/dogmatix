@@ -172,7 +172,10 @@ fun legendFor(route: String): List<LegendEntry> {
             LegendEntry("X", stringResource(R.string.pad_filters)),
             LegendEntry("Y", stringResource(R.string.pad_search)), section
         )
-        NavRoutes.Downloads.route -> listOf(LegendEntry("A", stringResource(R.string.pad_select)), back, section)
+        NavRoutes.Downloads.route -> listOf(
+            LegendEntry("A", stringResource(R.string.pad_retry)),
+            LegendEntry("X", stringResource(R.string.pad_delete)), back, section
+        )
         NavRoutes.Sources.route -> listOf(LegendEntry("A", stringResource(R.string.pad_open)), back, section)
         NavRoutes.Settings.route, NavRoutes.Romm.route -> listOf(
             LegendEntry("A", stringResource(R.string.pad_change)),
