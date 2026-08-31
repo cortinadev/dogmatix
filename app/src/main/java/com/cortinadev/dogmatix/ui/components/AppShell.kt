@@ -10,9 +10,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentHeight
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -40,11 +42,18 @@ import com.cortinadev.dogmatix.ui.navigation.NavRoutes
 private fun Wordmark(modifier: Modifier = Modifier) {
     Column(modifier = modifier, horizontalAlignment = Alignment.End) {
         Text(stringResource(R.string.topbar_title), style = MaterialTheme.typography.titleLarge)
+        // Zero layout height + unbounded measure: the wordmark keeps its original centering in
+        // the row (as if this line did not exist) and the version overflows below it, pulled up
+        // 5dp so it hugs the logo.
         Text(
             BuildConfig.VERSION_NAME,
             fontSize = 9.sp,
             lineHeight = 10.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+            modifier = Modifier
+                .height(0.dp)
+                .wrapContentHeight(align = Alignment.Top, unbounded = true)
+                .offset(y = (-5).dp)
         )
     }
 }
