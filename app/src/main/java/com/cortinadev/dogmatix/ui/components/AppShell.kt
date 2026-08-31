@@ -30,8 +30,24 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.cortinadev.dogmatix.BuildConfig
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.ui.navigation.NavRoutes
+
+/** App title with the version tucked under it: tiny, faint, right-aligned to the wordmark. */
+@Composable
+private fun Wordmark(modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.End) {
+        Text(stringResource(R.string.topbar_title), style = MaterialTheme.typography.titleLarge)
+        Text(
+            BuildConfig.VERSION_NAME,
+            fontSize = 9.sp,
+            lineHeight = 10.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+        )
+    }
+}
 
 /** Landscape header: title, numbered section tabs (ZL / ZR), rescan status. */
 @Composable
@@ -44,11 +60,7 @@ fun TopTabs(currentRoute: String, onSelect: (NavRoutes) -> Unit) {
             .padding(start = 20.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            stringResource(R.string.topbar_title),
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.padding(end = 20.dp)
-        )
+        Wordmark(modifier = Modifier.padding(end = 20.dp))
         NavRoutes.tabs.forEachIndexed { index, route ->
             val selected = route.route == currentRoute
             val source = rememberFocusSource()
@@ -104,7 +116,7 @@ fun PortraitHeader(trailing: @Composable (() -> Unit)? = null) {
             .padding(horizontal = 20.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(stringResource(R.string.topbar_title), style = MaterialTheme.typography.titleLarge)
+        Wordmark()
         Spacer(Modifier.weight(1f))
         RescanIndicator(modifier = Modifier.widthIn(max = 200.dp))
         trailing?.let { Spacer(Modifier.padding(start = 12.dp)); it() }

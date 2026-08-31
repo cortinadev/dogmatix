@@ -12,6 +12,8 @@ All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 - Direct HTTP and RomM downloads keep their partial file when they stop or fail (connection
   drop included) and the retry continues it with a Range request instead of starting over.
 
+- A tiny, faint version indicator under the app logo in both headers.
+
 ### Fixed
 - Per-file download speed: rows from the same torrent showed the torrent's total rate.
 
