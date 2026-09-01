@@ -62,6 +62,12 @@
     <string name="details_favourite">☆ Favourite</string>
     <string name="details_unfavourite">★ Unfavourite</string>
     <string name="pad_favourite">Favourite</string>
+    <string name="pad_tick">Tick</string>
+    <string name="pad_apply">Apply</string>
+    <string name="pad_select_all">All</string>
+    <string name="pad_cancel">Cancel</string>
+    <string name="selection_selected">Selected</string>
+    <string name="selection_clear">Clear selection</string>
     <string name="download_already_active">"%1$s" is already downloading</string>
     <string name="free_space">%1$s free</string>
 
@@ -83,8 +89,12 @@
     <string name="filter_selected_count">%1$d selected</string>
     <string name="filter_show_more">Show more…</string>
     <string name="filter_show_less">Show less</string>
-    <string name="sort_asc">A → Z</string>
-    <string name="sort_desc">Z → A</string>
+    <string name="sort_name_asc">A → Z</string>
+    <string name="sort_name_desc">Z → A</string>
+    <string name="sort_size_desc">Size: big → small</string>
+    <string name="sort_size_desc_short">Size ↓</string>
+    <string name="sort_size_asc">Size: small → big</string>
+    <string name="sort_size_asc_short">Size ↑</string>
     <string name="results_count">%1$d results</string>
     <string name="results_count_more">%1$d+ results</string>
     <string name="no_results">Nothing matches these filters.</string>
@@ -96,6 +106,10 @@
     <!-- Downloads -->
     <string name="downloads_summary">%1$d active · %2$d completed</string>
     <string name="downloads_empty">No downloads yet. Pick a game in the library.</string>
+    <plurals name="downloads_selected">
+        <item quantity="one">%1$d selected</item>
+        <item quantity="other">%1$d selected</item>
+    </plurals>
     <string name="status_downloading">%1$d%%</string>
     <string name="status_completed">Completed</string>
     <string name="status_failed">Failed</string>
@@ -114,6 +128,45 @@
     <string name="api_key_label">API key</string>
     <string name="debrid_key_valid">%1$s: connected as %2$s</string>
     <string name="debrid_key_invalid">%1$s: %2$s</string>
+    <string name="settings_frontend_shortcuts">Frontend shortcuts</string>
+    <string name="settings_frontend_shortcuts_hint">Put a Dogmatix shortcut (.dgmtx) in every platform folder, for ES-DE and similar frontends</string>
+    <string name="settings_frontend_shortcuts_action">Create</string>
+    <string name="frontend_shortcuts_done">%1$d shortcuts created</string>
+    <string name="frontend_shortcuts_partial">%1$d shortcuts created, %2$d failed</string>
+    <string name="frontend_shortcuts_none">No download directory set</string>
+    <string name="dgmtx_invalid">Not a Dogmatix shortcut file</string>
+    <string name="settings_esde">Configure ES-DE</string>
+    <string name="settings_esde_hint">Pick your ES-DE folder and Dogmatix adds itself to every platform (close ES-DE first)</string>
+    <string name="settings_esde_action">Set up</string>
+    <string name="esde_configured">ES-DE: %1$d systems ready, %2$d shortcuts — restart ES-DE</string>
+    <string name="esde_folders_skipped">%1$d folders have no matching ES-DE system</string>
+    <string name="esde_not_installed">ES-DE is not installed on this device</string>
+    <string name="settings_iisu">Configure iiSU</string>
+    <string name="settings_iisu_hint">Pick iiSU\'s iiSULauncher folder and Dogmatix adds itself as an emulator (restart iiSU after)</string>
+    <string name="settings_iisu_action">Set up</string>
+    <string name="iisu_configured">iiSU: %1$d consoles ready, %2$d shortcuts — restart iiSU</string>
+    <string name="iisu_folders_skipped">%1$d folders have no matching iiSU console</string>
+    <string name="iisu_not_installed">iiSU is not installed on this device</string>
+    <string name="iisu_wrong_folder">That is not iiSU\'s iiSULauncher folder (it lives in Android/media/com.iisulauncher)</string>
+    <string name="frontend_folder_not_writable">The selected folder is not writable</string>
+    <string name="frontend_no_console_folders">No per-console folders: turn on \"Separate subfolders by console\" first</string>
+    <string name="frontend_config_unreadable">The frontend\'s configuration could not be read — nothing was changed</string>
+    <string name="frontend_config_corrupt">The frontend\'s configuration file looks damaged — nothing was changed</string>
+    <string name="frontend_write_failed">Writing into the frontend\'s folder failed</string>
+    <string name="settings_daijisho">Set up Daijishō</string>
+    <string name="settings_daijisho_hint">Daijishō has no importable emulator config: get the values to add by hand</string>
+    <string name="settings_daijisho_action">Show</string>
+    <string name="daijisho_dialog_title">Add Dogmatix to Daijishō</string>
+    <string name="daijisho_dialog_body">%1$d shortcuts are in place. Daijishō keeps its players in a private database, so the entry has to be added by hand: open Settings › Library › Add an emulator and fill it in with these values (leave the kill-processes switch off), then sync.</string>
+    <string name="daijisho_field_name">Emulator name</string>
+    <string name="daijisho_field_arguments">Emulator am start arguments</string>
+    <string name="daijisho_field_regex">Accepted filename regex</string>
+    <string name="dialog_copy">Copy</string>
+    <string name="dialog_close">Close</string>
+    <string name="onboarding_esde_title">Connect to ES-DE</string>
+    <string name="onboarding_esde_body">ES-DE is installed on this device. Pick its data folder (the one with gamelists and downloaded_media, usually ES-DE) and Dogmatix will appear inside every platform as "★ Search for more games…". Close ES-DE first — you can also do this later from Settings.</string>
+    <string name="onboarding_esde_choose">Choose ES-DE folder</string>
+    <string name="onboarding_esde_configuring">Setting up ES-DE…</string>
     <string name="nav_romm">RomM</string>
     <string name="settings_romm">RomM server</string>
     <string name="settings_romm_hint">Upload finished downloads to a RomM library</string>
@@ -147,6 +200,7 @@
     <string name="theme_system">System</string>
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
+    <string name="theme_true_black">True black</string>
     <string name="theme_suffix_dark">dark</string>
     <string name="theme_suffix_light">light</string>
     <string name="settings_accent">Accent color</string>
@@ -155,6 +209,9 @@
     <string name="settings_concurrent_label">Concurrent downloads</string>
     <string name="settings_limit_label">Speed limit</string>
     <string name="settings_limit_hint">Unlimited at 0</string>
+    <string name="settings_max_results">Maximum search results</string>
+    <string name="settings_max_results_hint">How many games a library search loads at once; “Load more” fetches the next batch</string>
+    <string name="settings_unlimited">Unlimited</string>
     <string name="settings_metadata_timeout">Metadata timeout</string>
     <string name="settings_metadata_timeout_hint">How long to wait for a magnet\'s file list with no progress (rescan and torrent downloads); the clock restarts while data keeps arriving</string>
     <string name="seconds_short">%1$d s</string>
@@ -168,6 +225,13 @@
     <string name="settings_about">About &amp; contact</string>
     <string name="settings_change">Change</string>
     <string name="settings_not_set">Not set</string>
+    <string name="settings_gamepad_layout">Gamepad layout</string>
+    <string name="settings_gamepad_layout_hint">How the buttons are named in the legend; it does not change what they do</string>
+    <string name="gamepad_layout_xbox">Xbox</string>
+    <string name="gamepad_layout_nintendo">Nintendo</string>
+    <string name="gamepad_layout_playstation">PlayStation</string>
+    <string name="settings_swap_face_buttons">Swap A/B and X/Y</string>
+    <string name="settings_swap_face_buttons_hint">For pads that report the face buttons the other way round; the legend stays as it is</string>
     <string name="settings_language">Language</string>
     <string name="settings_language_hint">Follows the device language by default</string>
     <string name="language_system">System</string>
@@ -205,9 +269,13 @@
     
     <!-- Delete Confirmation -->
     <string name="delete_download_title">Delete Download</string>
+    <string name="delete_downloads_title">Delete downloads</string>
     <string name="delete_download_message">This download has completed. Do you want to delete the file from storage or just remove it from the download list?</string>
+    <string name="delete_downloads_message">%1$d downloads selected, some of them completed. Do you want to delete their files from storage or just remove them from the download list?</string>
     <string name="delete_file">Delete File</string>
+    <string name="delete_files">Delete files</string>
     <string name="keep_file">Keep File</string>
+    <string name="keep_files">Keep files</string>
     
     <!-- File Sizes -->
     <string name="file_size_bytes">%1$d B</string>

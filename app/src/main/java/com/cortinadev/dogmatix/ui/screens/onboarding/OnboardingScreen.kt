@@ -62,11 +62,10 @@ import com.cortinadev.dogmatix.ui.components.rememberFocusSource
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
 import com.cortinadev.dogmatix.util.FileParsingUtils
 
-private const val STEPS = 3
-
 /**
- * First-run flow: what the app does → ROM root folder → import a sources JSON.
- * Every step can be skipped; finishing sets `onboarding_done` and the shell takes over.
+ * First-run flow: what the app does → ROM root folder → import a sources JSON → (when ES-DE
+ * is installed) connect ES-DE. Every step can be skipped; finishing sets `onboarding_done`
+ * and the shell takes over.
  * Gamepad: focus starts on the primary action of each step, B goes one step back.
  *
  * [onImportSources] receives the picked document URI; the caller runs the import + rescan.
@@ -80,10 +79,16 @@ fun OnboardingScreen(
     val context = LocalContext.current
     val downloadDirectory by viewModel.downloadDirectory.collectAsState()
     val gamepadConnected by Gamepad.connected.collectAsState()
+    val esdeBusy by viewModel.esdeBusy.collectAsState()
+    val totalSteps = if (viewModel.esdeInstalled) 4 else 3
     var step by rememberSaveable { mutableIntStateOf(0) }
     var importStarted by rememberSaveable { mutableStateOf(false) }
     val primaryFocus = remember { FocusRequester() }
     val rootFocus = remember { FocusRequester() }
+    // After the sources step: the ES-DE step when it exists, otherwise the tour is over.
+    fun leaveSourcesStep() {
+        if (viewModel.esdeInstalled) step = 3 else viewModel.finish()
+    }
 
     val folderPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let {
@@ -96,10 +101,19 @@ fun OnboardingScreen(
     val jsonPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let { importStarted = true; onImportSources(it.toString()) }
     }
+    val esdePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(
+                it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            viewModel.configureEsde(context, it.toString())
+        }
+    }
 
-    // Once the import kicked off and its rescan is running (or already over), the tour is done.
+    // Once the import kicked off and its rescan is running (or already over), move on: the
+    // consoles are already in Room, so the ES-DE step can use them while the rescan continues.
     LaunchedEffect(importStarted, isRescanning) {
-        if (importStarted && isRescanning) viewModel.finish()
+        if (importStarted && isRescanning && step == 2) leaveSourcesStep()
     }
     // Focus the step's main action once the new content is laid out; if that fails, keep focus
     // on the root so B / Back are still caught here instead of leaving the app.
@@ -130,7 +144,7 @@ fun OnboardingScreen(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                StepDots(step)
+                StepDots(step, totalSteps)
                 when (step) {
                     0 -> {
                         Text(stringResource(R.string.onboarding_welcome_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
@@ -164,7 +178,7 @@ fun OnboardingScreen(
                             }
                         }
                     }
-                    else -> {
+                    2 -> {
                         Text(stringResource(R.string.onboarding_sources_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
                         Text(stringResource(R.string.onboarding_sources_body), style = MaterialTheme.typography.bodyLarge, color = scheme.onSurfaceVariant)
                         Spacer(Modifier.height(4.dp))
@@ -177,6 +191,26 @@ fun OnboardingScreen(
                             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 OnboardingButton(stringResource(R.string.onboarding_sources_import), primary = true, focus = primaryFocus) {
                                     jsonPicker.launch(arrayOf("application/json", "application/octet-stream", "text/*"))
+                                }
+                                OnboardingButton(
+                                    stringResource(if (viewModel.esdeInstalled) R.string.onboarding_continue else R.string.onboarding_finish)
+                                ) { leaveSourcesStep() }
+                            }
+                        }
+                    }
+                    else -> {
+                        Text(stringResource(R.string.onboarding_esde_title), style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.onboarding_esde_body), style = MaterialTheme.typography.bodyLarge, color = scheme.onSurfaceVariant)
+                        Spacer(Modifier.height(4.dp))
+                        if (esdeBusy) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                Text(stringResource(R.string.onboarding_esde_configuring), style = MaterialTheme.typography.bodyMedium)
+                            }
+                        } else {
+                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                OnboardingButton(stringResource(R.string.onboarding_esde_choose), primary = true, focus = primaryFocus) {
+                                    esdePicker.launch(null)
                                 }
                                 OnboardingButton(stringResource(R.string.onboarding_finish)) { viewModel.finish() }
                             }
@@ -197,10 +231,10 @@ fun OnboardingScreen(
 }
 
 @Composable
-private fun StepDots(current: Int) {
+private fun StepDots(current: Int, total: Int) {
     val scheme = MaterialTheme.colorScheme
     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-        repeat(STEPS) { i ->
+        repeat(total) { i ->
             Box(
                 modifier = Modifier
                     .size(width = if (i == current) 22.dp else 8.dp, height = 8.dp)
@@ -210,7 +244,7 @@ private fun StepDots(current: Int) {
         }
         Spacer(Modifier.width(6.dp))
         Text(
-            stringResource(R.string.onboarding_step, current + 1, STEPS),
+            stringResource(R.string.onboarding_step, current + 1, total),
             style = MaterialTheme.typography.labelMedium, color = scheme.onSurfaceVariant
         )
     }

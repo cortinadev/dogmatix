@@ -51,6 +51,7 @@ import com.cortinadev.dogmatix.ui.components.TagRow
 import com.cortinadev.dogmatix.ui.components.focusRing
 import com.cortinadev.dogmatix.ui.components.rememberFocusSource
 import com.cortinadev.dogmatix.ui.components.stripExtension
+import com.cortinadev.dogmatix.ui.components.swapFaceButtons
 import com.cortinadev.dogmatix.ui.screens.home.DetailsState
 import kotlinx.coroutines.launch
 
@@ -89,6 +90,8 @@ fun GameDetailsDialog(
                 .widthIn(max = 720.dp)
                 .clip(RoundedCornerShape(14.dp))
                 .background(scheme.surfaceContainer)
+                // Its own window: the face-button swap has to be applied here too.
+                .swapFaceButtons()
                 .onPreviewKeyEvent { event ->
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (event.key) {

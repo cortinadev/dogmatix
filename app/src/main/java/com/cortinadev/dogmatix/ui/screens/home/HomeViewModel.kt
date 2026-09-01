@@ -8,6 +8,7 @@ import com.cortinadev.dogmatix.data.local.entity.ConsoleEntity
 import com.cortinadev.dogmatix.data.local.dao.ConsoleWithFileCount
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
 import com.cortinadev.dogmatix.data.model.CategorizedTags
+import com.cortinadev.dogmatix.data.model.SortOption
 import com.cortinadev.dogmatix.data.model.SourceFilter
 import com.cortinadev.dogmatix.data.repository.ConsoleRepository
 import com.cortinadev.dogmatix.data.repository.DownloadableFileRepository
@@ -23,6 +24,7 @@ import com.cortinadev.dogmatix.data.state.LibraryFilterRequest
 import com.cortinadev.dogmatix.data.state.PendingLibraryFilters
 import com.cortinadev.dogmatix.data.state.RescanStateHolder
 import com.cortinadev.dogmatix.util.ConsoleFormatter
+import com.cortinadev.dogmatix.util.Constants
 import com.cortinadev.dogmatix.util.DeepLinkResolver
 import com.cortinadev.dogmatix.util.StorageHelper
 import com.cortinadev.dogmatix.util.ToastUtil
@@ -122,8 +124,8 @@ class HomeViewModel @Inject constructor(
     private val _activeTags = MutableStateFlow<Set<String>>(emptySet())
     val activeTags: StateFlow<Set<String>> = _activeTags.asStateFlow()
 
-    private val _sortAsc = MutableStateFlow(true)
-    val sortAsc: StateFlow<Boolean> = _sortAsc.asStateFlow()
+    private val _sort = MutableStateFlow(SortOption.NAME_ASC)
+    val sort: StateFlow<SortOption> = _sort.asStateFlow()
 
     private val _results = MutableStateFlow<List<DownloadableFileWithTags>>(emptyList())
     val results: StateFlow<List<DownloadableFileWithTags>> = _results
@@ -148,7 +150,10 @@ class HomeViewModel @Inject constructor(
     val isLoadingMore: StateFlow<Boolean> = _isLoadingMore
 
     private var currentOffset = 0
-    private val pageSize = 100
+    /** Rows per search ("Maximum search results" in Settings); [Int.MAX_VALUE] when unlimited. */
+    private val pageSize: StateFlow<Int> = settingsRepository.maxSearchResults
+        .map { if (it <= 0) Int.MAX_VALUE else it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, Constants.DEFAULT_MAX_SEARCH_RESULTS)
 
     init {
         // Deep links (dogmatix://library?…): apply whatever is waiting, now and on every new link.
@@ -158,16 +163,17 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 combine(_searchQuery, _selectedConsoles, _activeTags) { q, c, t -> Triple(q, c, t) },
-                combine(_sortAsc, _favouritesOnly, _source, rescanStateHolder.lastRescanTime) { s, f, src, _ -> Triple(s, f, src) },
+                combine(_sort, _favouritesOnly, _source, rescanStateHolder.lastRescanTime) { s, f, src, _ -> Triple(s, f, src) },
                 // Re-query when a star changes while "Favourites only" is on, else the row would linger.
-                combine(_favouritesOnly, favourites.keys) { only, keys -> if (only) keys else emptySet() }.distinctUntilChanged()
-            ) { (query, consoles, tags), (sortAsc, favouritesOnly, source), _ ->
-                FilterParams(query = query, consoles = consoles, tags = tags, sortAsc = sortAsc, favouritesOnly = favouritesOnly, source = source)
+                combine(_favouritesOnly, favourites.keys) { only, keys -> if (only) keys else emptySet() }.distinctUntilChanged(),
+                pageSize
+            ) { (query, consoles, tags), (sort, favouritesOnly, source), _, limit ->
+                FilterParams(query = query, consoles = consoles, tags = tags, sort = sort, favouritesOnly = favouritesOnly, source = source, limit = limit)
             }.collect { params ->
                 currentOffset = 0
                 val initialResults = performSearch(params)
                 _results.value = initialResults
-                _hasMoreResults.value = initialResults.size >= pageSize
+                _hasMoreResults.value = initialResults.size >= params.limit
                 loadConsoles()
                 loadAvailableTags(params.query, params.consoles)
             }
@@ -231,8 +237,8 @@ class HomeViewModel @Inject constructor(
         _selectedConsoles.value = _selectedConsoles.value - consoleId
     }
 
-    fun setSortAsc(ascending: Boolean) {
-        _sortAsc.value = ascending
+    fun setSort(option: SortOption) {
+        _sort.value = option
     }
 
     /** Replace whichever of [categoryTags] are active with [selection] (a subset of them). */
@@ -248,7 +254,7 @@ class HomeViewModel @Inject constructor(
         _searchQuery.value = ""
         _activeTags.value = emptySet()
         _selectedConsoles.value = emptySet()
-        _sortAsc.value = true
+        _sort.value = SortOption.NAME_ASC
         _favouritesOnly.value = false
         _source.value = SourceFilter.ALL
     }
@@ -261,8 +267,8 @@ class HomeViewModel @Inject constructor(
             tags = params.tags,
             favouritesOnly = params.favouritesOnly,
             source = params.source,
-            sortAsc = params.sortAsc,
-            limit = pageSize,
+            sort = params.sort,
+            limit = params.limit,
             offset = 0
         )
     }
@@ -292,8 +298,9 @@ class HomeViewModel @Inject constructor(
     suspend fun loadMore() {
         if (_isLoadingMore.value || !_hasMoreResults.value) return
 
+        val limit = pageSize.value
         _isLoadingMore.value = true
-        currentOffset += pageSize
+        currentOffset += limit
 
         val newResults = repository.searchFilesWithTags(
             query = _searchQuery.value,
@@ -301,8 +308,8 @@ class HomeViewModel @Inject constructor(
             tags = _activeTags.value,
             favouritesOnly = _favouritesOnly.value,
             source = _source.value,
-            sortAsc = _sortAsc.value,
-            limit = pageSize,
+            sort = _sort.value,
+            limit = limit,
             offset = currentOffset
         )
 
@@ -310,7 +317,7 @@ class HomeViewModel @Inject constructor(
             _hasMoreResults.value = false
         } else {
             _results.value += newResults
-            if (newResults.size < pageSize) _hasMoreResults.value = false
+            if (newResults.size < limit) _hasMoreResults.value = false
         }
 
         _isLoadingMore.value = false
@@ -336,9 +343,10 @@ data class FilterParams(
     val query: String,
     val consoles: Set<String>,
     val tags: Set<String>,
-    val sortAsc: Boolean,
+    val sort: SortOption,
     val favouritesOnly: Boolean = false,
-    val source: SourceFilter = SourceFilter.ALL
+    val source: SourceFilter = SourceFilter.ALL,
+    val limit: Int = Constants.DEFAULT_MAX_SEARCH_RESULTS
 )
 
 data class DetailsState(

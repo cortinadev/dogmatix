@@ -47,6 +47,35 @@ object Gamepad {
      */
     val legendOverride = MutableStateFlow<Legend?>(null)
 
+    /** How the face and shoulder buttons are named in the legend (Settings); actions never change. */
+    val layout = MutableStateFlow(GamepadLayout.XBOX)
+
+    /** Settings: the pad reports its face buttons the other way round, so A/B and X/Y are swapped. */
+    val swapFaceButtons = MutableStateFlow(false)
+
+    /** Guards [remap] against re-entering itself when a swapped event is dispatched again. */
+    private var remapping = false
+
+    /**
+     * The event the app should act on, with the swap setting applied (see [swapFaceKeyCode]).
+     * Returns [event] itself when nothing changes, so callers can compare by identity.
+     */
+    fun remap(event: KeyEvent): KeyEvent {
+        if (!swapFaceButtons.value || remapping) return event
+        val keyCode = swapFaceKeyCode(event.keyCode)
+        if (keyCode == event.keyCode) return event
+        return KeyEvent(
+            event.downTime, event.eventTime, event.action, keyCode, event.repeatCount,
+            event.metaState, event.deviceId, event.scanCode, event.flags, event.source
+        )
+    }
+
+    /** Runs [block] with [remap] disabled: the event it dispatches is already swapped. */
+    fun withoutRemapping(block: () -> Unit) {
+        remapping = true
+        try { block() } finally { remapping = false }
+    }
+
     private var listener: InputManager.InputDeviceListener? = null
 
     fun startWatching(context: Context) {

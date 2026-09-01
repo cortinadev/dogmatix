@@ -74,6 +74,8 @@ Milou was designed for phones and touch. On a handheld with a small landscape sc
 - Download directory, concurrent downloads and speed limit as steppers (◀ ▶ with the controller), switches for auto-unzip and per-console subfolders, favorite languages picker, "About & contact".
 - *Metadata timeout* stepper (10–180 s, default 20): how long a rescan or a direct torrent download waits for a magnet's file list before giving up — raise it on slow trackers/DHT.
 - *Debrid service* stepper (Off / TorBox / Real-Debrid) with a single *API key* row for the selected service (dialog with *Test*); the key is masked in the row and stored only on the device.
+- *Gamepad layout* stepper (Xbox / Nintendo / PlayStation): draws the button legend the way your pad is printed — Xbox A/B/X/Y with `LB · RB` / `LT · RT`, Nintendo the same letters in Super Famicom colours (A red, B yellow, X blue, Y green) with `L · R` / `ZL · ZR`, PlayStation ✕ ○ □ △ each in its own colour with `L1 · R1` / `L2 · R2`. Names and colours only: A (✕) always accepts and B (○) always goes back.
+- *Swap A/B and X/Y* switch, for pads that report their face buttons the other way round: it moves the actions and leaves the legend untouched, dialogs and the filter sheet included.
 - Two-column layout in landscape.
 
 ### Under the hood
@@ -151,6 +153,13 @@ dogmatix://library?console=nintendo_snes&region=USA,Europe&lang=En&type=GAME&q=m
 | `fav` | `1`/`true` shows favourites only, `0`/`false` everything |
 
 Try it with `adb shell am start -a android.intent.action.VIEW -d "dogmatix://library?console=nintendo_snes&q=mario"`. A link opened while the app is on another tab switches to the Library; one opened during onboarding is applied once onboarding finishes.
+
+Dogmatix also opens `.dgmtx` shortcut files (a text file carrying one of these links), and
+Settings → *Frontend shortcuts* drops one into every platform folder — that's how it shows up
+as an "emulator" inside ES-DE, iiSU or Daijishō. ES-DE and iiSU also get a one-button setup
+in Settings ("Configure ES-DE" / "Configure iiSU"); Daijishō has no importable emulator
+configuration, so "Set up Daijishō" hands over the values to type into it. See
+[FRONTENDS.md](FRONTENDS.md) for the frontend configuration.
 
 ## Controller cheat sheet
 

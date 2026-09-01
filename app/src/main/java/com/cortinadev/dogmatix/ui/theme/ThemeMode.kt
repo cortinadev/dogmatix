@@ -7,7 +7,8 @@ import com.cortinadev.dogmatix.R
 enum class ThemeMode(val labelRes: Int) {
     SYSTEM(R.string.theme_system),
     LIGHT(R.string.theme_light),
-    DARK(R.string.theme_dark);
+    DARK(R.string.theme_dark),
+    TRUE_BLACK(R.string.theme_true_black);
 
     companion object {
         fun fromName(name: String?): ThemeMode = entries.firstOrNull { it.name == name } ?: SYSTEM

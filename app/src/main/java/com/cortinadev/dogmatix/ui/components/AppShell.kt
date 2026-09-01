@@ -193,9 +193,11 @@ fun legendFor(route: String): List<LegendEntry> {
             LegendEntry("X", stringResource(R.string.pad_filters)),
             LegendEntry("Y", stringResource(R.string.pad_search)), section
         )
+        // Downloads fits four entries on one line in 4:3; SELECT (multi-selection) earns B's slot.
         NavRoutes.Downloads.route -> listOf(
             LegendEntry("A", stringResource(R.string.pad_retry)),
-            LegendEntry("X", stringResource(R.string.pad_delete)), back, section
+            LegendEntry("X", stringResource(R.string.pad_delete)),
+            LegendEntry("SELECT", stringResource(R.string.pad_tick)), section
         )
         NavRoutes.Sources.route -> listOf(LegendEntry("A", stringResource(R.string.pad_open)), back, section)
         NavRoutes.Settings.route, NavRoutes.Romm.route -> listOf(

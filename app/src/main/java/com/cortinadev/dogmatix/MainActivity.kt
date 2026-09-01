@@ -51,9 +51,16 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import android.net.Uri
+import androidx.lifecycle.lifecycleScope
 import com.cortinadev.dogmatix.data.model.DownloadStatus
 import com.cortinadev.dogmatix.data.state.PendingLibraryFilters
 import com.cortinadev.dogmatix.util.DeepLinkParser
+import com.cortinadev.dogmatix.util.DgmtxFile
+import com.cortinadev.dogmatix.util.ToastUtil
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.cortinadev.dogmatix.ui.common.Gamepad
 import com.cortinadev.dogmatix.ui.common.GamepadButton
 import com.cortinadev.dogmatix.ui.common.StorageStatusViewModel
@@ -95,6 +102,11 @@ class MainActivity : AppCompatActivity() {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val settings by settingsViewModel.uiState.collectAsState()
             val onboardingDone by settingsViewModel.onboardingDone.collectAsState()
+            // Key handling runs outside the composition, so the pad settings are mirrored there.
+            LaunchedEffect(settings.gamepadLayout, settings.swapFaceButtons) {
+                Gamepad.layout.value = settings.gamepadLayout
+                Gamepad.swapFaceButtons.value = settings.swapFaceButtons
+            }
             DogmatixTheme(themeMode = settings.themeMode, accent = settings.accent) {
                 when (onboardingDone) {
                     null -> Unit                      // DataStore not read yet: avoid flashing the wrong screen
@@ -114,11 +126,45 @@ class MainActivity : AppCompatActivity() {
 
     private fun handleDeepLink(intent: Intent?) {
         if (intent?.action != Intent.ACTION_VIEW) return
-        DeepLinkParser.parse(intent.dataString)?.let(pendingFilters::submit)
+        val data = intent.data ?: return
+        if (DeepLinkParser.SCHEME.equals(data.scheme, ignoreCase = true)) {
+            DeepLinkParser.parse(intent.dataString)?.let(pendingFilters::submit)
+            return
+        }
+        // A .dgmtx shortcut opened from a frontend (ES-DE…) or a file manager: the deep link is
+        // inside the file. content:// URIs arrive with a read grant; file:// may not be readable.
+        lifecycleScope.launch {
+            val request = withContext(Dispatchers.IO) {
+                runCatching { readShortcutFile(data) }.getOrNull()
+                    ?.let { DeepLinkParser.parse(DgmtxFile.extractLink(it)) }
+            }
+            if (request != null) {
+                pendingFilters.submit(request)
+            } else {
+                ToastUtil.showError(this@MainActivity, getString(R.string.dgmtx_invalid))
+            }
+        }
     }
 
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean =
-        Gamepad.interceptKey(event) || super.dispatchKeyEvent(event)
+    /** The file's text, or null when it is unreadable or larger than [DgmtxFile.MAX_BYTES]. */
+    private fun readShortcutFile(uri: Uri): String? =
+        contentResolver.openInputStream(uri)?.use { stream ->
+            val buffer = ByteArray(DgmtxFile.MAX_BYTES + 1)
+            var read = 0
+            while (read < buffer.size) {
+                val n = stream.read(buffer, read, buffer.size - read)
+                if (n < 0) break
+                read += n
+            }
+            if (read > DgmtxFile.MAX_BYTES) null else String(buffer, 0, read, Charsets.UTF_8)
+        }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // The face-button swap is applied before anything else sees the key; dialogs and the
+        // filter sheet are their own window and do it themselves (Modifier.swapFaceButtons).
+        val swapped = Gamepad.remap(event)
+        return Gamepad.interceptKey(swapped) || super.dispatchKeyEvent(swapped)
+    }
 
     override fun onGenericMotionEvent(event: MotionEvent): Boolean =
         Gamepad.onGenericMotionEvent(event) || super.onGenericMotionEvent(event)

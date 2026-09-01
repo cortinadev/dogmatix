@@ -1,7 +1,9 @@
 package com.cortinadev.dogmatix.ui.screens.download
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -23,6 +25,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -50,6 +54,9 @@ import java.util.Date
 /**
  * One download. [details] is the indexed file behind it (console + tags) so two
  * versions of the same game can be told apart; null when it is no longer indexed.
+ *
+ * While [selectionMode] is on the row is a checkbox: A / a tap ticks it instead of
+ * running its action, and the per-row buttons step aside for the selection bar.
  */
 @Composable
 fun DownloadItem(
@@ -59,7 +66,12 @@ fun DownloadItem(
     viewModel: DownloadViewModel,
     modifier: Modifier = Modifier,
     upload: UploadState? = null,
-    onRowFocused: (DownloadItemModel) -> Unit = {}
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
+    /** Where ▲ goes from this row: the selection bar sits off-centre, so focus search never picks it. */
+    focusUp: FocusRequester? = null,
+    onToggleSelection: () -> Unit = {},
+    onRowFocused: (DownloadItemModel, Boolean) -> Unit = { _, _ -> }
 ) {
     val scheme = MaterialTheme.colorScheme
     val scope = rememberCoroutineScope()
@@ -127,27 +139,49 @@ fun DownloadItem(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) scheme.primary.copy(alpha = 0.12f) else Color.Transparent)
             .focusRing(source)
-            .onFocusChanged { if (it.isFocused) onRowFocused(item) }
-            .clickable(interactionSource = source, indication = null, onClick = primaryAction)
+            .focusProperties { focusUp?.let { up = it } }
+            .onFocusChanged { onRowFocused(item, it.isFocused) }
+            .combinedClickable(
+                interactionSource = source,
+                indication = null,
+                onClick = { if (selectionMode) onToggleSelection() else primaryAction() },
+                // Long press is how touch enters selection mode (the pad uses SELECT).
+                onLongClick = onToggleSelection
+            )
             .defaultMinSize(minHeight = if (compact) 70.dp else 88.dp)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        // The status also reads as text on the right, so the badge doubles as the checkbox.
         Box(
             modifier = Modifier
                 .size(28.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .background(scheme.surfaceContainer),
+                .background(if (selectionMode && selected) scheme.primary else scheme.surfaceContainer)
+                .then(
+                    if (selectionMode && !selected) Modifier.border(1.dp, scheme.outlineVariant, RoundedCornerShape(8.dp))
+                    else Modifier
+                ),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                painterResource(statusIcon),
-                contentDescription = status.name,
-                tint = statusColor,
-                modifier = Modifier.size(14.dp)
-            )
+            when {
+                selectionMode && selected -> Icon(
+                    painterResource(R.drawable.ic_check),
+                    contentDescription = stringResource(R.string.selection_selected),
+                    tint = scheme.onPrimary,
+                    modifier = Modifier.size(14.dp)
+                )
+                selectionMode -> Unit
+                else -> Icon(
+                    painterResource(statusIcon),
+                    contentDescription = status.name,
+                    tint = statusColor,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
         }
 
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -198,8 +232,9 @@ fun DownloadItem(
             }
         }
 
+        // The selection bar owns the actions while ticking rows.
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            when (status) {
+            when (if (selectionMode) null else status) {
                 DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.UNZIPPING -> {
                     if (status == DownloadStatus.DOWNLOADING && isTorrent) {
                         ActionButton(R.drawable.ic_pause, stringResource(R.string.download_pause), actionSize, scheme.onSurface) {
@@ -210,7 +245,7 @@ fun DownloadItem(
                         scope.launch { viewModel.cancelDownload(item.fileName) }
                     }
                 }
-                DownloadStatus.COPYING -> Unit
+                null, DownloadStatus.COPYING -> Unit
                 DownloadStatus.PAUSED -> {
                     ActionButton(R.drawable.ic_play, stringResource(R.string.download_resume), actionSize, scheme.primary) {
                         scope.launch { viewModel.retryDownload(item.fileName) }
@@ -238,10 +273,17 @@ fun DownloadItem(
 }
 
 @Composable
-private fun ActionButton(icon: Int, description: String, size: Dp, tint: Color, onClick: () -> Unit) {
+internal fun ActionButton(
+    icon: Int,
+    description: String,
+    size: Dp,
+    tint: Color,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     val source = rememberFocusSource()
     Box(
-        modifier = Modifier
+        modifier = modifier
             .size(size)
             .clip(RoundedCornerShape(8.dp))
             .background(MaterialTheme.colorScheme.surfaceContainerHigh)

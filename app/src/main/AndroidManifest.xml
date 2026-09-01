@@ -5,6 +5,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!-- "Configure ES-DE" / "Configure iiSU" read the frontend's bundled defaults from its
+         installed APK; without these entries Android 11+ package visibility hides the app and
+         the setups wrongly report "not installed". -->
+    <queries>
+        <package android:name="org.es_de.frontend" />
+        <package android:name="com.iisulauncher" />
+    </queries>
+
     <application
         android:name=".DogmatixApplication"
         android:allowBackup="true"
@@ -33,6 +41,27 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="dogmatix" android:host="library" />
+            </intent-filter>
+            <!-- .dgmtx shortcut files (frontends like ES-DE, file managers): the deep link is
+                 inside the file (see util/DgmtxFile). The repeated patterns work around
+                 PatternMatcher's non-greedy ".*", which stops at the first dot in the path.
+                 android:host is required even though any authority is fine: IntentFilter only
+                 checks the paths inside its authority branch, so without a host every
+                 content:// file of any type matched and Dogmatix was offered to open APKs.
+                 The mime types are the ones providers report for an unknown extension; they
+                 keep APKs out even when the URI hides the file name. Frontends launch us with
+                 an explicit component, so they never go through this filter. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="text/plain" />
+                <data android:pathPattern=".*\\.dgmtx" />
+                <data android:pathPattern=".*\\..*\\.dgmtx" />
+                <data android:pathPattern=".*\\..*\\..*\\.dgmtx" />
+                <data android:pathPattern=".*\\..*\\..*\\..*\\.dgmtx" />
             </intent-filter>
         </activity>
         <service

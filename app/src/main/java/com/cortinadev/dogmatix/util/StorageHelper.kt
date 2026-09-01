@@ -10,6 +10,7 @@ import android.provider.DocumentsContract
 import android.util.Log
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
+import java.io.IOException
 import java.io.OutputStream
 
 object StorageHelper {
@@ -60,10 +61,13 @@ object StorageHelper {
             return null
         }
 
-        val pathParts = subPath.split("/").filter { it.isNotEmpty() }
-        var currentDir = baseDocument
+        return createDirectory(baseDocument, subPath)
+    }
 
-        for (part in pathParts) {
+    /** The [createDirectory] walk starting from an already-resolved [DocumentFile]. */
+    fun createDirectory(base: DocumentFile, subPath: String): DocumentFile? {
+        var currentDir = base
+        for (part in subPath.split("/").filter { it.isNotEmpty() }) {
             val existingDir = try {
                 currentDir.findFile(part)
             } catch (e: Exception) {
@@ -86,6 +90,67 @@ object StorageHelper {
             }
         }
         return currentDir
+    }
+
+    /** The document at [path] under [root] ("a/b/c"); null when any segment is missing. */
+    fun findFile(root: DocumentFile, path: String): DocumentFile? {
+        var current = root
+        for (part in path.split('/').filter { it.isNotEmpty() }) {
+            current = try {
+                current.findFile(part)
+            } catch (e: Exception) {
+                Log.w(TAG, "Error finding '$part' under ${current.uri}: ${e.message}")
+                null
+            } ?: return null
+        }
+        return current
+    }
+
+    /**
+     * Reads [file] as UTF-8 text. Throws when it cannot be read: callers that treat a missing
+     * file specially must locate it with [findFile] first, so a transient read failure is never
+     * mistaken for "no file yet".
+     */
+    fun readText(context: Context, file: DocumentFile): String =
+        context.contentResolver.openInputStream(file.uri)?.use { it.readBytes().toString(Charsets.UTF_8) }
+            ?: throw IOException("Could not open ${file.uri}")
+
+    /**
+     * Writes [content] to [dir]/[subPath]/[fileName] without a window where the target is
+     * missing or truncated: the text goes to a `.tmp` sibling first and the target is only
+     * replaced once the temporary holds it all. If the old file cannot be deleted, nothing is
+     * replaced; if the provider refuses the rename, the content (still in memory) is written
+     * into a fresh target. Throws [IOException] on failure.
+     */
+    fun writeTextSafely(context: Context, dir: DocumentFile, subPath: String, fileName: String, content: String) {
+        val directory = if (subPath.isEmpty()) dir else createDirectory(dir, subPath)
+            ?: throw IOException("Could not create directory $subPath")
+        val tmpName = "$fileName.tmp"
+        runCatching { directory.findFile(tmpName)?.delete() }
+        // application/octet-stream keeps the display name untouched (text mimes gain ".txt").
+        val tmp = directory.createFile("application/octet-stream", tmpName)
+            ?: throw IOException("Could not create $tmpName")
+        val bytes = content.toByteArray(Charsets.UTF_8)
+        try {
+            context.contentResolver.openOutputStream(tmp.uri)?.use { it.write(bytes) }
+                ?: throw IOException("Could not write $tmpName")
+        } catch (e: Exception) {
+            runCatching { tmp.delete() }
+            throw e
+        }
+        val existing = runCatching { directory.findFile(fileName) }.getOrNull()
+        if (existing != null && runCatching { existing.delete() }.getOrDefault(false) != true) {
+            // Refusing beats renaming next to it: the provider would de-duplicate the name and
+            // the frontend would keep reading the untouched original while we report success.
+            runCatching { tmp.delete() }
+            throw IOException("Could not replace $fileName")
+        }
+        if (runCatching { tmp.renameTo(fileName) }.getOrDefault(false)) return
+        val target = directory.createFile("application/octet-stream", fileName)
+            ?: throw IOException("Could not create $fileName")
+        context.contentResolver.openOutputStream(target.uri)?.use { it.write(bytes) }
+            ?: throw IOException("Could not write $fileName")
+        runCatching { tmp.delete() }
     }
 
     fun createFile(

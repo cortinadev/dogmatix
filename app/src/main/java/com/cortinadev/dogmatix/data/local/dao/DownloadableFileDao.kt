@@ -59,8 +59,11 @@ interface DownloadableFileDao {
         GROUP BY df.id, df.name, df.fileName, df.consoleId, df.downloadUrl, df.fileSize,
                  df.fileExtension, df.torrentFileIndex, df.torrentMagnet
         ORDER BY
-            CASE WHEN :sortAsc = 1 THEN df.name END ASC,
-            CASE WHEN :sortAsc = 0 THEN df.name END DESC
+            CASE WHEN :sort = 0 THEN df.name END ASC,
+            CASE WHEN :sort = 1 THEN df.name END DESC,
+            CASE WHEN :sort = 2 THEN df.fileSize END DESC,
+            CASE WHEN :sort = 3 THEN df.fileSize END ASC,
+            df.name ASC
         LIMIT :limit OFFSET :offset
     """)
     suspend fun queryFilesWithTags(
@@ -81,7 +84,8 @@ interface DownloadableFileDao {
         favouritesOnly: Boolean,
         /** [com.cortinadev.dogmatix.data.model.SourceFilter] ordinal: 0 all, 1 torrent, 2 RomM, 3 direct HTTP. */
         source: Int,
-        sortAsc: Boolean,
+        /** [com.cortinadev.dogmatix.data.model.SortOption] ordinal: 0 A→Z, 1 Z→A, 2 biggest first, 3 smallest first. */
+        sort: Int,
         limit: Int = 100,
         offset: Int = 0
     ): List<DownloadableFileWithTagsResult>

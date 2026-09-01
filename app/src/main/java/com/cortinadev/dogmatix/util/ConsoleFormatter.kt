@@ -2,30 +2,14 @@ package com.cortinadev.dogmatix.util
 
 object ConsoleFormatter {
     
-    fun formatConsoleField(input: String): String {
-        // Extract console name (everything after the first underscore)
-        val consoleName = if (input.contains("_")) {
-            input.substringAfter("_")
-        } else {
-            input
-        }
-        
-        val formatted = consoleName
-            .replace("_", " ")
-            .let { StringUtils.capitalizeWords(it) }
-        
-        return splitLongConsoleName(formatted)
-    }
+    // Both use consoleKey (not a blind substringAfter("_")) so bare console ids like
+    // `super_nintendo_entertainment_system` keep their first word instead of turning into
+    // "Nintendo Entertainment System" — which also made SNES match NES in the alias tables.
+    fun formatConsoleField(input: String): String =
+        splitLongConsoleName(getConsoleFolderName(input))
 
-    fun getConsoleFolderName(consoleId: String): String {
-        val consoleName = if (consoleId.contains("_")) {
-            consoleId.substringAfter("_")
-        } else {
-            consoleId
-        }
-
-        return consoleName.replace("_", " ").let { StringUtils.capitalizeWords(it) }
-    }
+    fun getConsoleFolderName(consoleId: String): String =
+        consoleKey(consoleId).replace("_", " ").let { StringUtils.capitalizeWords(it) }
     
     private fun splitLongConsoleName(name: String): String {
         val words = name.split(" ")

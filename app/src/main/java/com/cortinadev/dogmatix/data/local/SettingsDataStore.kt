@@ -27,8 +27,14 @@ object SettingsKeys {
     val AUTO_UNZIP = booleanPreferencesKey("auto_unzip")
     val CONCURRENT_DOWNLOADS = intPreferencesKey("concurrent_downloads")
     val METADATA_TIMEOUT_S = intPreferencesKey("metadata_timeout_s")
+    /** Rows per search in the library; 0 = no limit. */
+    val MAX_SEARCH_RESULTS = intPreferencesKey("max_search_results")
     val CONSOLE_DOWNLOAD_DIRECTORIES = stringSetPreferencesKey("console_download_directories")
     val THEME_MODE = stringPreferencesKey("theme_mode")
+    /** A [com.cortinadev.dogmatix.ui.common.GamepadLayout] name: how the pad's buttons are labelled. */
+    val GAMEPAD_LAYOUT = stringPreferencesKey("gamepad_layout")
+    /** The pad reports its face buttons the other way round: act on A/B and X/Y swapped. */
+    val SWAP_FACE_BUTTONS = booleanPreferencesKey("swap_face_buttons")
     val ACCENT_COLOR = stringPreferencesKey("accent_color")
     val FAVORITE_LANGUAGES = stringSetPreferencesKey("favorite_languages")
     val ONBOARDING_DONE = booleanPreferencesKey("onboarding_done")
@@ -38,6 +44,10 @@ object SettingsKeys {
     val DEBRID_PROVIDER = stringPreferencesKey("debrid_provider")
     val TORBOX_API_KEY = stringPreferencesKey("torbox_api_key")
     val REAL_DEBRID_API_KEY = stringPreferencesKey("realdebrid_api_key")
+    /** SAF tree URI of the ES-DE application data directory ("Configure ES-DE" in Settings). */
+    val ESDE_DIRECTORY = stringPreferencesKey("esde_directory")
+    /** SAF tree URI of iiSU's `iiSULauncher` data directory ("Configure iiSU" in Settings). */
+    val IISU_DIRECTORY = stringPreferencesKey("iisu_directory")
     val ROMM_URL = stringPreferencesKey("romm_url")
     val ROMM_TOKEN = stringPreferencesKey("romm_token")
     val ROMM_AUTO_UPLOAD = booleanPreferencesKey("romm_auto_upload")
@@ -72,7 +82,13 @@ class SettingsDataStore @Inject constructor(
     val concurrentDownloads: Flow<Int> = context.dataStore.data.map { 
         it[SettingsKeys.CONCURRENT_DOWNLOADS] ?: Constants.DEFAULT_CONCURRENT_DOWNLOADS 
     }
+    /** Rows a library search returns before "Load more"; 0 = no limit. */
+    val maxSearchResults: Flow<Int> = context.dataStore.data.map {
+        it[SettingsKeys.MAX_SEARCH_RESULTS] ?: Constants.DEFAULT_MAX_SEARCH_RESULTS
+    }
     val themeMode: Flow<String> = context.dataStore.data.map { it[SettingsKeys.THEME_MODE] ?: "SYSTEM" }
+    val gamepadLayout: Flow<String> = context.dataStore.data.map { it[SettingsKeys.GAMEPAD_LAYOUT] ?: "" }
+    val swapFaceButtons: Flow<Boolean> = context.dataStore.data.map { it[SettingsKeys.SWAP_FACE_BUTTONS] ?: false }
     val accentColor: Flow<String> = context.dataStore.data.map { it[SettingsKeys.ACCENT_COLOR] ?: "" }
     /** Language tags shown first in the filter; defaults to the device language plus English. */
     val favoriteLanguages: Flow<Set<String>> = context.dataStore.data.map {
@@ -87,6 +103,8 @@ class SettingsDataStore @Inject constructor(
     }
     val torboxApiKey: Flow<String> = context.dataStore.data.map { it[SettingsKeys.TORBOX_API_KEY] ?: "" }
     val realDebridApiKey: Flow<String> = context.dataStore.data.map { it[SettingsKeys.REAL_DEBRID_API_KEY] ?: "" }
+    val esdeDirectory: Flow<String> = context.dataStore.data.map { it[SettingsKeys.ESDE_DIRECTORY] ?: "" }
+    val iisuDirectory: Flow<String> = context.dataStore.data.map { it[SettingsKeys.IISU_DIRECTORY] ?: "" }
     val rommUrl: Flow<String> = context.dataStore.data.map { it[SettingsKeys.ROMM_URL] ?: "" }
     val rommToken: Flow<String> = context.dataStore.data.map { it[SettingsKeys.ROMM_TOKEN] ?: "" }
     val rommAutoUpload: Flow<Boolean> = context.dataStore.data.map { it[SettingsKeys.ROMM_AUTO_UPLOAD] ?: false }
@@ -110,13 +128,18 @@ class SettingsDataStore @Inject constructor(
     suspend fun setAutoUnzip(enabled: Boolean) = context.dataStore.edit { it[SettingsKeys.AUTO_UNZIP] = enabled }
     suspend fun setMetadataTimeoutSeconds(seconds: Int) = context.dataStore.edit { it[SettingsKeys.METADATA_TIMEOUT_S] = seconds }
     suspend fun setConcurrentDownloads(count: Int) = context.dataStore.edit { it[SettingsKeys.CONCURRENT_DOWNLOADS] = count }
+    suspend fun setMaxSearchResults(max: Int) = context.dataStore.edit { it[SettingsKeys.MAX_SEARCH_RESULTS] = max }
     suspend fun setThemeMode(mode: String) = context.dataStore.edit { it[SettingsKeys.THEME_MODE] = mode }
+    suspend fun setGamepadLayout(layout: String) = context.dataStore.edit { it[SettingsKeys.GAMEPAD_LAYOUT] = layout }
+    suspend fun setSwapFaceButtons(enabled: Boolean) = context.dataStore.edit { it[SettingsKeys.SWAP_FACE_BUTTONS] = enabled }
     suspend fun setAccentColor(hex: String) = context.dataStore.edit { it[SettingsKeys.ACCENT_COLOR] = hex }
     suspend fun setFavoriteLanguages(tags: Set<String>) = context.dataStore.edit { it[SettingsKeys.FAVORITE_LANGUAGES] = tags }
     suspend fun setOnboardingDone(done: Boolean) = context.dataStore.edit { it[SettingsKeys.ONBOARDING_DONE] = done }
     suspend fun setDebridProvider(provider: DebridProvider) = context.dataStore.edit { it[SettingsKeys.DEBRID_PROVIDER] = provider.name }
     suspend fun setTorboxApiKey(key: String) = context.dataStore.edit { it[SettingsKeys.TORBOX_API_KEY] = key.trim() }
     suspend fun setRealDebridApiKey(key: String) = context.dataStore.edit { it[SettingsKeys.REAL_DEBRID_API_KEY] = key.trim() }
+    suspend fun setEsdeDirectory(uri: String) = context.dataStore.edit { it[SettingsKeys.ESDE_DIRECTORY] = uri }
+    suspend fun setIisuDirectory(uri: String) = context.dataStore.edit { it[SettingsKeys.IISU_DIRECTORY] = uri }
     suspend fun setRommUrl(url: String) = context.dataStore.edit { it[SettingsKeys.ROMM_URL] = url.trim().trimEnd('/') }
     suspend fun setRommToken(token: String) = context.dataStore.edit { it[SettingsKeys.ROMM_TOKEN] = token.trim() }
     suspend fun setRommAutoUpload(enabled: Boolean) = context.dataStore.edit { it[SettingsKeys.ROMM_AUTO_UPLOAD] = enabled }

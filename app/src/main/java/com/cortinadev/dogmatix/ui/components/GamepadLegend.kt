@@ -16,6 +16,8 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -31,23 +33,52 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.cortinadev.dogmatix.R
+import com.cortinadev.dogmatix.ui.common.Gamepad
+import com.cortinadev.dogmatix.ui.common.GamepadLayout
+import com.cortinadev.dogmatix.ui.theme.PlayStationColors
 import com.cortinadev.dogmatix.ui.theme.StatusDanger
 import com.cortinadev.dogmatix.ui.theme.StatusInfo
 import com.cortinadev.dogmatix.ui.theme.StatusSuccess
 
 data class LegendEntry(val key: String, val label: String)
 
+private val KeyYellow = Color(0xFFF5C400)
+
 private val keyColors = mapOf(
     "A" to StatusSuccess,
     "B" to StatusDanger,
     "X" to StatusInfo,
-    "Y" to Color(0xFFF5C400)
+    "Y" to KeyYellow
 )
+
+/** PlayStation names the buttons by shape, so each one keeps the colour of its shape. */
+private val playStationKeyColors = mapOf(
+    "A" to PlayStationColors.cross,
+    "B" to PlayStationColors.circle,
+    "X" to PlayStationColors.square,
+    "Y" to PlayStationColors.triangle
+)
+
+/** Nintendo colours the letters the Super Famicom way: A red, B yellow, X blue, Y green. */
+private val nintendoKeyColors = mapOf(
+    "A" to StatusDanger,
+    "B" to KeyYellow,
+    "X" to StatusInfo,
+    "Y" to StatusSuccess
+)
+
+private fun paletteFor(layout: GamepadLayout): Map<String, Color> = when (layout) {
+    GamepadLayout.XBOX -> keyColors
+    GamepadLayout.NINTENDO -> nintendoKeyColors
+    GamepadLayout.PLAYSTATION -> playStationKeyColors
+}
 
 /** Bottom strip listing what each gamepad button does on the current screen. */
 @Composable
 fun GamepadLegend(entries: List<LegendEntry>, modifier: Modifier = Modifier, trailing: @Composable (() -> Unit)? = null) {
     val scheme = MaterialTheme.colorScheme
+    // Entries name the buttons the Xbox way; the chosen layout only decides how they are drawn.
+    val layout by Gamepad.layout.collectAsState()
     HorizontalDivider(color = scheme.outlineVariant, thickness = 1.dp)
     Row(
         modifier = modifier
@@ -63,10 +94,11 @@ fun GamepadLegend(entries: List<LegendEntry>, modifier: Modifier = Modifier, tra
             horizontalArrangement = Arrangement.spacedBy(18.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+        val palette = paletteFor(layout)
         entries.forEach { entry ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                val color = keyColors[entry.key] ?: scheme.outline
-                KeyGlyph(entry.key, color, if (keyColors.containsKey(entry.key)) color else scheme.onSurface)
+                val color = palette[entry.key] ?: scheme.outline
+                KeyGlyph(layout.glyphFor(entry.key), color, if (palette.containsKey(entry.key)) color else scheme.onSurface)
                 Text(entry.label, style = MaterialTheme.typography.bodySmall, color = scheme.secondary, softWrap = false)
             }
         }
@@ -74,6 +106,9 @@ fun GamepadLegend(entries: List<LegendEntry>, modifier: Modifier = Modifier, tra
         if (trailing != null) trailing()
     }
 }
+
+/** The geometric shapes are drawn much smaller than a letter of the same size: even them out. */
+private val glyphScale = mapOf("○" to 1.9f, "□" to 1.5f, "△" to 1.6f)
 
 /**
  * Rounded pill with the button name. The glyph is drawn by hand centred on its ink bounds
@@ -87,14 +122,13 @@ private fun KeyGlyph(text: String, ring: Color, ink: Color) {
         Paint(Paint.ANTI_ALIAS_FLAG).apply {
             typeface = ResourcesCompat.getFont(context, R.font.manrope_variable)
             fontVariationSettings = "'wght' 600"
-            textSize = with(density) { 10.5.sp.toPx() }
+            textSize = with(density) { (10.5.sp * (glyphScale[text] ?: 1f)).toPx() }
             letterSpacing = 0.02f
         }
     }
     val bounds = remember(paint, text) { Rect().also { paint.getTextBounds(text, 0, text.length, it) } }
     val minSide = 20.dp
     val width = with(density) { maxOf(minSide.toPx(), bounds.width() + 10.dp.toPx()) }
-    val height = with(density) { minSide.toPx() }
     val inkColor = ink.toArgb()
     Canvas(
         modifier = Modifier
@@ -103,9 +137,10 @@ private fun KeyGlyph(text: String, ring: Color, ink: Color) {
     ) {
         drawIntoCanvas { canvas ->
             paint.color = inkColor
-            // Shift so the ink box, not the baseline box, is centred in the pill.
-            val x = width / 2f - bounds.exactCenterX()
-            val y = height / 2f - bounds.exactCenterY()
+            // Shift so the ink box, not the baseline box, is centred in the pill. Measured on the
+            // canvas itself: the pill's size is a rounded dp, not the px width computed above.
+            val x = size.width / 2f - bounds.exactCenterX()
+            val y = size.height / 2f - bounds.exactCenterY()
             canvas.nativeCanvas.drawText(text, x, y, paint)
         }
     }

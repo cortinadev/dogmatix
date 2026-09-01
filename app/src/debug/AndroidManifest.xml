@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Debug-only alias so frontends can launch the debug build.
+
+    Frontends that let you pick an "emulator variant" (iiSU, for one) build the component as
+    <chosen package>.MainActivity, assuming the launch activity lives under the application id.
+    That holds for the release build, but the debug build carries an applicationIdSuffix
+    while the class stays com.cortinadev.dogmatix.MainActivity, so the launch fails with
+    START_CLASS_NOT_FOUND. The alias gives the debug build the name those frontends expect —
+    derived from ${applicationId} so it follows any suffix change — and lets the whole
+    frontend integration be tested on a device without touching the release.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <activity-alias
+            android:name="${applicationId}.MainActivity"
+            android:exported="true"
+            android:targetActivity="com.cortinadev.dogmatix.MainActivity" />
+    </application>
+
+</manifest>

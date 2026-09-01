@@ -51,6 +51,34 @@ private fun darkScheme(accent: Color) = darkColorScheme(
     inverseOnSurface = DogmatixDark.bg
 )
 
+private fun blackScheme(accent: Color) = darkColorScheme(
+    primary = accent,
+    onPrimary = OnAccent,
+    primaryContainer = accent,
+    onPrimaryContainer = OnAccent,
+    secondary = DogmatixBlack.muted2,
+    onSecondary = DogmatixBlack.bg,
+    tertiary = StatusSuccess,
+    onTertiary = OnAccent,
+    error = StatusDanger,
+    onError = Color.White,
+    background = DogmatixBlack.bg,
+    onBackground = DogmatixBlack.text,
+    surface = DogmatixBlack.bg,
+    onSurface = DogmatixBlack.text,
+    surfaceVariant = DogmatixBlack.panel,
+    onSurfaceVariant = DogmatixBlack.muted,
+    surfaceContainerLowest = DogmatixBlack.bg,
+    surfaceContainerLow = DogmatixBlack.panel,
+    surfaceContainer = DogmatixBlack.panel,
+    surfaceContainerHigh = DogmatixBlack.raised,
+    surfaceContainerHighest = DogmatixBlack.knobOff,
+    outline = DogmatixBlack.line2,
+    outlineVariant = DogmatixBlack.line,
+    inverseSurface = DogmatixBlack.text,
+    inverseOnSurface = DogmatixBlack.bg
+)
+
 private fun lightScheme(accent: Color) = lightColorScheme(
     primary = accent,
     onPrimary = OnAccent,
@@ -88,16 +116,24 @@ fun DogmatixTheme(
     val darkTheme = when (themeMode) {
         ThemeMode.SYSTEM -> isSystemInDarkTheme()
         ThemeMode.LIGHT -> false
-        ThemeMode.DARK -> true
+        ThemeMode.DARK, ThemeMode.TRUE_BLACK -> true
     }
-    val tokens = if (darkTheme) {
-        DogmatixTokens(DogmatixDark.bg2, DogmatixDark.knobOff, DogmatixDark.muted2, DogmatixDark.card, isDark = true)
-    } else {
-        DogmatixTokens(DogmatixLight.bg2, DogmatixLight.knobOff, DogmatixLight.muted2, DogmatixLight.card, isDark = false)
+    val trueBlack = themeMode == ThemeMode.TRUE_BLACK
+    val tokens = when {
+        trueBlack ->
+            DogmatixTokens(DogmatixBlack.bg2, DogmatixBlack.knobOff, DogmatixBlack.muted2, DogmatixBlack.card, isDark = true)
+        darkTheme ->
+            DogmatixTokens(DogmatixDark.bg2, DogmatixDark.knobOff, DogmatixDark.muted2, DogmatixDark.card, isDark = true)
+        else ->
+            DogmatixTokens(DogmatixLight.bg2, DogmatixLight.knobOff, DogmatixLight.muted2, DogmatixLight.card, isDark = false)
     }
     CompositionLocalProvider(LocalDogmatixTokens provides tokens) {
         MaterialTheme(
-            colorScheme = if (darkTheme) darkScheme(accent) else lightScheme(accent),
+            colorScheme = when {
+                trueBlack -> blackScheme(accent)
+                darkTheme -> darkScheme(accent)
+                else -> lightScheme(accent)
+            },
             typography = Typography,
             content = content
         )

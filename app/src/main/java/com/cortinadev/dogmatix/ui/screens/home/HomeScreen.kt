@@ -92,6 +92,7 @@ import androidx.navigation.NavController
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.ui.components.stripExtension
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
+import com.cortinadev.dogmatix.data.model.SortOption
 import com.cortinadev.dogmatix.data.model.SourceFilter
 import com.cortinadev.dogmatix.ui.common.Gamepad
 import com.cortinadev.dogmatix.ui.common.GamepadButton
@@ -99,6 +100,7 @@ import com.cortinadev.dogmatix.ui.common.Legend
 import com.cortinadev.dogmatix.ui.components.LegendEntry
 import com.cortinadev.dogmatix.ui.components.focusRing
 import com.cortinadev.dogmatix.ui.components.rememberFocusSource
+import com.cortinadev.dogmatix.ui.components.swapFaceButtons
 import com.cortinadev.dogmatix.ui.screens.home.components.FilterOption
 import com.cortinadev.dogmatix.ui.screens.home.components.FilterPanel
 import com.cortinadev.dogmatix.ui.screens.home.components.FilterRowSpec
@@ -109,8 +111,6 @@ import com.cortinadev.dogmatix.util.ConsoleFormatter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 
-private const val SORT_ASC = "asc"
-private const val SORT_DESC = "desc"
 private const val FAV_ALL = "all"
 private const val FAV_ONLY = "only"
 
@@ -126,7 +126,7 @@ fun HomeScreen(
     val query by viewModel.searchQuery.collectAsState()
     val selectedConsoles by viewModel.selectedConsoles.collectAsState()
     val activeTags by viewModel.activeTags.collectAsState()
-    val sortAsc by viewModel.sortAsc.collectAsState()
+    val sort by viewModel.sort.collectAsState()
     val consolesWithFiles by viewModel.consolesWithFiles.collectAsState()
     val categorizedTags by viewModel.categorizedTags.collectAsState()
     val ownedKeys by viewModel.ownedKeys.collectAsState()
@@ -217,12 +217,14 @@ fun HomeScreen(
         FilterRowSpec(
             label = stringResource(R.string.filter_sort),
             options = listOf(
-                FilterOption(SORT_ASC, stringResource(R.string.sort_asc)),
-                FilterOption(SORT_DESC, stringResource(R.string.sort_desc))
+                FilterOption(SortOption.NAME_ASC.name, stringResource(R.string.sort_name_asc)),
+                FilterOption(SortOption.NAME_DESC.name, stringResource(R.string.sort_name_desc)),
+                FilterOption(SortOption.SIZE_DESC.name, stringResource(R.string.sort_size_desc), stringResource(R.string.sort_size_desc_short)),
+                FilterOption(SortOption.SIZE_ASC.name, stringResource(R.string.sort_size_asc), stringResource(R.string.sort_size_asc_short))
             ),
-            selected = setOf(if (sortAsc) SORT_ASC else SORT_DESC),
+            selected = setOf(sort.name),
             single = true,
-            onSelectionChange = { viewModel.setSortAsc(SORT_ASC in it) }
+            onSelectionChange = { sel -> viewModel.setSort(sel.firstOrNull()?.let { SortOption.valueOf(it) } ?: SortOption.NAME_ASC) }
         )
     )
     val activeFilterCount = selectedConsoles.size + activeTags.size + (if (favouritesOnly) 1 else 0) + (if (sourceFilter != SourceFilter.ALL) 1 else 0)
@@ -330,7 +332,7 @@ fun HomeScreen(
             expandedFilter != null -> expandedFilter = null
             searchActive -> { focusManager.clearFocus(); searchActive = false }
             query.isNotEmpty() -> viewModel.setSearch("")
-            activeFilterCount > 0 || !sortAsc -> viewModel.clearAllFilters()
+            activeFilterCount > 0 || sort != SortOption.NAME_ASC -> viewModel.clearAllFilters()
             else -> runCatching { Gamepad.sectionFocus.requestFocus() }
         }
     }
@@ -583,7 +585,7 @@ fun HomeScreen(
                     // is open, so the shortcuts that leave the sheet are handled right here.
                     LaunchedEffect(Unit) { runCatching { filterFocus.requestFocus() } }
                     Box(
-                        modifier = Modifier.onPreviewKeyEvent { event ->
+                        modifier = Modifier.swapFaceButtons().onPreviewKeyEvent { event ->
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             when (event.key) {
                                 Key.ButtonR1, Key.ButtonThumbRight -> { showFilterSheet = false; true }

@@ -62,13 +62,16 @@ import androidx.navigation.NavController
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.ui.components.Stepper
 import com.cortinadev.dogmatix.ui.screens.settings.components.ApiKeyDialog
+import com.cortinadev.dogmatix.ui.screens.settings.components.DaijishoSetupDialog
 import com.cortinadev.dogmatix.ui.screens.settings.components.FavoriteLanguagesDialog
 import com.cortinadev.dogmatix.ui.screens.settings.components.maskedSecret
 import com.cortinadev.dogmatix.ui.components.focusRing
 import com.cortinadev.dogmatix.ui.components.rememberFocusSource
 import com.cortinadev.dogmatix.ui.navigation.NavRoutes
 import com.cortinadev.dogmatix.data.model.DebridProvider
+import com.cortinadev.dogmatix.ui.common.GamepadLayout
 import com.cortinadev.dogmatix.ui.theme.AccentPresets
+import com.cortinadev.dogmatix.util.Constants
 import com.cortinadev.dogmatix.util.TorrentConstants
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
 import com.cortinadev.dogmatix.ui.theme.ThemeMode
@@ -109,6 +112,29 @@ fun SettingsScreen(
             viewModel.onDownloadDirChanged(context, it.toString())
         }
     }
+    val esdeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(
+                it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            viewModel.onEsdeDirPicked(context, it.toString())
+        }
+    }
+    // First run asks for the ES-DE folder; later runs reuse it and reconfigure directly.
+    fun runEsdeSetup() {
+        if (ui.esdeDirectory.isBlank()) esdeLauncher.launch(null) else viewModel.onConfigureEsde(context)
+    }
+    val iisuLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        uri?.let {
+            context.contentResolver.takePersistableUriPermission(
+                it, Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            )
+            viewModel.onIisuDirPicked(context, it.toString())
+        }
+    }
+    fun runIisuSetup() {
+        if (ui.iisuDirectory.isBlank()) iisuLauncher.launch(null) else viewModel.onConfigureIisu(context)
+    }
 
     fun cycleTheme(delta: Int) {
         val modes = ThemeMode.entries
@@ -119,8 +145,19 @@ fun SettingsScreen(
         val current = presets.indexOf(ui.accent).coerceAtLeast(0)
         viewModel.onAccentChanged(context, presets[((current + delta) % presets.size + presets.size) % presets.size])
     }
+    fun cycleGamepadLayout(delta: Int) {
+        val layouts = GamepadLayout.entries
+        viewModel.onGamepadLayoutChanged(context, layouts[((ui.gamepadLayout.ordinal + delta) % layouts.size + layouts.size) % layouts.size])
+    }
     fun adjustConcurrent(delta: Int) =
         viewModel.onConcurrentDownloadsChanged(context, (ui.concurrentDownloads + delta).coerceIn(1, 10))
+    // Fixed choices instead of free steps: the useful jumps are coarse (50 → 100 → … → no limit).
+    fun adjustMaxSearchResults(delta: Int) {
+        val choices = Constants.MAX_SEARCH_RESULTS_CHOICES
+        val current = choices.indexOf(ui.maxSearchResults).takeIf { it >= 0 }
+            ?: choices.indexOf(Constants.DEFAULT_MAX_SEARCH_RESULTS)
+        viewModel.onMaxSearchResultsChanged(context, choices[(current + delta).coerceIn(0, choices.lastIndex)])
+    }
     fun adjustMetadataTimeout(delta: Int) = viewModel.onMetadataTimeoutChanged(
         context, (ui.metadataTimeoutSeconds + delta * 10).coerceIn(TorrentConstants.MIN_METADATA_TIMEOUT_S, TorrentConstants.MAX_METADATA_TIMEOUT_S)
     )
@@ -165,6 +202,11 @@ fun SettingsScreen(
         DebridProvider.NONE -> ""
     }
     val debridKeyTitle = stringResource(R.string.settings_debrid_key, debrid.label)
+    val daijishoSetup by viewModel.daijishoSetup.collectAsState()
+    daijishoSetup?.let { setup ->
+        DaijishoSetupDialog(setup = setup, onDismiss = viewModel::onDaijishoSetupDismissed)
+    }
+
     var showDebridKeyDialog by remember { mutableStateOf(false) }
     if (showDebridKeyDialog && debrid != DebridProvider.NONE) {
         ApiKeyDialog(
@@ -219,6 +261,31 @@ fun SettingsScreen(
                 AccentSwatches(selected = ui.accent, size = if (isLandscape) 22.dp else 36.dp) {
                     viewModel.onAccentChanged(context, it)
                 }
+            }
+        },
+        SettingsRow(right = true) {
+            SettingRow(
+                title = stringResource(R.string.settings_gamepad_layout),
+                hint = stringResource(R.string.settings_gamepad_layout_hint),
+                onClick = { cycleGamepadLayout(1) },
+                onAdjust = ::cycleGamepadLayout
+            ) {
+                Stepper(
+                    stringResource(ui.gamepadLayout.labelRes),
+                    onDecrement = { cycleGamepadLayout(-1) },
+                    onIncrement = { cycleGamepadLayout(1) },
+                    valueWidth = 110.dp
+                )
+            }
+        },
+        SettingsRow(right = true) {
+            SettingRow(
+                title = stringResource(R.string.settings_swap_face_buttons),
+                hint = stringResource(R.string.settings_swap_face_buttons_hint),
+                onClick = { viewModel.onSwapFaceButtonsChanged(context, !ui.swapFaceButtons) },
+                onAdjust = { viewModel.onSwapFaceButtonsChanged(context, it > 0) }
+            ) {
+                ThemedSwitch(ui.swapFaceButtons) { viewModel.onSwapFaceButtonsChanged(context, it) }
             }
         },
         SettingsRow(right = false) {
@@ -297,12 +364,65 @@ fun SettingsScreen(
         },
         SettingsRow(right = false) {
             SettingRow(
+                title = stringResource(R.string.settings_max_results),
+                hint = stringResource(R.string.settings_max_results_hint),
+                onClick = { adjustMaxSearchResults(1) },
+                onAdjust = ::adjustMaxSearchResults
+            ) {
+                Stepper(
+                    if (ui.maxSearchResults <= 0) stringResource(R.string.settings_unlimited) else ui.maxSearchResults.toString(),
+                    onDecrement = { adjustMaxSearchResults(-1) },
+                    onIncrement = { adjustMaxSearchResults(1) },
+                    valueWidth = 110.dp
+                )
+            }
+        },
+        SettingsRow(right = false) {
+            SettingRow(
                 title = stringResource(R.string.settings_favorite_languages),
                 hint = ui.favoriteLanguages.sorted().joinToString(" · ")
                     .ifBlank { stringResource(R.string.settings_favorite_languages_hint) },
                 onClick = { showLanguagesDialog = true }
             ) {
                 PillButton(stringResource(R.string.settings_change)) { showLanguagesDialog = true }
+            }
+        },
+        SettingsRow(right = false) {
+            SettingRow(
+                title = stringResource(R.string.settings_frontend_shortcuts),
+                hint = stringResource(R.string.settings_frontend_shortcuts_hint),
+                onClick = { viewModel.onDeployFrontendShortcuts(context) }
+            ) {
+                PillButton(stringResource(R.string.settings_frontend_shortcuts_action)) {
+                    viewModel.onDeployFrontendShortcuts(context)
+                }
+            }
+        },
+        SettingsRow(right = false) {
+            SettingRow(
+                title = stringResource(R.string.settings_esde),
+                hint = ui.esdeDirectory.ifBlank { stringResource(R.string.settings_esde_hint) },
+                onClick = ::runEsdeSetup
+            ) {
+                PillButton(stringResource(R.string.settings_esde_action), ::runEsdeSetup)
+            }
+        },
+        SettingsRow(right = false) {
+            SettingRow(
+                title = stringResource(R.string.settings_iisu),
+                hint = ui.iisuDirectory.ifBlank { stringResource(R.string.settings_iisu_hint) },
+                onClick = ::runIisuSetup
+            ) {
+                PillButton(stringResource(R.string.settings_iisu_action), ::runIisuSetup)
+            }
+        },
+        SettingsRow(right = false) {
+            SettingRow(
+                title = stringResource(R.string.settings_daijisho),
+                hint = stringResource(R.string.settings_daijisho_hint),
+                onClick = { viewModel.onPrepareDaijisho(context) }
+            ) {
+                PillButton(stringResource(R.string.settings_daijisho_action)) { viewModel.onPrepareDaijisho(context) }
             }
         },
         SettingsRow(right = false) {

@@ -25,6 +25,16 @@ class DeepLinkResolverTest {
     }
 
     @Test
+    fun `full NES id does not drag SNES along`() {
+        // Regression: getConsoleFolderName turned "super_nintendo_entertainment_system" into
+        // "Nintendo Entertainment System", so NES deep links selected SNES too.
+        assertEquals(
+            setOf("nintendo_entertainment_system"),
+            DeepLinkResolver.resolveConsoles(setOf("nintendo_entertainment_system"), consoles)
+        )
+    }
+
+    @Test
     fun `unknown consoles are dropped and several are merged`() {
         assertEquals(
             setOf("super_nintendo_entertainment_system", "nintendo_entertainment_system"),

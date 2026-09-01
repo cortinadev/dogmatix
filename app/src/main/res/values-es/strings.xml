@@ -59,6 +59,12 @@
     <string name="details_favourite">☆ Favorito</string>
     <string name="details_unfavourite">★ Quitar favorito</string>
     <string name="pad_favourite">Favorito</string>
+    <string name="pad_tick">Marcar</string>
+    <string name="pad_apply">Aplicar</string>
+    <string name="pad_select_all">Todas</string>
+    <string name="pad_cancel">Cancelar</string>
+    <string name="selection_selected">Seleccionada</string>
+    <string name="selection_clear">Quitar selección</string>
     <string name="download_already_active">"%1$s" ya se está descargando</string>
     <string name="free_space">%1$s libres</string>
 
@@ -79,8 +85,12 @@
     <string name="filter_selected_count">%1$d seleccionadas</string>
     <string name="filter_show_more">Ver más…</string>
     <string name="filter_show_less">Ver menos</string>
-    <string name="sort_asc">A → Z</string>
-    <string name="sort_desc">Z → A</string>
+    <string name="sort_name_asc">A → Z</string>
+    <string name="sort_name_desc">Z → A</string>
+    <string name="sort_size_desc">Tamaño: mayor → menor</string>
+    <string name="sort_size_desc_short">Tam. ↓</string>
+    <string name="sort_size_asc">Tamaño: menor → mayor</string>
+    <string name="sort_size_asc_short">Tam. ↑</string>
     <string name="results_count">%1$d resultados</string>
     <string name="results_count_more">Más de %1$d resultados</string>
     <string name="no_results">Nada coincide con estos filtros.</string>
@@ -90,6 +100,10 @@
     <string name="column_size">TAMAÑO</string>
 
     <string name="downloads_summary">%1$d activas · %2$d completadas</string>
+    <plurals name="downloads_selected">
+        <item quantity="one">%1$d seleccionada</item>
+        <item quantity="other">%1$d seleccionadas</item>
+    </plurals>
     <string name="downloads_empty">Aún no hay descargas. Elige un juego en la biblioteca.</string>
     <string name="status_downloading">%1$d%%</string>
     <string name="status_completed">Completada</string>
@@ -108,6 +122,45 @@
     <string name="api_key_label">Clave API</string>
     <string name="debrid_key_valid">%1$s: conectado como %2$s</string>
     <string name="debrid_key_invalid">%1$s: %2$s</string>
+    <string name="settings_frontend_shortcuts">Accesos directos para frontends</string>
+    <string name="settings_frontend_shortcuts_hint">Deja un acceso directo de Dogmatix (.dgmtx) en cada carpeta de plataforma, para ES-DE y frontends similares</string>
+    <string name="settings_frontend_shortcuts_action">Crear</string>
+    <string name="frontend_shortcuts_done">%1$d accesos directos creados</string>
+    <string name="frontend_shortcuts_partial">%1$d accesos directos creados, %2$d fallidos</string>
+    <string name="frontend_shortcuts_none">No hay carpeta de descargas configurada</string>
+    <string name="dgmtx_invalid">El fichero no es un acceso directo de Dogmatix</string>
+    <string name="settings_esde">Configurar ES-DE</string>
+    <string name="settings_esde_hint">Elige tu carpeta de ES-DE y Dogmatix se añade a todas las plataformas (cierra ES-DE antes)</string>
+    <string name="settings_esde_action">Configurar</string>
+    <string name="esde_configured">ES-DE: %1$d sistemas listos, %2$d accesos directos — reinicia ES-DE</string>
+    <string name="esde_folders_skipped">%1$d carpetas no tienen sistema en ES-DE</string>
+    <string name="esde_not_installed">ES-DE no está instalado en este dispositivo</string>
+    <string name="settings_iisu">Configurar iiSU</string>
+    <string name="settings_iisu_hint">Elige la carpeta iiSULauncher de iiSU y Dogmatix se añade como emulador (reinicia iiSU después)</string>
+    <string name="settings_iisu_action">Configurar</string>
+    <string name="iisu_configured">iiSU: %1$d consolas listas, %2$d accesos directos — reinicia iiSU</string>
+    <string name="iisu_folders_skipped">%1$d carpetas no tienen consola en iiSU</string>
+    <string name="iisu_not_installed">iiSU no está instalado en este dispositivo</string>
+    <string name="iisu_wrong_folder">Esa no es la carpeta iiSULauncher de iiSU (está en Android/media/com.iisulauncher)</string>
+    <string name="frontend_folder_not_writable">No se puede escribir en la carpeta elegida</string>
+    <string name="frontend_no_console_folders">No hay subcarpetas por consola: activa antes «Subcarpetas por consola»</string>
+    <string name="frontend_config_unreadable">No se pudo leer la configuración del frontend — no se ha cambiado nada</string>
+    <string name="frontend_config_corrupt">El fichero de configuración del frontend parece dañado — no se ha cambiado nada</string>
+    <string name="frontend_write_failed">No se pudo escribir en la carpeta del frontend</string>
+    <string name="settings_daijisho">Configurar Daijishō</string>
+    <string name="settings_daijisho_hint">Daijishō no admite importar la configuración de emuladores: consulta los valores para añadirlo a mano</string>
+    <string name="settings_daijisho_action">Ver</string>
+    <string name="daijisho_dialog_title">Añadir Dogmatix a Daijishō</string>
+    <string name="daijisho_dialog_body">Los %1$d accesos directos ya están puestos. Daijishō guarda sus emuladores en una base de datos privada, así que la entrada hay que añadirla a mano: abre Ajustes › Biblioteca › Añadir un emulador y rellénalo con estos valores (deja apagado el interruptor de finalizar procesos), y sincroniza.</string>
+    <string name="daijisho_field_name">Nombre del emulador</string>
+    <string name="daijisho_field_arguments">Argumentos am start del emulador</string>
+    <string name="daijisho_field_regex">Regex del archivo aceptado</string>
+    <string name="dialog_copy">Copiar</string>
+    <string name="dialog_close">Cerrar</string>
+    <string name="onboarding_esde_title">Conectar con ES-DE</string>
+    <string name="onboarding_esde_body">ES-DE está instalado en este dispositivo. Elige su carpeta de datos (la que contiene gamelists y downloaded_media, normalmente ES-DE) y Dogmatix aparecerá dentro de cada plataforma como «★ Search for more games…». Cierra ES-DE antes — también puedes hacerlo más tarde desde Ajustes.</string>
+    <string name="onboarding_esde_choose">Elegir carpeta de ES-DE</string>
+    <string name="onboarding_esde_configuring">Configurando ES-DE…</string>
     <string name="nav_romm">RomM</string>
     <string name="settings_romm">Servidor RomM</string>
     <string name="settings_romm_hint">Subir las descargas terminadas a una biblioteca RomM</string>
@@ -141,6 +194,7 @@
     <string name="theme_system">Sistema</string>
     <string name="theme_light">Claro</string>
     <string name="theme_dark">Oscuro</string>
+    <string name="theme_true_black">Negro puro</string>
     <string name="theme_suffix_dark">oscuro</string>
     <string name="theme_suffix_light">claro</string>
     <string name="settings_accent">Color de acento</string>
@@ -149,6 +203,9 @@
     <string name="settings_concurrent_label">Descargas simultáneas</string>
     <string name="settings_limit_label">Límite de velocidad</string>
     <string name="settings_limit_hint">Sin límite en 0</string>
+    <string name="settings_max_results">Resultados por búsqueda</string>
+    <string name="settings_max_results_hint">Cuántos juegos carga de golpe una búsqueda en la biblioteca; «Cargar más» trae el siguiente lote</string>
+    <string name="settings_unlimited">Sin límite</string>
     <string name="settings_metadata_timeout">Tiempo de espera de metadatos</string>
     <string name="settings_metadata_timeout_hint">Cuánto esperar sin progreso la lista de ficheros de un magnet (reescaneo y descargas torrent); el contador se reinicia mientras sigan llegando datos</string>
     <string name="seconds_short">%1$d s</string>
@@ -162,6 +219,13 @@
     <string name="settings_about">Acerca de y contacto</string>
     <string name="settings_change">Cambiar</string>
     <string name="settings_not_set">Sin configurar</string>
+    <string name="settings_gamepad_layout">Disposición del mando</string>
+    <string name="settings_gamepad_layout_hint">Cómo se llaman los botones en la leyenda; no cambia lo que hacen</string>
+    <string name="gamepad_layout_xbox">Xbox</string>
+    <string name="gamepad_layout_nintendo">Nintendo</string>
+    <string name="gamepad_layout_playstation">PlayStation</string>
+    <string name="settings_swap_face_buttons">Intercambiar A/B y X/Y</string>
+    <string name="settings_swap_face_buttons_hint">Para mandos que reportan los botones al revés; la leyenda no cambia</string>
     <string name="settings_language">Idioma</string>
     <string name="settings_language_hint">Sigue al idioma del dispositivo por defecto</string>
     <string name="language_system">Sistema</string>
@@ -194,9 +258,13 @@
     <string name="load_more">Cargar 100 más</string>
 
     <string name="delete_download_title">Eliminar descarga</string>
+    <string name="delete_downloads_title">Eliminar descargas</string>
     <string name="delete_download_message">Esta descarga ha terminado. ¿Quieres borrar el archivo del almacenamiento o solo quitarlo de la lista de descargas?</string>
+    <string name="delete_downloads_message">%1$d descargas seleccionadas, algunas completadas. ¿Quieres borrar sus archivos del almacenamiento o solo quitarlas de la lista de descargas?</string>
     <string name="delete_file">Borrar archivo</string>
+    <string name="delete_files">Borrar archivos</string>
     <string name="keep_file">Conservar archivo</string>
+    <string name="keep_files">Conservar archivos</string>
 
     <string name="file_size_bytes">%1$d B</string>
     <string name="file_size_kb">%1$.1f KB</string>

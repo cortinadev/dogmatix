@@ -6,6 +6,7 @@ import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
 import com.cortinadev.dogmatix.data.model.CategorizedTags
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
 import com.cortinadev.dogmatix.data.model.TagCategorizer
+import com.cortinadev.dogmatix.data.model.SortOption
 import com.cortinadev.dogmatix.data.model.SourceFilter
 import com.cortinadev.dogmatix.data.model.TagKind
 import com.cortinadev.dogmatix.util.SearchNormalizer
@@ -23,7 +24,7 @@ class DownloadableFileRepository @Inject constructor(
         tags: Set<String> = emptySet(),
         favouritesOnly: Boolean = false,
         source: SourceFilter = SourceFilter.ALL,
-        sortAsc: Boolean = true,
+        sort: SortOption = SortOption.NAME_ASC,
         limit: Int = 100,
         offset: Int = 0
     ): List<DownloadableFileWithTags> {
@@ -47,7 +48,7 @@ class DownloadableFileRepository @Inject constructor(
             fileTypesCount = kind(TagKind.FILE_TYPE).size,
             favouritesOnly = favouritesOnly,
             source = source.ordinal,
-            sortAsc = sortAsc,
+            sort = sort.ordinal,
             limit = limit,
             offset = offset
         )

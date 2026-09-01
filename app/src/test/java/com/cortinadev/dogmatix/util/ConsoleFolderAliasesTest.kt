@@ -41,6 +41,15 @@ class ConsoleFolderAliasesTest {
     }
 
     @Test
+    fun `folder names keep the first word of bare console ids`() {
+        assertEquals("Super Nintendo Entertainment System", ConsoleFormatter.getConsoleFolderName("super_nintendo_entertainment_system"))
+        assertEquals("Playstation 2", ConsoleFormatter.getConsoleFolderName("playstation_2"))
+        assertEquals("Gameboy Advance", ConsoleFormatter.getConsoleFolderName("nintendo_gameboy_advance"))
+        assertEquals("Xbox", ConsoleFormatter.getConsoleFolderName("microsoft_xbox"))
+        assertEquals(false, ConsoleFolderAliases.matches("super_nintendo_entertainment_system", "nintendo_entertainment_system"))
+    }
+
+    @Test
     fun `matchingFolders is empty when nothing matches`() {
         assertEquals(emptyList<String>(), ConsoleFolderAliases.matchingFolders(folders, "nintendo_64"))
         assertNull(ConsoleFolderAliases.pickExistingFolder(folders, "nintendo_64"))

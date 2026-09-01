@@ -13,6 +13,12 @@ object Constants {
 
     const val DEFAULT_CONCURRENT_DOWNLOADS = 3
 
+    /** How many library rows a search loads at a time (the rest come with "Load more"). */
+    const val DEFAULT_MAX_SEARCH_RESULTS = 100
+
+    /** Choices for the "Maximum search results" stepper; 0 means "no limit". */
+    val MAX_SEARCH_RESULTS_CHOICES = listOf(50, 100, 250, 500, 0)
+
     const val CONNECTION_TIMEOUT_MS = 30000L
     const val READ_TIMEOUT_MS = 60000L
     const val BUFFER_SIZE = 8192

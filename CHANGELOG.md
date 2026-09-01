@@ -3,19 +3,76 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
-## [Unreleased]
+## [1.2] – 2026-09-02
 
 ### Added
+- **Gamepad layout**: a Settings stepper (Xbox / Nintendo / PlayStation) draws the button
+  legend the way the pad in your hands is printed. Xbox keeps A/B/X/Y with the by-role colours
+  (green confirms, red goes back) and names the shoulders `LB · RB` / `LT · RT`; Nintendo keeps
+  the same letters in the Super Famicom colours (A red, B yellow, X blue, Y green) and calls
+  the shoulders `L · R` / `ZL · ZR`; PlayStation draws ✕ ○ □ △, each in the colour of its
+  shape, with `L1 · R1` / `L2 · R2`. Only the drawing changes: A (✕) always accepts and B (○)
+  always goes back, whichever layout is picked.
+- **Swap A/B and X/Y**: a Settings switch for pads that report their face buttons the other way
+  round — it moves the actions and leaves the legend exactly as it is, so what the legend says
+  matches the button you press. It applies everywhere, dialogs and the filter sheet included.
+- **Maximum search results**: a new Settings stepper (50 / 100 / 250 / 500 / Unlimited,
+  default 100) sets how many games a library search loads at once; "Load more" still fetches
+  the next batch, and "Unlimited" drops the limit and lists everything the filters match.
+- **Multi-selection in Downloads**: tick several downloads and act on all of them at once.
+  SELECT (long press with touch) ticks the row under the cursor and turns the summary line
+  into an action bar — retry, pause, stop, delete — showing only the actions the ticked rows
+  accept. A ticks rows while selecting, Y ticks / unticks everything, X deletes the selection
+  (one confirmation for the lot when some of them finished) and B drops it. Retry, pause and
+  stop keep the selection so actions can be chained.
+- **Frontend integration (.dgmtx shortcuts)**: Dogmatix opens `.dgmtx` files — tiny text
+  files carrying a `dogmatix://library?…` deep link — so frontends like ES-DE can list it
+  as an "emulator" per platform. A new Settings row ("Frontend shortcuts") drops a
+  `★ Search for more games....dgmtx` shortcut into every console's download folder, ready
+  for the frontend to scan (the star keeps it at one end of the game list); `banner.png`
+  in the repo serves as its preview image (see FRONTENDS.md).
+- **One-button ES-DE setup**: Settings → "Configure ES-DE" picks the ES-DE data folder once
+  and writes everything itself — shortcuts, find rule, per-platform system overrides (built
+  from the es_systems.xml bundled inside the installed ES-DE, so nothing is lost or
+  outdated), gamelist entries with `altemulator` (the system's default emulator is
+  untouched), and the banner as cover art. Existing files are merged, never truncated.
+  When ES-DE is detected, the first-run tour offers this same setup as its final step.
+- **One-button iiSU setup**: Settings → "Configure iiSU" picks iiSU's `iiSULauncher` data
+  folder once (inside `Android/media/com.iisulauncher/`, which SAF can reach) and adds
+  Dogmatix as one more emulator in its `emuladores.json`: `.dgmtx` joins the console's
+  accepted extensions and a `DOGMATIX` entry is appended last, so the console keeps its own
+  default emulator and only the shortcut is pointed at Dogmatix with iiSU's per-ROM
+  *Override Emulator*. Only consoles whose folder got a shortcut are touched and nothing is
+  ever removed; on a fresh iiSU install the defaults bundled inside its APK are used as the
+  base. Note that applying an `emuladores.json` update from iiSU's own updater drops these
+  additions — running the setup again puts them back.
+- **Assisted Daijishō setup**: Settings → "Set up Daijishō" deploys the shortcuts and shows
+  the three values its *Add an emulator* form needs, each with a Copy button. Daijishō keeps
+  its players in a private database and exposes no intent, deep link or importable emulator
+  configuration, so that last step is typed in by hand; a custom emulator there is global, so
+  one entry covers every console and it survives Daijishō's automatic platform updates.
 - **Pause / resume for torrent downloads**: a pause button on active rows (A on the gamepad)
   parks the download keeping its data; play resumes from the pieces already on disk — even
   if the app was left and the torrent session restarted in between.
 - Direct HTTP and RomM downloads keep their partial file when they stop or fail (connection
   drop included) and the retry continues it with a Range request instead of starting over.
+- **Sort the library by size**: the "Sort" filter row gains "Size: big → small" and
+  "Size: small → big" next to A → Z and Z → A, handy for spotting the heavyweights (or the
+  quick downloads) of a console. Ties are broken by name so paging through a long list never
+  repeats or skips a game.
 
 - A tiny, faint version indicator under the app logo in both headers.
+- **True black theme**: a fourth theme mode ("True black") with a pure `#000000` background
+  for AMOLED screens, next to System / Light / Dark in the Settings stepper. Panels and
+  cards sit barely above black so the layout still reads; text and accents reuse the dark
+  palette.
 
 ### Fixed
 - Per-file download speed: rows from the same torrent showed the torrent's total rate.
+- A deep link (or .dgmtx shortcut) for NES also selected SNES: for bare console ids like
+  `super_nintendo_entertainment_system` the derived folder name dropped the first word,
+  so SNES's alias set contained NES's full name. Also fixes the default download folder
+  for such consoles (`playstation_2` would have created a folder literally named "2").
 
 ## [1.1.4] – 2026-08-31
 

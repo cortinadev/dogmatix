@@ -19,8 +19,12 @@ class SettingsRepositoryImpl @Inject constructor(
     override val concurrentDownloads: Flow<Int> = settingsDataStore.concurrentDownloads
     override val metadataTimeoutSeconds: Flow<Int> = settingsDataStore.metadataTimeoutSeconds
     override suspend fun setMetadataTimeoutSeconds(seconds: Int): Preferences = settingsDataStore.setMetadataTimeoutSeconds(seconds)
+    override val maxSearchResults: Flow<Int> = settingsDataStore.maxSearchResults
+    override suspend fun setMaxSearchResults(max: Int): Preferences = settingsDataStore.setMaxSearchResults(max)
     override val consoleDownloadDirectories: Flow<Map<String, String>> = settingsDataStore.consoleDownloadDirectories
     override val themeMode: Flow<String> = settingsDataStore.themeMode
+    override val gamepadLayout: Flow<String> = settingsDataStore.gamepadLayout
+    override val swapFaceButtons: Flow<Boolean> = settingsDataStore.swapFaceButtons
     override val accentColor: Flow<String> = settingsDataStore.accentColor
     override val favoriteLanguages: Flow<Set<String>> = settingsDataStore.favoriteLanguages
     override val onboardingDone: Flow<Boolean> = settingsDataStore.onboardingDone
@@ -32,6 +36,10 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setTorboxApiKey(key: String): Preferences = settingsDataStore.setTorboxApiKey(key)
     override suspend fun setRealDebridApiKey(key: String): Preferences = settingsDataStore.setRealDebridApiKey(key)
 
+    override val esdeDirectory: Flow<String> = settingsDataStore.esdeDirectory
+    override suspend fun setEsdeDirectory(uri: String): Preferences = settingsDataStore.setEsdeDirectory(uri)
+    override val iisuDirectory: Flow<String> = settingsDataStore.iisuDirectory
+    override suspend fun setIisuDirectory(uri: String): Preferences = settingsDataStore.setIisuDirectory(uri)
     override val rommUrl: Flow<String> = settingsDataStore.rommUrl
     override val rommToken: Flow<String> = settingsDataStore.rommToken
     override val rommAutoUpload: Flow<Boolean> = settingsDataStore.rommAutoUpload
@@ -68,6 +76,10 @@ class SettingsRepositoryImpl @Inject constructor(
     }
 
     override suspend fun setThemeMode(mode: String): Preferences = settingsDataStore.setThemeMode(mode)
+
+    override suspend fun setGamepadLayout(layout: String): Preferences = settingsDataStore.setGamepadLayout(layout)
+
+    override suspend fun setSwapFaceButtons(enabled: Boolean): Preferences = settingsDataStore.setSwapFaceButtons(enabled)
 
     override suspend fun setAccentColor(hex: String): Preferences = settingsDataStore.setAccentColor(hex)
 
