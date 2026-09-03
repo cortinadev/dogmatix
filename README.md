@@ -188,7 +188,6 @@ Everything is also reachable by touch; the legend only appears while a controlle
 Planned features, in no particular order:
 
 - **RomM: mark games already in RomM** as owned in the library (today only uploads are supported).
-- **More debrid providers** (AllDebrid, Premiumize) behind the *Debrid service* setting.
 - **Favourites sync** across devices via the sources export.
 
 Ideas and requests are welcome as [issues](https://github.com/cortinadev/dogmatix/issues).
