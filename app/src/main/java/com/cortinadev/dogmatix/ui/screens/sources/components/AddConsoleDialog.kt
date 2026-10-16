@@ -12,20 +12,28 @@ import androidx.compose.ui.unit.dp
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.model.Console
 import com.cortinadev.dogmatix.data.model.Manufacturer
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import com.cortinadev.dogmatix.ui.components.ColorPickerDialog
 import com.cortinadev.dogmatix.ui.components.DialogButton
 import com.cortinadev.dogmatix.ui.components.closeOnGamepadB
 import com.cortinadev.dogmatix.ui.components.focusRing
 import com.cortinadev.dogmatix.ui.components.rememberFocusSource
 import com.cortinadev.dogmatix.ui.components.rememberInitialFocus
+import com.cortinadev.dogmatix.util.ColorMath
 import com.cortinadev.dogmatix.util.ConsoleAliasRegistry
+import com.cortinadev.dogmatix.util.ConsoleFamily
 import com.cortinadev.dogmatix.util.ConsoleFolderAliases
 import com.cortinadev.dogmatix.util.ConsoleFormatter
 
-/** What the console dialog hands back: display name, chip label and download-folder aliases. */
-data class ConsoleFormValues(val name: String, val shortName: String, val aliases: List<String>)
+/** What the console dialog hands back: display name, chip label, download-folder aliases and colour (`#RRGGBB`, empty = default). */
+data class ConsoleFormValues(val name: String, val shortName: String, val aliases: List<String>, val color: String = "")
 
 /**
- * Adds or edits a console: name, short label (chip), folder aliases and — when adding — the
+ * Adds or edits a console: name, short label (chip), folder aliases, chip colour and — when adding — the
  * manufacturer, picked from the existing ones (chips) or typed as a new name.
  * Opens with the name field focused; B cancels. Empty short name / aliases keep the built-in defaults.
  */
@@ -42,6 +50,8 @@ fun AddConsoleDialog(
     var name by remember { mutableStateOf(existing?.name.orEmpty()) }
     var shortName by remember { mutableStateOf(existing?.shortName.orEmpty()) }
     var aliases by remember { mutableStateOf(existing?.folderAliases.orEmpty().joinToString(", ")) }
+    var color by remember { mutableStateOf(existing?.color.orEmpty()) }
+    var pickingColor by remember { mutableStateOf(false) }
     val adding = existing == null
     var selectedManufacturer by remember { mutableStateOf(manufacturers.firstOrNull()?.id) }
     var newManufacturer by remember { mutableStateOf("") }
@@ -53,7 +63,7 @@ fun AddConsoleDialog(
     val defaultAliases = existing?.let { ConsoleFolderAliases.defaultAliasesFor(it.id).joinToString(", ") }.orEmpty()
 
     fun submit() {
-        val values = ConsoleFormValues(name.trim(), shortName.trim(), ConsoleAliasRegistry.parseAliases(aliases))
+        val values = ConsoleFormValues(name.trim(), shortName.trim(), ConsoleAliasRegistry.parseAliases(aliases), color)
         if (values.name.isEmpty() || !manufacturerOk) return
         when {
             !adding -> onConfirm(values)
@@ -61,6 +71,20 @@ fun AddConsoleDialog(
             else -> onConfirmExisting(selectedManufacturer!!, values)
         }
         onDismiss()
+    }
+
+    // Without a picked colour the chip follows the console's family (guessed from the name while adding).
+    val familyId = existing?.id ?: listOfNotNull(selectedManufacturer.takeIf { newManufacturer.isBlank() } ?: newManufacturer, name).joinToString("_")
+    val shownColor = Color(ColorMath.parseHex(color) ?: ConsoleFamily.of(familyId).defaultArgb)
+    if (pickingColor) {
+        ColorPickerDialog(
+            title = stringResource(R.string.dialog_console_color),
+            initial = shownColor,
+            sample = shortName.ifBlank { defaultShort }.ifBlank { name }.ifBlank { "SNES" },
+            strong = true,
+            onPick = { picked -> color = picked?.let(ColorMath::toHex).orEmpty() },
+            onDismiss = { pickingColor = false }
+        )
     }
 
     AlertDialog(
@@ -97,6 +121,19 @@ fun AddConsoleDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Box(modifier = Modifier.size(24.dp).clip(CircleShape).background(shownColor))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(stringResource(R.string.dialog_console_color), style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            if (color.isBlank()) stringResource(R.string.dialog_console_color_default) else color,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    DialogButton(text = stringResource(R.string.settings_change), onClick = { pickingColor = true })
+                }
                 if (adding) {
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(stringResource(R.string.dialog_manufacturer), style = MaterialTheme.typography.titleSmall)

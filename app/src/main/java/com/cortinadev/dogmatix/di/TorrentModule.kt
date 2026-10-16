@@ -2,6 +2,7 @@ package com.cortinadev.dogmatix.di
 
 import com.cortinadev.dogmatix.data.service.TorrentFileIndexer
 import com.cortinadev.dogmatix.data.service.TorrentHandleRegistry
+import com.cortinadev.dogmatix.data.service.TorrentMetadataCache
 import com.cortinadev.dogmatix.data.service.TorrentMetadataFetcher
 import com.cortinadev.dogmatix.data.service.TorrentProgressBridge
 import com.cortinadev.dogmatix.data.service.DownloadProgressTracker
@@ -36,14 +37,16 @@ object TorrentModule {
     @Singleton
     fun provideTorrentHandleRegistry(
         @dagger.hilt.android.qualifiers.ApplicationContext context: android.content.Context,
-        settingsRepository: com.cortinadev.dogmatix.data.repository.SettingsRepository
-    ): TorrentHandleRegistry = TorrentHandleRegistry(context, settingsRepository)
+        settingsRepository: com.cortinadev.dogmatix.data.repository.SettingsRepository,
+        metadataCache: TorrentMetadataCache
+    ): TorrentHandleRegistry = TorrentHandleRegistry(context, settingsRepository, metadataCache)
 
     @Provides
     @Singleton
     fun provideTorrentMetadataFetcher(
-        registry: TorrentHandleRegistry
-    ): TorrentMetadataFetcher = TorrentMetadataFetcher(registry)
+        registry: TorrentHandleRegistry,
+        metadataCache: TorrentMetadataCache
+    ): TorrentMetadataFetcher = TorrentMetadataFetcher(registry, metadataCache)
 
     @Provides
     @Singleton

@@ -1,6 +1,10 @@
 package com.cortinadev.dogmatix.ui.screens.sources.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import com.cortinadev.dogmatix.ui.components.tagPalette
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.ui.res.painterResource
@@ -20,6 +24,10 @@ import androidx.compose.ui.unit.dp
 import com.cortinadev.dogmatix.data.model.Console
 import com.cortinadev.dogmatix.data.model.ResolvedDownloadPath
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
+// busqueda
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import com.cortinadev.dogmatix.data.search.SearchTarget
 
 @Composable
 fun ConsoleCard(
@@ -34,9 +42,23 @@ fun ConsoleCard(
     onToggleUrl: (Int, Boolean) -> Unit,
     onSetCustomDownloadPath: () -> Unit,
     onRefreshConsole: () -> Unit,
-    onMergeFolders: () -> Unit = {}
+    onMergeFolders: () -> Unit = {},
+    /** A library search result for this console: unfold it and focus it, or one of its addresses. */
+    reveal: SearchTarget.Source? = null,
+    onRevealed: () -> Unit = {}
 ) {
     var expanded by remember { mutableStateOf(false) }
+    // busqueda
+    val toggleFocus = remember { FocusRequester() }
+    val urlFocus = remember { FocusRequester() }
+    LaunchedEffect(reveal) {
+        val target = reveal ?: return@LaunchedEffect
+        expanded = true
+        withFrameNanos { }
+        withFrameNanos { }
+        runCatching { (if (target.urlIndex != null) urlFocus else toggleFocus).requestFocus() }
+        onRevealed()
+    }
     // D-pad: when any button inside gains focus, scroll the whole card into view (not just the button),
     // so the download-path line of the last card is never left hidden.
     val bringIntoView = remember { BringIntoViewRequester() }
@@ -59,6 +81,14 @@ fun ConsoleCard(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // The console's chip colour (Sources → edit console), as seen in the library.
+                Box(
+                    modifier = Modifier
+                        .padding(end = 10.dp)
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(tagPalette().consoleColor(console.id))
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = console.name,
@@ -92,7 +122,7 @@ fun ConsoleCard(
                     IconButton(onClick = onDeleteConsole) {
                         Icon(painterResource(R.drawable.ic_trash), contentDescription = stringResource(R.string.sources_delete_console))
                     }
-                    IconButton(onClick = { expanded = !expanded }) {
+                    IconButton(onClick = { expanded = !expanded }, modifier = Modifier.focusRequester(toggleFocus)) {
                         Icon(
                             painterResource(if (expanded) R.drawable.ic_arrow_up else R.drawable.ic_arrow_down),
                             contentDescription = stringResource(if (expanded) R.string.sources_collapse else R.string.sources_expand)
@@ -144,6 +174,7 @@ fun ConsoleCard(
                 ) {
                     console.urls.forEachIndexed { index, urlEntry ->
                         UrlItem(
+                            focusRequester = urlFocus.takeIf { index == reveal?.urlIndex },
                             urlEntry = urlEntry,
                             onEdit = { onEditUrl(index, urlEntry) },
                             onDelete = { onDeleteUrl(index, urlEntry) },
@@ -161,7 +192,9 @@ private fun UrlItem(
     urlEntry: com.cortinadev.dogmatix.data.model.UrlEntry,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onToggle: (Boolean) -> Unit
+    onToggle: (Boolean) -> Unit,
+    /** Set on the address a search result points at: its switch (the row's first control) takes the focus. */
+    focusRequester: FocusRequester? = null
 ) {
     // Disabled sources stay listed but visibly muted; the switch is the first control in the row.
     val contentAlpha = if (urlEntry.enabled) 1f else 0.45f
@@ -196,9 +229,11 @@ private fun UrlItem(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                // How downloads from this address have gone lately (nothing until there is a record).
+                com.cortinadev.dogmatix.ui.components.SourceReliabilityLine(urlEntry.url)
             }
 
-            Box(modifier = Modifier.padding(start = 12.dp)) {
+            Box(modifier = Modifier.padding(start = 12.dp).then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)) {
                 com.cortinadev.dogmatix.ui.screens.settings.ThemedSwitch(checked = urlEntry.enabled, onChange = onToggle)
             }
             Row(horizontalArrangement = Arrangement.spacedBy((-12).dp)) {

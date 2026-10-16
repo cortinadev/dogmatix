@@ -7,17 +7,26 @@ import com.cortinadev.dogmatix.data.repository.DownloadableFileRepository
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.data.model.DebridProvider
+import com.cortinadev.dogmatix.data.model.SeedingMode
+import com.cortinadev.dogmatix.data.model.PreferredRegion
+import com.cortinadev.dogmatix.util.AutoRetryPolicy
 import com.cortinadev.dogmatix.data.service.DaijishoConfigService
 import com.cortinadev.dogmatix.data.service.DebridClient
 import com.cortinadev.dogmatix.data.service.EsdeConfigService
 import com.cortinadev.dogmatix.data.service.FrontendSetupException
 import com.cortinadev.dogmatix.data.service.IisuConfigService
 import com.cortinadev.dogmatix.data.service.FrontendShortcutService
+import com.cortinadev.dogmatix.data.service.EsdeFavouriteSyncService
+import com.cortinadev.dogmatix.data.service.FrontendCheckService
+import com.cortinadev.dogmatix.ui.screens.settings.components.FrontendCheckUi
+import com.cortinadev.dogmatix.util.FrontendCheck
+import kotlinx.coroutines.flow.update
 import com.cortinadev.dogmatix.data.service.RealDebridClient
 import com.cortinadev.dogmatix.data.service.TorBoxClient
 import com.cortinadev.dogmatix.ui.common.GamepadLayout
 import com.cortinadev.dogmatix.ui.common.executeWithToast
 import com.cortinadev.dogmatix.util.Constants
+import com.cortinadev.dogmatix.util.TagColorKind
 import com.cortinadev.dogmatix.util.ToastUtil
 import com.cortinadev.dogmatix.util.TorrentConstants
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -53,11 +62,17 @@ data class SettingsUiState(
     val accent: Color = AccentPresets.default,
     val favoriteLanguages: Set<String> = emptySet(),
     val debridProvider: DebridProvider = DebridProvider.NONE,
+    /** How long a finished torrent keeps uploading; OFF releases it right away. */
+    val seedingMode: SeedingMode = SeedingMode.OFF,
     val torboxApiKey: String = "",
     val realDebridApiKey: String = "",
     val rommUrl: String = "",
     val esdeDirectory: String = "",
     val iisuDirectory: String = "",
+    /** Square covers in front of the library rows. */
+    val showListCovers: Boolean = true,
+    /** Colours picked per tag group; a missing group uses its default. */
+    val tagColors: Map<TagColorKind, Int> = emptyMap(),
     val isLoading: Boolean = false
 )
 
@@ -70,7 +85,10 @@ class SettingsViewModel @Inject constructor(
     private val frontendShortcuts: FrontendShortcutService,
     private val esdeConfigService: EsdeConfigService,
     private val iisuConfigService: IisuConfigService,
-    private val daijishoConfigService: DaijishoConfigService
+    private val daijishoConfigService: DaijishoConfigService,
+    // frontends
+    private val frontendCheckService: FrontendCheckService,
+    private val esdeFavouriteSync: EsdeFavouriteSyncService
 ) : ViewModel() {
 
     /** Non-null while the Daijishō sheet with the values to type is open. */
@@ -111,7 +129,10 @@ class SettingsViewModel @Inject constructor(
         repository.maxSearchResults,
         repository.iisuDirectory,
         repository.gamepadLayout,
-        repository.swapFaceButtons
+        repository.swapFaceButtons,
+        repository.seedingMode,
+        repository.showListCovers,
+        repository.tagColors
     ) { values: Array<Any> ->
         SettingsUiState(
             downloadDirectory = values[0] as String,
@@ -131,12 +152,34 @@ class SettingsViewModel @Inject constructor(
             maxSearchResults = values[14] as Int,
             iisuDirectory = values[15] as String,
             gamepadLayout = GamepadLayout.fromName(values[16] as String),
-            swapFaceButtons = values[17] as Boolean
+            swapFaceButtons = values[17] as Boolean,
+            seedingMode = values[18] as SeedingMode,
+            showListCovers = values[19] as Boolean,
+            tagColors = (values[20] as Map<*, *>).entries
+                .mapNotNull { (k, v) -> (k as? TagColorKind)?.let { kind -> (v as? Int)?.let { kind to it } } }
+                .toMap()
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SettingsUiState())
 
     fun onDebridProviderChanged(context: Context, provider: DebridProvider) {
         executeWithToast(context, "SettingsViewModel") { repository.setDebridProvider(provider) }
+    }
+
+    fun onShowListCoversChanged(context: Context, enabled: Boolean) {
+        executeWithToast(context, "SettingsViewModel") { repository.setShowListCovers(enabled) }
+    }
+
+    /** [argb] null = back to the default colour of [kind]. */
+    fun onTagColorChanged(context: Context, kind: TagColorKind, argb: Int?) {
+        executeWithToast(context, "SettingsViewModel") { repository.setTagColor(kind, argb) }
+    }
+
+    fun onResetTagColors(context: Context) {
+        executeWithToast(context, "SettingsViewModel") { repository.resetTagColors() }
+    }
+
+    fun onSeedingModeChanged(context: Context, mode: SeedingMode) {
+        executeWithToast(context, "SettingsViewModel") { repository.setSeedingMode(mode) }
     }
 
     fun onDebridApiKeyChanged(context: Context, provider: DebridProvider, key: String) {
@@ -168,6 +211,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { repository.setEsdeDirectory(uri) }
             configureEsde(context)
+            recheckFrontendsIfOpen()
         }
     }
 
@@ -205,6 +249,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { repository.setIisuDirectory(uri) }
             configureIisu(context)
+            recheckFrontendsIfOpen()
         }
     }
 
@@ -262,25 +307,27 @@ class SettingsViewModel @Inject constructor(
 
     /** Drops a `.dgmtx` shortcut into every console's download folder; the result comes as a toast. */
     fun onDeployFrontendShortcuts(context: Context) {
-        viewModelScope.launch {
-            runCatching { frontendShortcuts.deployShortcuts() }
-                .onSuccess { result ->
-                    when {
-                        result.written == 0 && result.failed == 0 ->
-                            ToastUtil.showInfo(context, context.getString(R.string.frontend_shortcuts_none))
-                        result.failed == 0 ->
-                            ToastUtil.showSuccess(context, context.getString(R.string.frontend_shortcuts_done, result.written))
-                        else ->
-                            ToastUtil.showError(
-                                context,
-                                context.getString(R.string.frontend_shortcuts_partial, result.written, result.failed)
-                            )
-                    }
+        viewModelScope.launch { deployFrontendShortcuts(context) }
+    }
+
+    private suspend fun deployFrontendShortcuts(context: Context) {
+        runCatching { frontendShortcuts.deployShortcuts() }
+            .onSuccess { result ->
+                when {
+                    result.written == 0 && result.failed == 0 ->
+                        ToastUtil.showInfo(context, context.getString(R.string.frontend_shortcuts_none))
+                    result.failed == 0 ->
+                        ToastUtil.showSuccess(context, context.getString(R.string.frontend_shortcuts_done, result.written))
+                    else ->
+                        ToastUtil.showError(
+                            context,
+                            context.getString(R.string.frontend_shortcuts_partial, result.written, result.failed)
+                        )
                 }
-                .onFailure {
-                    ToastUtil.showError(context, it.message ?: context.getString(R.string.frontend_shortcuts_none))
-                }
-        }
+            }
+            .onFailure {
+                ToastUtil.showError(context, it.message ?: context.getString(R.string.frontend_shortcuts_none))
+            }
     }
 
     fun onDownloadDirChanged(context: Context, path: String) {
@@ -350,4 +397,101 @@ class SettingsViewModel @Inject constructor(
             repository.setAccentColor(AccentPresets.toHex(accent))
         }
     }
+
+    // Download retries, per-server limit, multi-disc playlists and the preferred region
+    val features: StateFlow<FeatureSettingsUi> = combine(
+        repository.autoRetryAttempts,
+        repository.perHostDownloads,
+        repository.multiDiscPlaylists,
+        repository.preferredRegion
+    ) { retries, perHost, multiDisc, region -> FeatureSettingsUi(retries, perHost, multiDisc, region) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FeatureSettingsUi())
+
+    fun onAutoRetryChanged(context: Context, attempts: Int) =
+        executeWithToast(context, "SettingsViewModel") { repository.setAutoRetryAttempts(attempts) }
+
+    fun onPerHostDownloadsChanged(context: Context, max: Int) =
+        executeWithToast(context, "SettingsViewModel") { repository.setPerHostDownloads(max) }
+
+    fun onMultiDiscPlaylistsChanged(context: Context, enabled: Boolean) =
+        executeWithToast(context, "SettingsViewModel") { repository.setMultiDiscPlaylists(enabled) }
+
+    fun onPreferredRegionChanged(context: Context, region: PreferredRegion) =
+        executeWithToast(context, "SettingsViewModel") { repository.setPreferredRegion(region) }
+
+    // dl-cola
+    val batchNotification: StateFlow<Boolean> = repository.batchNotification
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), true)
+
+    fun onBatchNotificationChanged(context: Context, enabled: Boolean) =
+        executeWithToast(context, "SettingsViewModel") { repository.setBatchNotification(enabled) }
+
+    // frontends
+    /** Non-null while "Check frontends" is open. */
+    private val _frontendCheck = MutableStateFlow<FrontendCheckUi?>(null)
+    val frontendCheck: StateFlow<FrontendCheckUi?> = _frontendCheck.asStateFlow()
+
+    fun onCheckFrontends() {
+        _frontendCheck.value = FrontendCheckUi(running = true)
+        viewModelScope.launch { runFrontendCheck() }
+    }
+
+    fun onRecheckFrontends() {
+        _frontendCheck.update { it?.copy(running = true) }
+        viewModelScope.launch { runFrontendCheck() }
+    }
+
+    fun onFrontendCheckDismissed() {
+        _frontendCheck.value = null
+    }
+
+    /** Runs the setup behind a warning, then checks again. Picking a folder is the screen's (it owns the pickers). */
+    fun onFrontendRepair(context: Context, repair: FrontendCheck.Repair) {
+        _frontendCheck.update { it?.copy(running = true) }
+        viewModelScope.launch {
+            when (repair) {
+                FrontendCheck.Repair.CONFIGURE_ESDE -> configureEsde(context)
+                FrontendCheck.Repair.CONFIGURE_IISU -> configureIisu(context)
+                FrontendCheck.Repair.DEPLOY_SHORTCUTS -> deployFrontendShortcuts(context)
+                FrontendCheck.Repair.PICK_ESDE_FOLDER, FrontendCheck.Repair.PICK_IISU_FOLDER, FrontendCheck.Repair.NONE -> Unit
+            }
+            recheckFrontendsIfOpen()
+        }
+    }
+
+    private suspend fun recheckFrontendsIfOpen() {
+        if (_frontendCheck.value != null) runFrontendCheck()
+    }
+
+    private suspend fun runFrontendCheck() {
+        val findings = runCatching { frontendCheckService.check() }.getOrDefault(emptyList())
+        _frontendCheck.update { it?.copy(running = false, findings = findings) }
+    }
+
+    /** Two-way favourites sync with ES-DE; the same one that runs after launch, reported in a toast. */
+    fun onSyncEsdeFavourites(context: Context) {
+        viewModelScope.launch {
+            runCatching { esdeFavouriteSync.sync() }
+                .onSuccess { result ->
+                    when {
+                        result == null -> ToastUtil.showInfo(context, context.getString(R.string.esde_favourites_not_set_up))
+                        result.changedHere + result.changedInEsde == 0 ->
+                            ToastUtil.showInfo(context, context.getString(R.string.esde_favourites_in_sync))
+                        else -> ToastUtil.showSuccess(
+                            context,
+                            context.getString(R.string.esde_favourites_synced, result.changedHere, result.changedInEsde)
+                        )
+                    }
+                }
+                .onFailure { ToastUtil.showError(context, frontendSetupMessage(context, it) { null }) }
+        }
+    }
 }
+
+/** Download and version settings, kept out of [SettingsUiState]'s long combine. */
+data class FeatureSettingsUi(
+    val autoRetryAttempts: Int = AutoRetryPolicy.DEFAULT_ATTEMPTS,
+    val perHostDownloads: Int = 0,
+    val multiDiscPlaylists: Boolean = true,
+    val preferredRegion: PreferredRegion = PreferredRegion.forLocale()
+)

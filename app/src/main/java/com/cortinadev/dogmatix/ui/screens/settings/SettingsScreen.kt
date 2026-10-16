@@ -2,6 +2,21 @@ package com.cortinadev.dogmatix.ui.screens.settings
 
 import android.content.Intent
 import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
+import androidx.annotation.StringRes
+import androidx.compose.foundation.focusGroup
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.VerticalDivider
+import androidx.compose.runtime.key
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.focusProperties
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -18,8 +33,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
@@ -32,16 +45,23 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
+import com.cortinadev.dogmatix.data.service.HostLimiter
+import com.cortinadev.dogmatix.ui.common.cycled
+import com.cortinadev.dogmatix.ui.common.labelRes
+import com.cortinadev.dogmatix.util.AutoRetryPolicy
+import com.cortinadev.dogmatix.util.AutoScanFrequency
 import com.cortinadev.dogmatix.ui.common.Gamepad
 import com.cortinadev.dogmatix.ui.common.GamepadButton
 import com.cortinadev.dogmatix.ui.common.Legend
 import com.cortinadev.dogmatix.ui.components.LegendEntry
+import com.cortinadev.dogmatix.ui.components.SidePanelWidth
 import com.cortinadev.dogmatix.ui.components.TruncatedText
-import com.cortinadev.dogmatix.ui.components.legendFor
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,28 +81,43 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.ui.components.Stepper
+import com.cortinadev.dogmatix.ui.components.SubTab
+import com.cortinadev.dogmatix.ui.components.SubTabs
 import com.cortinadev.dogmatix.ui.screens.settings.components.ApiKeyDialog
 import com.cortinadev.dogmatix.ui.screens.settings.components.DaijishoSetupDialog
+import com.cortinadev.dogmatix.ui.screens.settings.components.FrontendCheckDialog
+import com.cortinadev.dogmatix.util.FrontendCheck
 import com.cortinadev.dogmatix.ui.screens.settings.components.FavoriteLanguagesDialog
 import com.cortinadev.dogmatix.ui.screens.settings.components.maskedSecret
 import com.cortinadev.dogmatix.ui.components.focusRing
 import com.cortinadev.dogmatix.ui.components.rememberFocusSource
 import com.cortinadev.dogmatix.ui.navigation.NavRoutes
 import com.cortinadev.dogmatix.data.model.DebridProvider
+import com.cortinadev.dogmatix.data.model.SeedingMode
 import com.cortinadev.dogmatix.ui.common.GamepadLayout
 import com.cortinadev.dogmatix.ui.theme.AccentPresets
+import com.cortinadev.dogmatix.util.TagColorKind
 import com.cortinadev.dogmatix.util.Constants
 import com.cortinadev.dogmatix.util.TorrentConstants
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
 import com.cortinadev.dogmatix.ui.theme.ThemeMode
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
+import androidx.compose.runtime.withFrameNanos
+import com.cortinadev.dogmatix.data.search.SearchTarget
+import com.cortinadev.dogmatix.data.search.SettingsRowKeys
+import com.cortinadev.dogmatix.ui.navigation.SearchTargetEffect
+import kotlinx.coroutines.launch
 
 /** Languages offered in Settings; [tag] is empty for "follow the device". */
 enum class AppLanguage(val tag: String, val label: Int) {
     SYSTEM("", R.string.language_system),
     EN("en", R.string.language_en),
-    ES("es", R.string.language_es);
+    ES("es", R.string.language_es),
+    DE("de", R.string.language_de),
+    FR("fr", R.string.language_fr),
+    PT("pt", R.string.language_pt),
+    IT("it", R.string.language_it);
 
     companion object {
         fun current(): AppLanguage {
@@ -94,6 +129,9 @@ enum class AppLanguage(val tag: String, val label: Int) {
 
 private const val SPEED_STEP = 250
 private const val SPEED_MAX = 5000
+
+/** One width for every stepper value, so the – and + of the single column line up. */
+private val StepperWidth = 130.dp
 
 @Composable
 fun SettingsScreen(
@@ -136,6 +174,23 @@ fun SettingsScreen(
         if (ui.iisuDirectory.isBlank()) iisuLauncher.launch(null) else viewModel.onConfigureIisu(context)
     }
 
+    // frontends: "Check frontends"; a lost folder is picked again with the setup's own picker
+    val frontendCheck by viewModel.frontendCheck.collectAsState()
+    frontendCheck?.let { check ->
+        FrontendCheckDialog(
+            state = check,
+            onRepair = { repair ->
+                when (repair) {
+                    FrontendCheck.Repair.PICK_ESDE_FOLDER -> esdeLauncher.launch(null)
+                    FrontendCheck.Repair.PICK_IISU_FOLDER -> iisuLauncher.launch(null)
+                    else -> viewModel.onFrontendRepair(context, repair)
+                }
+            },
+            onRecheck = viewModel::onRecheckFrontends,
+            onDismiss = viewModel::onFrontendCheckDismissed
+        )
+    }
+
     fun cycleTheme(delta: Int) {
         val modes = ThemeMode.entries
         viewModel.onThemeModeChanged(context, modes[((ui.themeMode.ordinal + delta) % modes.size + modes.size) % modes.size])
@@ -149,6 +204,21 @@ fun SettingsScreen(
         val layouts = GamepadLayout.entries
         viewModel.onGamepadLayoutChanged(context, layouts[((ui.gamepadLayout.ordinal + delta) % layouts.size + layouts.size) % layouts.size])
     }
+    // Download retries, per-server limit, multi-disc playlists and the preferred region
+    val features by viewModel.features.collectAsState()
+    val batchNotification by viewModel.batchNotification.collectAsState()
+    fun adjustAutoRetry(delta: Int) {
+        val choices = AutoRetryPolicy.ATTEMPT_CHOICES
+        val current = choices.indexOf(features.autoRetryAttempts).takeIf { it >= 0 } ?: choices.indexOf(AutoRetryPolicy.DEFAULT_ATTEMPTS)
+        viewModel.onAutoRetryChanged(context, choices[(current + delta).coerceIn(0, choices.lastIndex)])
+    }
+    fun adjustPerHost(delta: Int) {
+        val choices = HostLimiter.CHOICES
+        val current = choices.indexOf(features.perHostDownloads).coerceAtLeast(0)
+        viewModel.onPerHostDownloadsChanged(context, choices[(current + delta).coerceIn(0, choices.lastIndex)])
+    }
+    fun cycleRegion(delta: Int) = viewModel.onPreferredRegionChanged(context, features.preferredRegion.cycled(delta))
+
     fun adjustConcurrent(delta: Int) =
         viewModel.onConcurrentDownloadsChanged(context, (ui.concurrentDownloads + delta).coerceIn(1, 10))
     // Fixed choices instead of free steps: the useful jumps are coarse (50 → 100 → … → no limit).
@@ -191,6 +261,12 @@ fun SettingsScreen(
         )
     }
 
+    val seeding = ui.seedingMode
+    fun cycleSeeding(delta: Int) {
+        val modes = SeedingMode.entries
+        viewModel.onSeedingModeChanged(context, modes[((seeding.ordinal + delta) % modes.size + modes.size) % modes.size])
+    }
+
     val debrid = ui.debridProvider
     fun cycleDebrid(delta: Int) {
         val providers = DebridProvider.entries
@@ -207,6 +283,15 @@ fun SettingsScreen(
         DaijishoSetupDialog(setup = setup, onDismiss = viewModel::onDaijishoSetupDismissed)
     }
 
+    var showTagColorsDialog by remember { mutableStateOf(false) }
+    if (showTagColorsDialog) {
+        TagColorsDialog(
+            onPick = { kind, argb -> viewModel.onTagColorChanged(context, kind, argb) },
+            onReset = { viewModel.onResetTagColors(context) },
+            onDismiss = { showTagColorsDialog = false }
+        )
+    }
+
     var showDebridKeyDialog by remember { mutableStateOf(false) }
     if (showDebridKeyDialog && debrid != DebridProvider.NONE) {
         ApiKeyDialog(
@@ -219,288 +304,796 @@ fun SettingsScreen(
         )
     }
 
-    // Portrait shows the rows in this order; landscape splits them into two columns (`right`),
-    // so related rows (debrid service + its API key) stay stacked in the same column.
-    val ordered: List<SettingsRow> = listOf(
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_download_directory),
-                hint = ui.downloadDirectory.ifBlank { stringResource(R.string.settings_not_set) },
-                onClick = { launcher.launch(null) }
-            ) {
-                PillButton(stringResource(R.string.settings_change)) { launcher.launch(null) }
-            }
-        },
-        SettingsRow(right = true) {
-            SettingRow(
-                title = stringResource(R.string.settings_theme),
-                hint = stringResource(R.string.settings_theme_hint),
-                onClick = { cycleTheme(1) },
-                onAdjust = ::cycleTheme
-            ) {
-                Stepper(themeLabel, onDecrement = { cycleTheme(-1) }, onIncrement = { cycleTheme(1) }, valueWidth = 110.dp)
-            }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_language),
-                hint = stringResource(R.string.settings_language_hint),
-                onClick = { cycleLanguage(1) },
-                onAdjust = ::cycleLanguage
-            ) {
-                Stepper(stringResource(appLanguage.label), onDecrement = { cycleLanguage(-1) }, onIncrement = { cycleLanguage(1) }, valueWidth = 96.dp)
-            }
-        },
-        SettingsRow(right = true) {
-            SettingRow(
-                title = stringResource(R.string.settings_accent),
-                hint = stringResource(R.string.settings_accent_hint),
-                onClick = { cycleAccent(1) },
-                onAdjust = ::cycleAccent
-            ) {
-                AccentSwatches(selected = ui.accent, size = if (isLandscape) 22.dp else 36.dp) {
-                    viewModel.onAccentChanged(context, it)
+    // escaneo: Settings → Automatic scan (background job, see AutoScanScheduler).
+    val autoScanViewModel: AutoScanSettingsViewModel = hiltViewModel()
+    val autoScan by autoScanViewModel.state.collectAsState()
+
+    // RomM and About open a screen of their own; coming back, the focus returns to the row that opened it.
+    var returnTo by rememberSaveable { mutableStateOf<String?>(null) }
+    fun openScreen(route: NavRoutes, from: String) {
+        returnTo = from
+        navController.navigate(route.route)
+    }
+
+    // Each category lists its rows in reading order, in blocks under a heading.
+    val categories: Map<SettingsCategory, List<SettingsItem>> = mapOf(
+        SettingsCategory.LIBRARY to listOf(
+            SettingsHeading(R.string.settings_group_folder),
+            SettingsRow(key = SettingsRowKeys.DOWNLOAD_DIR) {
+                SettingRow(
+                    title = stringResource(R.string.settings_download_directory),
+                    hint = ui.downloadDirectory.ifBlank { stringResource(R.string.settings_not_set) },
+                    onClick = { launcher.launch(null) }
+                ) {
+                    PillButton(stringResource(R.string.settings_change)) { launcher.launch(null) }
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.SEPARATE_CONSOLE) {
+                SettingRow(
+                    title = stringResource(R.string.settings_separate_by_console),
+                    hint = stringResource(R.string.settings_separate_hint),
+                    onClick = { viewModel.onSeparateByConsoleChanged(context, !ui.separateByConsole) },
+                    onAdjust = { viewModel.onSeparateByConsoleChanged(context, it > 0) }
+                ) {
+                    ThemedSwitch(ui.separateByConsole) { viewModel.onSeparateByConsoleChanged(context, it) }
+                }
+            },
+            SettingsHeading(R.string.settings_group_sources),
+            // escaneo
+            SettingsRow(key = SettingsRowKeys.AUTO_SCAN) {
+                SettingRow(
+                    title = stringResource(R.string.settings_auto_scan),
+                    hint = stringResource(R.string.settings_auto_scan_hint),
+                    onClick = { autoScanViewModel.cycleFrequency(1) },
+                    onAdjust = autoScanViewModel::cycleFrequency
+                ) {
+                    Stepper(
+                        stringResource(autoScan.frequency.labelRes),
+                        onDecrement = { autoScanViewModel.cycleFrequency(-1) },
+                        onIncrement = { autoScanViewModel.cycleFrequency(1) },
+                        valueWidth = StepperWidth
+                    )
+                }
+            },
+            SettingsRow(visible = autoScan.frequency != AutoScanFrequency.OFF, key = SettingsRowKeys.AUTO_SCAN_WIFI) {
+                SettingRow(
+                    title = stringResource(R.string.settings_auto_scan_wifi),
+                    hint = stringResource(R.string.settings_auto_scan_wifi_hint),
+                    onClick = { autoScanViewModel.setWifiOnly(!autoScan.wifiOnly) },
+                    onAdjust = { autoScanViewModel.setWifiOnly(it > 0) }
+                ) {
+                    ThemedSwitch(autoScan.wifiOnly) { autoScanViewModel.setWifiOnly(it) }
+                }
+            },
+            SettingsRow(visible = autoScan.frequency != AutoScanFrequency.OFF, key = SettingsRowKeys.AUTO_SCAN_CHARGING) {
+                SettingRow(
+                    title = stringResource(R.string.settings_auto_scan_charging),
+                    hint = stringResource(R.string.settings_auto_scan_charging_hint),
+                    onClick = { autoScanViewModel.setChargingOnly(!autoScan.chargingOnly) },
+                    onAdjust = { autoScanViewModel.setChargingOnly(it > 0) }
+                ) {
+                    ThemedSwitch(autoScan.chargingOnly) { autoScanViewModel.setChargingOnly(it) }
+                }
+            },
+            SettingsHeading(R.string.settings_group_preferences),
+            SettingsRow(key = SettingsRowKeys.REGION) {
+                SettingRow(
+                    title = stringResource(R.string.settings_region),
+                    hint = stringResource(R.string.settings_region_hint),
+                    onClick = { cycleRegion(1) },
+                    onAdjust = ::cycleRegion
+                ) {
+                    Stepper(
+                        stringResource(features.preferredRegion.labelRes),
+                        onDecrement = { cycleRegion(-1) },
+                        onIncrement = { cycleRegion(1) },
+                        valueWidth = StepperWidth
+                    )
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.FAVORITE_LANGUAGES) {
+                SettingRow(
+                    title = stringResource(R.string.settings_favorite_languages),
+                    hint = ui.favoriteLanguages.sorted().joinToString(" · ")
+                        .ifBlank { stringResource(R.string.settings_favorite_languages_hint) },
+                    onClick = { showLanguagesDialog = true }
+                ) {
+                    PillButton(stringResource(R.string.settings_change)) { showLanguagesDialog = true }
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.MAX_RESULTS) {
+                SettingRow(
+                    title = stringResource(R.string.settings_max_results),
+                    hint = stringResource(R.string.settings_max_results_hint),
+                    onClick = { adjustMaxSearchResults(1) },
+                    onAdjust = ::adjustMaxSearchResults
+                ) {
+                    Stepper(
+                        if (ui.maxSearchResults <= 0) stringResource(R.string.settings_unlimited) else ui.maxSearchResults.toString(),
+                        onDecrement = { adjustMaxSearchResults(-1) },
+                        onIncrement = { adjustMaxSearchResults(1) },
+                        valueWidth = StepperWidth
+                    )
                 }
             }
-        },
-        SettingsRow(right = true) {
-            SettingRow(
-                title = stringResource(R.string.settings_gamepad_layout),
-                hint = stringResource(R.string.settings_gamepad_layout_hint),
-                onClick = { cycleGamepadLayout(1) },
-                onAdjust = ::cycleGamepadLayout
-            ) {
-                Stepper(
-                    stringResource(ui.gamepadLayout.labelRes),
-                    onDecrement = { cycleGamepadLayout(-1) },
-                    onIncrement = { cycleGamepadLayout(1) },
-                    valueWidth = 110.dp
-                )
-            }
-        },
-        SettingsRow(right = true) {
-            SettingRow(
-                title = stringResource(R.string.settings_swap_face_buttons),
-                hint = stringResource(R.string.settings_swap_face_buttons_hint),
-                onClick = { viewModel.onSwapFaceButtonsChanged(context, !ui.swapFaceButtons) },
-                onAdjust = { viewModel.onSwapFaceButtonsChanged(context, it > 0) }
-            ) {
-                ThemedSwitch(ui.swapFaceButtons) { viewModel.onSwapFaceButtonsChanged(context, it) }
-            }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_concurrent_label),
-                hint = null,
-                onClick = { adjustConcurrent(1) },
-                onAdjust = ::adjustConcurrent
-            ) {
-                Stepper(ui.concurrentDownloads.toString(), onDecrement = { adjustConcurrent(-1) }, onIncrement = { adjustConcurrent(1) })
-            }
-        },
-        SettingsRow(right = true) {
-            SettingRow(
-                title = stringResource(R.string.settings_limit_label),
-                hint = stringResource(R.string.settings_limit_hint),
-                onClick = { adjustLimit(1) },
-                onAdjust = ::adjustLimit
-            ) {
-                Stepper(
-                    if (limitKb == 0) stringResource(R.string.settings_unrestricted) else "$limitKb KB/s",
-                    onDecrement = { adjustLimit(-1) },
-                    onIncrement = { adjustLimit(1) },
-                    valueWidth = 110.dp
-                )
-            }
-        },
-        SettingsRow(right = true) {
-            SettingRow(
-                title = stringResource(R.string.settings_metadata_timeout),
-                hint = stringResource(R.string.settings_metadata_timeout_hint),
-                onClick = { adjustMetadataTimeout(1) },
-                onAdjust = ::adjustMetadataTimeout
-            ) {
-                Stepper(stringResource(R.string.seconds_short, ui.metadataTimeoutSeconds), onDecrement = { adjustMetadataTimeout(-1) }, onIncrement = { adjustMetadataTimeout(1) })
-            }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_auto_unzip),
-                hint = stringResource(R.string.settings_auto_unzip_hint),
-                onClick = { viewModel.onAutoUnzipChanged(context, !ui.autoUnzip) },
-                onAdjust = { viewModel.onAutoUnzipChanged(context, it > 0) }
-            ) {
-                ThemedSwitch(ui.autoUnzip) { viewModel.onAutoUnzipChanged(context, it) }
-            }
-        },
-        SettingsRow(right = true) {
-            SettingRow(
-                title = stringResource(R.string.settings_separate_by_console),
-                hint = stringResource(R.string.settings_separate_hint),
-                onClick = { viewModel.onSeparateByConsoleChanged(context, !ui.separateByConsole) },
-                onAdjust = { viewModel.onSeparateByConsoleChanged(context, it > 0) }
-            ) {
-                ThemedSwitch(ui.separateByConsole) { viewModel.onSeparateByConsoleChanged(context, it) }
-            }
-        },
-        SettingsRow(right = true) {
-            SettingRow(
-                title = stringResource(R.string.settings_debrid),
-                hint = stringResource(R.string.settings_debrid_hint),
-                onClick = { cycleDebrid(1) },
-                onAdjust = ::cycleDebrid
-            ) {
-                Stepper(debrid.label, onDecrement = { cycleDebrid(-1) }, onIncrement = { cycleDebrid(1) }, valueWidth = 110.dp)
-            }
-        },
-        SettingsRow(right = true) {
-            if (debrid != DebridProvider.NONE) SettingRow(
-                title = debridKeyTitle,
-                hint = maskedSecret(debridKey),
-                onClick = { showDebridKeyDialog = true }
-            ) {
-                PillButton(stringResource(R.string.settings_change)) { showDebridKeyDialog = true }
-            }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_max_results),
-                hint = stringResource(R.string.settings_max_results_hint),
-                onClick = { adjustMaxSearchResults(1) },
-                onAdjust = ::adjustMaxSearchResults
-            ) {
-                Stepper(
-                    if (ui.maxSearchResults <= 0) stringResource(R.string.settings_unlimited) else ui.maxSearchResults.toString(),
-                    onDecrement = { adjustMaxSearchResults(-1) },
-                    onIncrement = { adjustMaxSearchResults(1) },
-                    valueWidth = 110.dp
-                )
-            }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_favorite_languages),
-                hint = ui.favoriteLanguages.sorted().joinToString(" · ")
-                    .ifBlank { stringResource(R.string.settings_favorite_languages_hint) },
-                onClick = { showLanguagesDialog = true }
-            ) {
-                PillButton(stringResource(R.string.settings_change)) { showLanguagesDialog = true }
-            }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_frontend_shortcuts),
-                hint = stringResource(R.string.settings_frontend_shortcuts_hint),
-                onClick = { viewModel.onDeployFrontendShortcuts(context) }
-            ) {
-                PillButton(stringResource(R.string.settings_frontend_shortcuts_action)) {
-                    viewModel.onDeployFrontendShortcuts(context)
+        ),
+        SettingsCategory.GENERAL to listOf(
+            SettingsHeading(R.string.settings_group_app),
+            SettingsRow(key = SettingsRowKeys.LANGUAGE) {
+                SettingRow(
+                    title = stringResource(R.string.settings_language),
+                    hint = stringResource(R.string.settings_language_hint),
+                    onClick = { cycleLanguage(1) },
+                    onAdjust = ::cycleLanguage
+                ) {
+                    Stepper(stringResource(appLanguage.label), onDecrement = { cycleLanguage(-1) }, onIncrement = { cycleLanguage(1) }, valueWidth = StepperWidth)
+                }
+            },
+            SettingsHeading(R.string.settings_group_gamepad),
+            SettingsRow(key = SettingsRowKeys.GAMEPAD_LAYOUT) {
+                SettingRow(
+                    title = stringResource(R.string.settings_gamepad_layout),
+                    hint = stringResource(R.string.settings_gamepad_layout_hint),
+                    onClick = { cycleGamepadLayout(1) },
+                    onAdjust = ::cycleGamepadLayout
+                ) {
+                    Stepper(
+                        stringResource(ui.gamepadLayout.labelRes),
+                        onDecrement = { cycleGamepadLayout(-1) },
+                        onIncrement = { cycleGamepadLayout(1) },
+                        valueWidth = StepperWidth
+                    )
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.SWAP_BUTTONS) {
+                SettingRow(
+                    title = stringResource(R.string.settings_swap_face_buttons),
+                    hint = stringResource(R.string.settings_swap_face_buttons_hint),
+                    onClick = { viewModel.onSwapFaceButtonsChanged(context, !ui.swapFaceButtons) },
+                    onAdjust = { viewModel.onSwapFaceButtonsChanged(context, it > 0) }
+                ) {
+                    ThemedSwitch(ui.swapFaceButtons) { viewModel.onSwapFaceButtonsChanged(context, it) }
                 }
             }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_esde),
-                hint = ui.esdeDirectory.ifBlank { stringResource(R.string.settings_esde_hint) },
-                onClick = ::runEsdeSetup
-            ) {
-                PillButton(stringResource(R.string.settings_esde_action), ::runEsdeSetup)
+        ),
+        SettingsCategory.APPEARANCE to listOf(
+            SettingsHeading(R.string.settings_group_colors),
+            SettingsRow(key = SettingsRowKeys.THEME) {
+                SettingRow(
+                    title = stringResource(R.string.settings_theme),
+                    hint = stringResource(R.string.settings_theme_hint),
+                    onClick = { cycleTheme(1) },
+                    onAdjust = ::cycleTheme
+                ) {
+                    Stepper(themeLabel, onDecrement = { cycleTheme(-1) }, onIncrement = { cycleTheme(1) }, valueWidth = StepperWidth)
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.ACCENT) {
+                SettingRow(
+                    title = stringResource(R.string.settings_accent),
+                    hint = stringResource(R.string.settings_accent_hint),
+                    onClick = { cycleAccent(1) },
+                    onAdjust = ::cycleAccent
+                ) {
+                    AccentSwatches(selected = ui.accent, size = if (isLandscape) 22.dp else 36.dp) {
+                        viewModel.onAccentChanged(context, it)
+                    }
+                }
+            },
+            SettingsHeading(R.string.settings_group_game_list),
+            SettingsRow(key = SettingsRowKeys.LIST_COVERS) {
+                SettingRow(
+                    title = stringResource(R.string.settings_list_covers),
+                    hint = stringResource(R.string.settings_list_covers_hint),
+                    onClick = { viewModel.onShowListCoversChanged(context, !ui.showListCovers) },
+                    onAdjust = { viewModel.onShowListCoversChanged(context, !ui.showListCovers) }
+                ) {
+                    ThemedSwitch(ui.showListCovers) { viewModel.onShowListCoversChanged(context, it) }
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.TAG_COLORS) {
+                SettingRow(
+                    title = stringResource(R.string.settings_tag_colors),
+                    hint = stringResource(R.string.settings_tag_colors_hint),
+                    onClick = { showTagColorsDialog = true }
+                ) {
+                    TagColorDots(ui.tagColors)
+                }
             }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_iisu),
-                hint = ui.iisuDirectory.ifBlank { stringResource(R.string.settings_iisu_hint) },
-                onClick = ::runIisuSetup
-            ) {
-                PillButton(stringResource(R.string.settings_iisu_action), ::runIisuSetup)
+        ),
+        SettingsCategory.DOWNLOADS to listOf(
+            SettingsHeading(R.string.settings_group_queue),
+            SettingsRow(key = SettingsRowKeys.CONCURRENT) {
+                SettingRow(
+                    title = stringResource(R.string.settings_concurrent_label),
+                    hint = null,
+                    onClick = { adjustConcurrent(1) },
+                    onAdjust = ::adjustConcurrent
+                ) {
+                    Stepper(ui.concurrentDownloads.toString(), onDecrement = { adjustConcurrent(-1) }, onIncrement = { adjustConcurrent(1) }, valueWidth = StepperWidth)
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.PER_HOST) {
+                SettingRow(
+                    title = stringResource(R.string.settings_per_host),
+                    hint = stringResource(R.string.settings_per_host_hint),
+                    onClick = { adjustPerHost(1) },
+                    onAdjust = ::adjustPerHost
+                ) {
+                    Stepper(
+                        if (features.perHostDownloads <= 0) stringResource(R.string.settings_unlimited) else features.perHostDownloads.toString(),
+                        onDecrement = { adjustPerHost(-1) },
+                        onIncrement = { adjustPerHost(1) },
+                        valueWidth = StepperWidth
+                    )
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.SPEED_LIMIT) {
+                SettingRow(
+                    title = stringResource(R.string.settings_limit_label),
+                    hint = stringResource(R.string.settings_limit_hint),
+                    onClick = { adjustLimit(1) },
+                    onAdjust = ::adjustLimit
+                ) {
+                    Stepper(
+                        if (limitKb == 0) stringResource(R.string.settings_unrestricted) else "$limitKb KB/s",
+                        onDecrement = { adjustLimit(-1) },
+                        onIncrement = { adjustLimit(1) },
+                        valueWidth = StepperWidth
+                    )
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.AUTO_RETRY) {
+                SettingRow(
+                    title = stringResource(R.string.settings_auto_retry),
+                    hint = stringResource(R.string.settings_auto_retry_hint),
+                    onClick = { adjustAutoRetry(1) },
+                    onAdjust = ::adjustAutoRetry
+                ) {
+                    Stepper(
+                        if (features.autoRetryAttempts <= 0) stringResource(R.string.settings_off) else features.autoRetryAttempts.toString(),
+                        onDecrement = { adjustAutoRetry(-1) },
+                        onIncrement = { adjustAutoRetry(1) },
+                        valueWidth = StepperWidth
+                    )
+                }
+            },
+            // dl-cola
+            SettingsRow(key = SettingsRowKeys.BATCH_NOTICE) {
+                SettingRow(
+                    title = stringResource(R.string.settings_batch_notice),
+                    hint = stringResource(R.string.settings_batch_notice_hint),
+                    onClick = { viewModel.onBatchNotificationChanged(context, !batchNotification) },
+                    onAdjust = { viewModel.onBatchNotificationChanged(context, it > 0) }
+                ) {
+                    ThemedSwitch(batchNotification) { viewModel.onBatchNotificationChanged(context, it) }
+                }
+            },
+            SettingsHeading(R.string.settings_group_after_download),
+            SettingsRow(key = SettingsRowKeys.AUTO_UNZIP) {
+                SettingRow(
+                    title = stringResource(R.string.settings_auto_unzip),
+                    hint = stringResource(R.string.settings_auto_unzip_hint),
+                    onClick = { viewModel.onAutoUnzipChanged(context, !ui.autoUnzip) },
+                    onAdjust = { viewModel.onAutoUnzipChanged(context, it > 0) }
+                ) {
+                    ThemedSwitch(ui.autoUnzip) { viewModel.onAutoUnzipChanged(context, it) }
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.MULTI_DISC) {
+                SettingRow(
+                    title = stringResource(R.string.settings_multi_disc),
+                    hint = stringResource(R.string.settings_multi_disc_hint),
+                    onClick = { viewModel.onMultiDiscPlaylistsChanged(context, !features.multiDiscPlaylists) },
+                    onAdjust = { viewModel.onMultiDiscPlaylistsChanged(context, it > 0) }
+                ) {
+                    ThemedSwitch(features.multiDiscPlaylists) { viewModel.onMultiDiscPlaylistsChanged(context, it) }
+                }
+            },
+            // dl-motor: checksum / DAT check of finished downloads (DownloadChecksSettings.kt)
+            SettingsRow(key = SettingsRowKeys.VERIFY_DOWNLOADS) { VerifyDownloadsRow() },
+            SettingsRow(key = SettingsRowKeys.DAT_FILES) { DatFilesRow() },
+            SettingsHeading(R.string.settings_group_torrents),
+            SettingsRow(key = SettingsRowKeys.METADATA_TIMEOUT) {
+                SettingRow(
+                    title = stringResource(R.string.settings_metadata_timeout),
+                    hint = stringResource(R.string.settings_metadata_timeout_hint),
+                    onClick = { adjustMetadataTimeout(1) },
+                    onAdjust = ::adjustMetadataTimeout
+                ) {
+                    Stepper(stringResource(R.string.seconds_short, ui.metadataTimeoutSeconds), onDecrement = { adjustMetadataTimeout(-1) }, onIncrement = { adjustMetadataTimeout(1) }, valueWidth = StepperWidth)
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.SEEDING) {
+                SettingRow(
+                    title = stringResource(R.string.settings_seeding),
+                    hint = stringResource(R.string.settings_seeding_hint),
+                    onClick = { cycleSeeding(1) },
+                    onAdjust = ::cycleSeeding
+                ) {
+                    Stepper(
+                        stringResource(seeding.labelRes),
+                        onDecrement = { cycleSeeding(-1) },
+                        onIncrement = { cycleSeeding(1) },
+                        valueWidth = StepperWidth
+                    )
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.DEBRID) {
+                SettingRow(
+                    title = stringResource(R.string.settings_debrid),
+                    hint = stringResource(R.string.settings_debrid_hint),
+                    onClick = { cycleDebrid(1) },
+                    onAdjust = ::cycleDebrid
+                ) {
+                    Stepper(debrid.label, onDecrement = { cycleDebrid(-1) }, onIncrement = { cycleDebrid(1) }, valueWidth = StepperWidth)
+                }
+            },
+            SettingsRow(visible = debrid != DebridProvider.NONE) {
+                SettingRow(
+                    title = debridKeyTitle,
+                    hint = maskedSecret(debridKey),
+                    onClick = { showDebridKeyDialog = true }
+                ) {
+                    PillButton(stringResource(R.string.settings_change)) { showDebridKeyDialog = true }
+                }
             }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_daijisho),
-                hint = stringResource(R.string.settings_daijisho_hint),
-                onClick = { viewModel.onPrepareDaijisho(context) }
-            ) {
-                PillButton(stringResource(R.string.settings_daijisho_action)) { viewModel.onPrepareDaijisho(context) }
+        ),
+        SettingsCategory.INTEGRATIONS to listOf(
+            SettingsHeading(R.string.settings_group_frontends),
+            SettingsRow(key = SettingsRowKeys.FRONTEND_SHORTCUTS) {
+                SettingRow(
+                    title = stringResource(R.string.settings_frontend_shortcuts),
+                    hint = stringResource(R.string.settings_frontend_shortcuts_hint),
+                    onClick = { viewModel.onDeployFrontendShortcuts(context) }
+                ) {
+                    PillButton(stringResource(R.string.settings_frontend_shortcuts_action)) {
+                        viewModel.onDeployFrontendShortcuts(context)
+                    }
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.ESDE) {
+                SettingRow(
+                    title = stringResource(R.string.settings_esde),
+                    hint = ui.esdeDirectory.ifBlank { stringResource(R.string.settings_esde_hint) },
+                    onClick = ::runEsdeSetup
+                ) {
+                    PillButton(stringResource(R.string.settings_esde_action), ::runEsdeSetup)
+                }
+            },
+            // frontends
+            SettingsRow(visible = ui.esdeDirectory.isNotBlank(), key = SettingsRowKeys.ESDE_FAVOURITES) {
+                SettingRow(
+                    title = stringResource(R.string.settings_esde_favourites),
+                    hint = stringResource(R.string.settings_esde_favourites_hint),
+                    onClick = { viewModel.onSyncEsdeFavourites(context) }
+                ) {
+                    PillButton(stringResource(R.string.settings_esde_favourites_action)) { viewModel.onSyncEsdeFavourites(context) }
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.IISU) {
+                SettingRow(
+                    title = stringResource(R.string.settings_iisu),
+                    hint = ui.iisuDirectory.ifBlank { stringResource(R.string.settings_iisu_hint) },
+                    onClick = ::runIisuSetup
+                ) {
+                    PillButton(stringResource(R.string.settings_iisu_action), ::runIisuSetup)
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.DAIJISHO) {
+                SettingRow(
+                    title = stringResource(R.string.settings_daijisho),
+                    hint = stringResource(R.string.settings_daijisho_hint),
+                    onClick = { viewModel.onPrepareDaijisho(context) }
+                ) {
+                    PillButton(stringResource(R.string.settings_daijisho_action)) { viewModel.onPrepareDaijisho(context) }
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.FRONTEND_CHECK) {
+                SettingRow(
+                    title = stringResource(R.string.settings_frontend_check),
+                    hint = stringResource(R.string.settings_frontend_check_hint),
+                    onClick = viewModel::onCheckFrontends
+                ) {
+                    PillButton(stringResource(R.string.settings_frontend_check_action), viewModel::onCheckFrontends)
+                }
+            },
+            SettingsHeading(R.string.settings_group_servers),
+            SettingsRow(key = SettingsRowKeys.ROMM) {
+                SettingRow(
+                    title = stringResource(R.string.settings_romm),
+                    hint = ui.rommUrl.ifBlank { stringResource(R.string.settings_romm_hint) },
+                    onClick = { openScreen(NavRoutes.Romm, SettingsRowKeys.ROMM) }
+                ) {
+                    Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_romm),
-                hint = ui.rommUrl.ifBlank { stringResource(R.string.settings_romm_hint) },
-                onClick = { navController.navigate(NavRoutes.Romm.route) }
-            ) {
-                Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        },
-        SettingsRow(right = false) {
-            SettingRow(
-                title = stringResource(R.string.settings_about),
-                hint = stringResource(R.string.credits_fork_name) + " · " + stringResource(R.string.credits_original_name),
-                onClick = { navController.navigate(NavRoutes.Contact.route) }
-            ) {
-                Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+        )
     )
-    val rows: List<@Composable () -> Unit> = if (!isLandscape) ordered.map { it.content } else {
-        val left = ordered.filter { !it.right }.map { it.content }
-        val right = ordered.filter { it.right }.map { it.content }
-        (0 until maxOf(left.size, right.size)).flatMap { i -> listOf(left.getOrNull(i) ?: {}, right.getOrNull(i) ?: {}) }
+    val latestCategories by rememberUpdatedState(categories)
+
+    var category by rememberSaveable { mutableStateOf(SettingsCategory.LIBRARY) }
+    var contentHasFocus by remember { mutableStateOf(false) }
+    // Landed on a row from a search result: B goes straight back to the search, not to the panel.
+    var fromSearch by remember { mutableStateOf(false) }
+
+    val scope = rememberCoroutineScope()
+    val panelFocus = remember { SettingsCategory.entries.associateWith { FocusRequester() } }
+    val aboutFocus = remember { FocusRequester() }
+    // One requester per entry, headings included (never used). Rows hidden behind another setting
+    // keep their place in the list, so an index always means the same row.
+    val rowFocus = remember { categories.mapValues { (_, items) -> List(items.size) { FocusRequester() } } }
+    val listStates = remember { SettingsCategory.entries.associateWith { LazyListState() } }
+    // The row last used in each category: LB · RB and ▶ from the panel come back to it.
+    val lastRow = remember { mutableMapOf<SettingsCategory, Int>() }
+
+    fun firstRow(c: SettingsCategory) = latestCategories.getValue(c).indexOfFirst { it is SettingsRow && it.visible }
+    fun locate(key: String): Pair<SettingsCategory, Int>? {
+        latestCategories.forEach { (c, items) ->
+            val index = items.indexOfFirst { it is SettingsRow && it.key == key }
+            if (index >= 0) return c to index
+        }
+        return null
+    }
+    /** Scrolls row [index] of [c] into view and focuses it; false while it is hidden or not laid out. */
+    suspend fun focusRow(c: SettingsCategory, index: Int): Boolean {
+        val position = latestCategories.getValue(c).shownIndices().indexOf(index)
+        if (position < 0) return false
+        val state = listStates.getValue(c)
+        if (state.layoutInfo.visibleItemsInfo.none { it.index == position }) {
+            state.scrollToItem(position)
+            withFrameNanos { }
+        }
+        return runCatching { rowFocus.getValue(c)[index].requestFocus() }.getOrDefault(false)
     }
 
-    // LB / RB (landscape): hop between the two columns, staying on the same grid row.
-    val columns = if (isLandscape) 2 else 1
-    val rowFocus = remember(rows.size) { List(rows.size) { FocusRequester() } }
-    var focusedIndex by remember { mutableStateOf(-1) }
-    LaunchedEffect(isLandscape) {
-        if (!isLandscape) return@LaunchedEffect
-        Gamepad.presses.collect { button ->
-            if (button != GamepadButton.PREV_PANEL && button != GamepadButton.NEXT_PANEL) return@collect
-            val current = focusedIndex
-            val target = when {
-                current < 0 -> 0
-                current % columns == 0 -> current + 1   // left column → right
-                else -> current - 1                      // right column → left
-            }.coerceIn(0, rows.lastIndex)
-            runCatching { rowFocus[target].requestFocus() }
+    // Two frames: the target may only be laid out after the change that asked for it.
+    val focusPanel: () -> Unit = {
+        scope.launch {
+            withFrameNanos { }
+            withFrameNanos { }
+            runCatching { panelFocus.getValue(category).requestFocus() }
         }
     }
-    if (isLandscape) {
-        val base = legendFor(NavRoutes.Settings.route)
-        val column = LegendEntry("LB · RB", stringResource(R.string.pad_column))
-        val legend = remember(base, column) { Legend(base.toMutableList().also { it.add(it.lastIndex, column) }) }
-        LaunchedEffect(legend) { Gamepad.legendOverride.value = legend }
-        // Only clear our own legend: the previous screen's onDispose can run after ours is set.
-        DisposableEffect(legend) { onDispose { if (Gamepad.legendOverride.value === legend) Gamepad.legendOverride.value = null } }
+    val focusContent: () -> Unit = {
+        scope.launch {
+            withFrameNanos { }
+            withFrameNanos { }
+            val c = category
+            if (!focusRow(c, lastRow[c] ?: firstRow(c))) focusRow(c, firstRow(c))
+        }
+    }
+    // By touch nothing holds the focus: a ring jumping into the category would only be noise.
+    val openCategory: (SettingsCategory) -> Unit = { next ->
+        category = next
+        fromSearch = false
+        if (Gamepad.connected.value) focusContent()
+    }
+    // The category under the cursor is the one shown (side panel or tabs).
+    val onCategoryFocused: (SettingsCategory?) -> Unit = { focused ->
+        if (focused != null && focused != category) {
+            category = focused
+            fromSearch = false
+        }
     }
 
-    Column(
+    LaunchedEffect(Unit) {
+        Gamepad.presses.collect { button ->
+            when (button) {
+                GamepadButton.PREV_PANEL -> {
+                    fromSearch = false
+                    focusPanel()
+                }
+                GamepadButton.NEXT_PANEL -> focusContent()
+                else -> Unit
+            }
+        }
+    }
+
+    // B: rows → their category in the panel or tabs → back to the previous section, as before the categories.
+    BackHandler(enabled = !fromSearch && contentHasFocus) { focusPanel() }
+
+    // busqueda: a search result opens its category, scrolls to its row and focuses it.
+    SearchTargetEffect<SearchTarget.Setting> { target ->
+        // After the shell parks the focus on the section tab.
+        repeat(3) { withFrameNanos { } }
+        fromSearch = true
+        if (target.key == SettingsRowKeys.ABOUT) {
+            runCatching { aboutFocus.requestFocus() }
+            return@SearchTargetEffect
+        }
+        val (c, index) = locate(target.key) ?: return@SearchTargetEffect
+        category = c
+        // A row hidden behind another setting (auto-scan switches, ES-DE favourites) lands on that
+        // one. The settings may still be loading and show or hide it, so the row is looked up
+        // again until it stays put.
+        fun wanted(): Int? = index.takeIf { (latestCategories.getValue(c)[it] as SettingsRow).visible }
+            ?: SettingsRowKeys.shownWith[target.key]?.let { locate(it)?.second }
+        var focused = -1
+        for (attempt in 0 until 5) {
+            withFrameNanos { }
+            val row = wanted() ?: return@SearchTargetEffect
+            if (row == focused) break
+            if (focusRow(c, row)) focused = row
+            withFrameNanos { }
+        }
+    }
+
+    // Back from RomM or About: the focus goes to the row that opened it (not after a section switch,
+    // where the ring stays hidden until the next D-pad press).
+    LaunchedEffect(Unit) {
+        val from = returnTo ?: return@LaunchedEffect
+        returnTo = null
+        if (!Gamepad.connected.value || Gamepad.pointerHidden.value) return@LaunchedEffect
+        withFrameNanos { }
+        withFrameNanos { }
+        if (from == SettingsRowKeys.ABOUT) runCatching { aboutFocus.requestFocus() }
+        else locate(from)?.let { (c, index) -> focusRow(c, index) }
+    }
+
+    val legend = buildList {
+        if (contentHasFocus) {
+            add(LegendEntry("A", stringResource(R.string.pad_change)))
+            add(LegendEntry("◀ ▶", stringResource(R.string.pad_adjust)))
+        } else {
+            add(LegendEntry("A", stringResource(R.string.pad_open)))
+        }
+        add(LegendEntry("LB · RB", stringResource(R.string.pad_panels)))
+        add(LegendEntry("B", stringResource(R.string.pad_back)))
+        add(LegendEntry("ZL · ZR", stringResource(R.string.pad_section)))
+    }
+    // Only while Settings is the current screen: opening RomM, this one is still composed for a
+    // moment, and publishing then would replace RomM's legend.
+    val onThisScreen = navController.currentBackStackEntryAsState().value?.destination?.route == NavRoutes.Settings.route
+    val published = remember(legend, onThisScreen) { if (onThisScreen) Legend(legend) else null }
+    LaunchedEffect(published) { if (published != null) Gamepad.legendOverride.value = published }
+    // Only clear our own legend: the next screen may already have published its own.
+    DisposableEffect(published) { onDispose { if (published != null && Gamepad.legendOverride.value === published) Gamepad.legendOverride.value = null } }
+
+    val content: @Composable (Modifier) -> Unit = { modifier ->
+        val c = category
+        // The group goes on a box around the list: set on the list itself, ▼ on the last row on
+        // screen could not bring in the next one and jumped to the panel instead.
+        Box(
+            modifier = modifier
+                .onFocusChanged { contentHasFocus = it.hasFocus }
+                // ▶ / ▼ or RB from the panel or tabs lands on the row last used, not on whatever is nearest.
+                // A request for a given row (FocusDirection.Enter: a search result) goes where it asked.
+                .focusProperties {
+                    onEnter = {
+                        if (requestedFocusDirection != FocusDirection.Enter) {
+                            runCatching { rowFocus.getValue(c)[lastRow[c] ?: firstRow(c)].requestFocus() }
+                        }
+                    }
+                }
+                .focusGroup()
+        ) {
+            key(c) {
+                CategoryContent(
+                    items = categories.getValue(c),
+                    focus = rowFocus.getValue(c),
+                    state = listStates.getValue(c),
+                    onRowFocused = { lastRow[c] = it },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+    }
+
+    // ◀ from a row (or ▲ from the first one, in portrait) comes back to its category, never to a neighbour.
+    val panelModifier = Modifier
+        .focusProperties {
+            onEnter = {
+                if (requestedFocusDirection != FocusDirection.Enter) {
+                    runCatching { panelFocus.getValue(category).requestFocus() }
+                }
+            }
+        }
+        .focusGroup()
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 4.dp, vertical = 12.dp)
+            // From the section tabs the D-pad lands on the category in use, not on whatever is nearest.
+            .focusProperties {
+                onEnter = {
+                    if (requestedFocusDirection != FocusDirection.Enter) {
+                        runCatching { panelFocus.getValue(category).requestFocus() }
+                    }
+                }
+            }
+            .focusGroup()
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(columns),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            contentPadding = PaddingValues(bottom = 12.dp),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            items(rows.size) { index ->
-                Box(
+        if (isLandscape) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                CategoryPanel(
+                    active = category,
+                    focus = panelFocus,
+                    aboutFocus = aboutFocus,
+                    onFocused = onCategoryFocused,
+                    onOpen = openCategory,
+                    onAbout = { openScreen(NavRoutes.Contact, SettingsRowKeys.ABOUT) },
                     modifier = Modifier
-                        .focusRequester(rowFocus[index])
-                        .onFocusChanged { if (it.hasFocus) focusedIndex = index }
-                ) { rows[index]() }
+                        .width(SidePanelWidth)
+                        .fillMaxHeight()
+                        .then(panelModifier)
+                )
+                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                content(Modifier.weight(1f).fillMaxHeight())
+            }
+        } else {
+            // Portrait: the categories as tabs fixed at the top, About last.
+            Column(modifier = Modifier.fillMaxSize()) {
+                SubTabs(modifier = panelModifier) {
+                    SettingsCategory.entries.forEach { c ->
+                        SubTab(
+                            title = stringResource(c.title),
+                            selected = c == category,
+                            focus = panelFocus.getValue(c),
+                            onFocused = { onCategoryFocused(c) },
+                            onClick = { openCategory(c) }
+                        )
+                    }
+                    SubTab(
+                        title = stringResource(R.string.settings_about),
+                        selected = false,
+                        focus = aboutFocus,
+                        onFocused = { onCategoryFocused(null) },
+                        onClick = { openScreen(NavRoutes.Contact, SettingsRowKeys.ABOUT) },
+                        badge = "›"
+                    )
+                }
+                content(Modifier.weight(1f).fillMaxWidth())
             }
         }
     }
 }
 
-/** One Settings entry; [right] puts it in the right-hand column of the landscape grid. */
-private class SettingsRow(val right: Boolean, val content: @Composable () -> Unit)
+/** The groups Settings is split into, in the order the side panel lists them. */
+enum class SettingsCategory(@param:StringRes val title: Int) {
+    LIBRARY(R.string.settings_category_library),
+    GENERAL(R.string.settings_category_general),
+    APPEARANCE(R.string.settings_category_appearance),
+    DOWNLOADS(R.string.settings_category_downloads),
+    INTEGRATIONS(R.string.settings_category_integrations)
+}
+
+/** One entry of a category: a heading over a block of rows, or a row. */
+private sealed interface SettingsItem
+
+private class SettingsHeading(@param:StringRes val title: Int) : SettingsItem
+
+/**
+ * One Settings entry. A row that does not apply is left out with [visible] = false, so the block
+ * closes up instead of leaving a gap.
+ */
+private class SettingsRow(
+    val visible: Boolean = true,
+    /** Where a search result lands ([SettingsRowKeys]); null for rows the search does not list. */
+    val key: String? = null,
+    val content: @Composable () -> Unit
+) : SettingsItem
+
+/** Indices of the entries on screen: headings and the rows that apply. */
+private fun List<SettingsItem>.shownIndices(): List<Int> = indices.filter { (this[it] as? SettingsRow)?.visible != false }
+
+/** The rows of one category, one column, with a small heading over each block. */
+@Composable
+private fun CategoryContent(
+    items: List<SettingsItem>,
+    focus: List<FocusRequester>,
+    state: LazyListState,
+    onRowFocused: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val shown = items.shownIndices()
+    LazyColumn(
+        state = state,
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        contentPadding = PaddingValues(start = 8.dp, end = 8.dp, top = 12.dp, bottom = 12.dp)
+    ) {
+        items(shown.size, key = { shown[it] }) { position ->
+            val index = shown[position]
+            when (val item = items[index]) {
+                is SettingsHeading -> Text(
+                    stringResource(item.title).uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 16.dp, top = if (position == 0) 0.dp else 16.dp, bottom = 4.dp)
+                )
+                is SettingsRow -> Box(
+                    modifier = Modifier
+                        .focusRequester(focus[index])
+                        .onFocusChanged { if (it.hasFocus) onRowFocused(index) }
+                ) { item.content() }
+            }
+        }
+    }
+}
+
+/**
+ * Landscape: the categories, with About at the foot. The category under the cursor is the one
+ * shown and A moves into it (portrait shows the same as tabs, [SubTabs]).
+ */
+@Composable
+private fun CategoryPanel(
+    active: SettingsCategory,
+    focus: Map<SettingsCategory, FocusRequester>,
+    aboutFocus: FocusRequester,
+    /** The category under the cursor; null on About. */
+    onFocused: (SettingsCategory?) -> Unit,
+    onOpen: (SettingsCategory) -> Unit,
+    onAbout: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 8.dp, vertical = 12.dp)
+        ) {
+            SettingsCategory.entries.forEach { c ->
+                PanelRow(
+                    title = stringResource(c.title),
+                    selected = c == active,
+                    focus = focus.getValue(c),
+                    onFocused = { onFocused(c) },
+                    onClick = { onOpen(c) }
+                )
+            }
+        }
+        PanelRow(
+            title = stringResource(R.string.settings_about),
+            selected = false,
+            focus = aboutFocus,
+            onFocused = { onFocused(null) },
+            onClick = onAbout,
+            trailing = "›",
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 10.dp)
+        )
+    }
+}
+
+@Composable
+private fun PanelRow(
+    title: String,
+    selected: Boolean,
+    focus: FocusRequester,
+    onFocused: () -> Unit,
+    onClick: () -> Unit,
+    trailing: String? = null,
+    modifier: Modifier = Modifier
+) {
+    val scheme = MaterialTheme.colorScheme
+    val source = rememberFocusSource()
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(40.dp)
+            .focusRequester(focus)
+            .onFocusChanged { if (it.isFocused) onFocused() }
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (selected) scheme.surfaceContainer else scheme.surface.copy(alpha = 0f))
+            .focusRing(source)
+            .clickable(interactionSource = source, indication = null, onClick = onClick)
+            .padding(start = 14.dp, end = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (selected) scheme.onSurface else scheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        trailing?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = scheme.onSurfaceVariant) }
+    }
+}
+
 
 /**
  * A focusable settings row. Click / A runs [onClick]; while focused, D-pad left/right
@@ -569,6 +1162,23 @@ internal fun PillButton(label: String, onClick: () -> Unit) {
     }
 }
 
+// escaneo
+private val AutoScanFrequency.labelRes: Int
+    get() = when (this) {
+        AutoScanFrequency.OFF -> R.string.settings_off
+        AutoScanFrequency.DAILY -> R.string.auto_scan_daily
+        AutoScanFrequency.WEEKLY -> R.string.auto_scan_weekly
+    }
+
+private val SeedingMode.labelRes: Int
+    get() = when (this) {
+        SeedingMode.OFF -> R.string.seeding_mode_off
+        SeedingMode.MINUTES_30 -> R.string.seeding_mode_30m
+        SeedingMode.HOUR_1 -> R.string.seeding_mode_1h
+        SeedingMode.RATIO_1 -> R.string.seeding_mode_ratio
+        SeedingMode.UNLIMITED -> R.string.seeding_mode_unlimited
+    }
+
 @Composable
 private fun AccentSwatches(selected: Color, size: androidx.compose.ui.unit.Dp, onPick: (Color) -> Unit) {
     val scheme = MaterialTheme.colorScheme
@@ -588,6 +1198,21 @@ private fun AccentSwatches(selected: Color, size: androidx.compose.ui.unit.Dp, o
                     )
                     .focusRing(source, size / 2)
                     .clickable(interactionSource = source, indication = null) { onPick(color) }
+            )
+        }
+    }
+}
+
+/** The current colour of each tag group, as a preview in the Settings row (not focusable: the row opens the dialog). */
+@Composable
+private fun TagColorDots(picked: Map<TagColorKind, Int>) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+        TagColorKind.entries.forEach { kind ->
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(CircleShape)
+                    .background(Color(picked[kind] ?: kind.defaultArgb))
             )
         }
     }

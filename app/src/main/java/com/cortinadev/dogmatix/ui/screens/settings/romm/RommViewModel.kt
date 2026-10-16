@@ -9,7 +9,10 @@ import com.cortinadev.dogmatix.data.repository.ConsoleRepository
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.data.service.RommClient
 import com.cortinadev.dogmatix.data.service.RommPlatform
+import com.cortinadev.dogmatix.data.service.RommTls
+import com.cortinadev.dogmatix.data.service.ServerCertificate
 import com.cortinadev.dogmatix.ui.common.executeWithToast
+import com.cortinadev.dogmatix.util.CertPin
 import com.cortinadev.dogmatix.util.ConsoleFormatter
 import com.cortinadev.dogmatix.util.RommPlatformMapper
 import com.cortinadev.dogmatix.util.ToastUtil
@@ -36,7 +39,8 @@ data class RommUiState(
 class RommViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     consoleRepository: ConsoleRepository,
-    private val client: RommClient
+    private val client: RommClient,
+    private val tls: RommTls
 ) : ViewModel() {
 
     val uiState: StateFlow<RommUiState> = combine(
@@ -64,7 +68,7 @@ class RommViewModel @Inject constructor(
                     _platforms.value = list.sortedBy { it.label.lowercase() }
                     if (announce && context != null) ToastUtil.showSuccess(context, context.getString(R.string.romm_connected, list.size))
                 }
-                .onFailure { e -> if (announce && context != null) ToastUtil.showError(context, context.getString(R.string.romm_connection_failed, e.message ?: "")) }
+                .onFailure { e -> if (announce && context != null) explainFailure(context, uiState.value.url, e) { loadPlatforms(context, announce = true) } }
             _loading.value = false
         }
     }
@@ -94,7 +98,67 @@ class RommViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { client.testConnection(url, token) }
                 .onSuccess { ToastUtil.showSuccess(context, context.getString(R.string.romm_connected, it)) }
-                .onFailure { e -> ToastUtil.showError(context, context.getString(R.string.romm_connection_failed, e.message ?: "")) }
+                .onFailure { e -> explainFailure(context, url, e) { testConnection(context, url, token) } }
+        }
+    }
+
+    // romm-transporte
+    /** A server certificate to ask about ([changed]: it replaces one the user had trusted). */
+    data class CertificatePrompt(val certificate: ServerCertificate, val changed: Boolean)
+
+    /** The certificate trusted by hand, for the "Trusted certificate" row. */
+    val trustedCertificate: StateFlow<CertPin.Pin?> =
+        tls.pinned.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+
+    private val _certificatePrompt = MutableStateFlow<CertificatePrompt?>(null)
+    val certificatePrompt: StateFlow<CertificatePrompt?> = _certificatePrompt.asStateFlow()
+
+    /** The test that hit the certificate, run again once it is trusted. */
+    private var retest: (() -> Unit)? = null
+
+    /**
+     * A refused certificate becomes the "trust this certificate?" question (its details read
+     * with a bare handshake); anything else stays an error toast.
+     */
+    private suspend fun explainFailure(context: Context, url: String, error: Throwable, again: () -> Unit) {
+        if (CertPin.isCertificateFailure(error)) {
+            val certificate = tls.inspect(url)
+            if (certificate != null) {
+                val verdict = CertPin.verdict(
+                    trustedCertificate.value, certificate.origin, certificate.fingerprint,
+                    certificate.systemTrusted, certificate.hostnameMatches
+                )
+                if (verdict == CertPin.Verdict.UNTRUSTED || verdict == CertPin.Verdict.CHANGED) {
+                    retest = again
+                    _certificatePrompt.value = CertificatePrompt(certificate, verdict == CertPin.Verdict.CHANGED)
+                    return
+                }
+            }
+        }
+        ToastUtil.showError(context, context.getString(R.string.romm_connection_failed, error.message ?: ""))
+    }
+
+    fun trustCertificate(context: Context) {
+        val prompt = _certificatePrompt.value ?: return
+        _certificatePrompt.value = null
+        val again = retest
+        retest = null
+        viewModelScope.launch {
+            tls.trust(prompt.certificate)
+            ToastUtil.showSuccess(context, context.getString(R.string.romm_cert_trusted))
+            again?.invoke()
+        }
+    }
+
+    fun dismissCertificate() {
+        _certificatePrompt.value = null
+        retest = null
+    }
+
+    fun forgetCertificate(context: Context) {
+        viewModelScope.launch {
+            tls.forget()
+            ToastUtil.showInfo(context, context.getString(R.string.romm_cert_forgotten))
         }
     }
 

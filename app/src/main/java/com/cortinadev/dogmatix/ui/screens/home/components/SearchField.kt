@@ -1,6 +1,8 @@
 package com.cortinadev.dogmatix.ui.screens.home.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -49,11 +51,15 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.ui.components.focusRing
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 
 /**
  * Search box that stays out of the D-pad traversal: it only takes focus while [active]
  * (set by the Y button or a tap through [onActivate]) and hands it back on B / Back via [onDismiss].
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SearchField(
     value: String,
@@ -64,11 +70,19 @@ fun SearchField(
     modifier: Modifier = Modifier,
     focusRequester: FocusRequester = remember { FocusRequester() },
     trailing: @Composable (() -> Unit)? = null,
+    /** Hint while empty; null = the library's. */
+    placeholder: String? = null,
     /**
      * Horizontal shift (px) of the box's left edge and content, read in the draw / placement
      * phases only: lets the filter panel animation drag the field along without re-measuring it.
      */
-    contentShift: () -> Int = { 0 }
+    contentShift: () -> Int = { 0 },
+    /** The keyboard's search key, or the keyboard closed while the field keeps the focus (Back by touch). */
+    onSubmit: () -> Unit = {},
+    /** ▼ from the field; true when it moved the focus (e.g. to the recent searches below). */
+    onDirectionDown: (() -> Boolean)? = null,
+    /** ▶ from the field; true when it moved the focus (e.g. to the sort button beside it). */
+    onDirectionRight: (() -> Boolean)? = null
 ) {
     val scheme = MaterialTheme.colorScheme
     val source = remember { MutableInteractionSource() }
@@ -86,6 +100,10 @@ fun SearchField(
     }
     LaunchedEffect(focused) {
         if (!focused && active) onDismiss()
+    }
+    val imeVisible = WindowInsets.isImeVisible
+    LaunchedEffect(imeVisible) {
+        if (!imeVisible && focused) onSubmit()
     }
 
     Row(
@@ -139,7 +157,7 @@ fun SearchField(
             // The field can only take focus while `active` (Y or tap), so focus == open keyboard.
             // The D-pad can never land here on its own, hence no showKeyboardOnFocus = false.
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-            keyboardActions = KeyboardActions(onSearch = { keyboard?.hide() }),
+            keyboardActions = KeyboardActions(onSearch = { keyboard?.hide(); onSubmit() }),
             modifier = Modifier
                 .weight(1f)
                 .focusRequester(focusRequester)
@@ -148,6 +166,8 @@ fun SearchField(
                     if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                     when (event.key) {
                         Key.DirectionCenter, Key.Enter, Key.ButtonA -> { keyboard?.show(); true }
+                        Key.DirectionDown -> onDirectionDown?.invoke() == true
+                        Key.DirectionRight -> onDirectionRight?.invoke() == true
                         Key.Back, Key.ButtonB, Key.Escape -> {
                             keyboard?.hide()
                             focusManager.clearFocus()
@@ -161,7 +181,7 @@ fun SearchField(
                 Box(contentAlignment = Alignment.CenterStart) {
                     if (value.isEmpty() && !focused) {
                         Text(
-                            stringResource(R.string.search_library),
+                            placeholder ?: stringResource(R.string.search_library),
                             style = MaterialTheme.typography.bodyLarge,
                             color = scheme.onSurfaceVariant
                         )
@@ -179,6 +199,29 @@ fun SearchField(
             }
         )
         }
+        if (value.isNotEmpty()) ClearButton { onValueChange("") }
         trailing?.invoke()
+    }
+}
+
+/** Small ✕ that empties the box. Touch-only like the filter arrows: with the pad, B clears the text. */
+@Composable
+private fun ClearButton(onClick: () -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .size(24.dp)
+            .clip(CircleShape)
+            .background(scheme.surfaceContainerHighest)
+            .focusProperties { canFocus = false }
+            .pointerInput(Unit) { detectTapGestures { onClick() } },
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            painterResource(R.drawable.ic_close),
+            contentDescription = stringResource(R.string.search_clear),
+            tint = scheme.onSurfaceVariant,
+            modifier = Modifier.size(12.dp)
+        )
     }
 }

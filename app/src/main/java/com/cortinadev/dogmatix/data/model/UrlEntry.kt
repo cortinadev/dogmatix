@@ -5,7 +5,9 @@ data class UrlEntry(
     val contentType: ContentType = ContentType.GAME,
     val folders: List<String> = emptyList(),
     /** Disabled sources are kept but skipped by the rescan (their files drop out on the next one). */
-    val enabled: Boolean = true
+    val enabled: Boolean = true,
+    /** Reserve addresses of a web source, tried in turn when a download from [url] fails. */
+    val mirrors: List<String> = emptyList()
 )
 
 enum class ContentType {

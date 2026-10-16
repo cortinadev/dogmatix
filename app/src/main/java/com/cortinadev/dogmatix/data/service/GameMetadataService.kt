@@ -7,7 +7,10 @@ import com.cortinadev.dogmatix.BuildConfig
 import com.cortinadev.dogmatix.data.local.dao.GameMetadataDao
 import com.cortinadev.dogmatix.data.local.entity.GameMetadataEntity
 import com.cortinadev.dogmatix.data.model.GameDetails
+import com.cortinadev.dogmatix.util.ConsoleFormatter
 import com.cortinadev.dogmatix.util.GameTitleCleaner
+import com.cortinadev.dogmatix.util.RawgCatalog
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
@@ -26,15 +29,36 @@ class GameMetadataService @Inject constructor(
 ) {
     private val userAgent = "Dogmatix/${BuildConfig.VERSION_NAME}"
 
+    /** What an earlier [lookup] found for this game, without going online; null for a miss or never looked up. */
+    suspend fun cached(name: String, consoleId: String): GameDetails? = withContext(Dispatchers.IO) {
+        val key = cacheKey(name, consoleId) ?: return@withContext null
+        dao.get(key)?.takeIf { it.isHitFor(GameTitleCleaner.clean(name)) }?.toDetails()
+    }
+
+    /**
+     * The platform part of the cache key and the RAWG / TheGamesDB table key. [ConsoleFormatter.consoleKey]
+     * and not a blind cut at the first `_`: a bare id like `super_nintendo_entertainment_system`
+     * would otherwise be looked up as NES.
+     */
+    private fun platformOf(consoleId: String): String = ConsoleFormatter.consoleKey(consoleId).lowercase()
+
+    /** `platform|title` as stored in `game_metadata`; null when the name has no searchable title. */
+    private fun cacheKey(name: String, consoleId: String): String? {
+        val title = GameTitleCleaner.clean(name)
+        if (title.isBlank()) return null
+        return "${platformOf(consoleId)}|${title.lowercase()}"
+    }
+
     suspend fun lookup(name: String, consoleId: String): GameDetails? = withContext(Dispatchers.IO) {
         val title = GameTitleCleaner.clean(name)
         if (title.isBlank()) return@withContext null
-        val platform = consoleId.substringAfter("_", consoleId).lowercase()
-        val key = "$platform|${title.lowercase()}"
+        val platform = platformOf(consoleId)
+        val key = cacheKey(name, consoleId) ?: return@withContext null
 
         dao.get(key)?.let { cached ->
-            if (cached.source.isNotEmpty()) return@withContext cached.toDetails()
-            if (System.currentTimeMillis() - cached.fetchedAt < MISS_TTL_MS) return@withContext null
+            if (cached.isHitFor(title)) return@withContext cached.toDetails()
+            // A hit the matcher no longer accepts (cached before it compared entry numbers) is looked up again.
+            if (cached.source.isEmpty() && System.currentTimeMillis() - cached.fetchedAt < MISS_TTL_MS) return@withContext null
         }
 
         val rawg = runCatching { fromRawg(title, platform) }.onFailure { Log.w(TAG, "RAWG lookup failed", it) }.getOrNull()
@@ -65,6 +89,33 @@ class GameMetadataService @Inject constructor(
         details
     }
 
+    /** Titles of games looked up before whose genres include [slug] (any of its RAWG / TheGamesDB names). */
+    suspend fun cachedTitlesWithGenre(slug: String, limit: Int = 40): List<String> = withContext(Dispatchers.IO) {
+        RawgCatalog.genreNames(slug).flatMap { dao.titlesWithGenre(it, limit) }.distinct().take(limit)
+    }
+
+    /** RAWG answers per genre + platforms, kept for the app's run (a genre list does not change). */
+    private val popularByGenre = ConcurrentHashMap<String, List<String>>()
+
+    /**
+     * The most added games of a RAWG genre on [platformIds] (all platforms when empty), for
+     * "similar games" of the same type. Empty without a RAWG key or when the request fails.
+     */
+    suspend fun popularTitles(slug: String, platformIds: List<Int>, limit: Int = 40): List<String> = withContext(Dispatchers.IO) {
+        val key = BuildConfig.RAWG_API_KEY
+        if (key.isEmpty()) return@withContext emptyList()
+        val platforms = platformIds.distinct().sorted().joinToString(",")
+        val cacheKey = "$slug|$platforms"
+        popularByGenre[cacheKey]?.let { return@withContext it }
+        val platformParam = if (platforms.isEmpty()) "" else "&platforms=$platforms"
+        val titles = runCatching {
+            getJson("https://api.rawg.io/api/games?key=$key&genres=${encode(slug)}$platformParam&ordering=-added&page_size=$limit")
+                .getAsJsonArray("results")?.map { it.asJsonObject.str("name") }?.filter { it.isNotBlank() }.orEmpty()
+        }.onFailure { Log.w(TAG, "RAWG genre lookup failed", it) }.getOrNull() ?: return@withContext emptyList()
+        popularByGenre[cacheKey] = titles
+        titles
+    }
+
     // ---- RAWG -------------------------------------------------------------------------------
 
     private fun fromRawg(title: String, platform: String): GameDetails? {
@@ -72,8 +123,8 @@ class GameMetadataService @Inject constructor(
         if (key.isEmpty()) return null
         val platformParam = RAWG_PLATFORMS[platform]?.let { "&platforms=$it" }.orEmpty()
         val search = getJson("https://api.rawg.io/api/games?key=$key&search=${encode(title)}&search_precise=true&page_size=5$platformParam")
-        val game = search.getAsJsonArray("results")?.map { it.asJsonObject }
-            ?.firstOrNull { GameTitleCleaner.matches(title, it.str("name")) } ?: return null
+        val game = GameTitleCleaner.best(title, search.getAsJsonArray("results")?.map { it.asJsonObject }.orEmpty()) { it.str("name") }
+            ?: return null
         val id = game.get("id").asLong
         // The search result has no synopsis; one more call fetches it together with the developers.
         val full = runCatching { getJson("https://api.rawg.io/api/games/$id?key=$key") }.getOrNull()
@@ -100,8 +151,8 @@ class GameMetadataService @Inject constructor(
             "https://api.thegamesdb.net/v1.1/Games/ByGameName?apikey=$key&name=${encode(title)}" +
                 "&fields=overview,genres,players,developers&include=boxart$platformParam"
         )
-        val game = json.getAsJsonObject("data")?.getAsJsonArray("games")?.map { it.asJsonObject }
-            ?.firstOrNull { GameTitleCleaner.matches(title, it.str("game_title")) } ?: return null
+        val game = GameTitleCleaner.best(title, json.getAsJsonObject("data")?.getAsJsonArray("games")?.map { it.asJsonObject }.orEmpty()) { it.str("game_title") }
+            ?: return null
         val id = game.str("id")
         val boxart = json.getAsJsonObject("include")?.getAsJsonObject("boxart")
         val baseUrl = boxart?.getAsJsonObject("base_url")?.str("medium").orEmpty()
@@ -140,6 +191,9 @@ class GameMetadataService @Inject constructor(
     private fun encode(value: String) = URLEncoder.encode(value, "UTF-8")
 
     private fun JsonObject.str(name: String): String = get(name)?.takeUnless { it.isJsonNull }?.asString.orEmpty()
+
+    /** A cached hit for [title] that today's matcher still accepts. */
+    private fun GameMetadataEntity.isHitFor(title: String) = source.isNotEmpty() && GameTitleCleaner.matches(title, this.title)
 
     private fun GameMetadataEntity.toDetails() = GameDetails(
         title = title,

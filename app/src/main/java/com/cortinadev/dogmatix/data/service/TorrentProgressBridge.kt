@@ -1,6 +1,8 @@
 package com.cortinadev.dogmatix.data.service
 
 import android.util.Log
+import com.cortinadev.dogmatix.util.DownloadFailure
+import com.cortinadev.dogmatix.util.DownloadFailures
 import com.cortinadev.dogmatix.data.model.DownloadStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -9,11 +11,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.libtorrent4j.AlertListener
 import org.libtorrent4j.TorrentHandle
+import org.libtorrent4j.TorrentStatus
 import org.libtorrent4j.alerts.Alert
 import org.libtorrent4j.alerts.AlertType
 import org.libtorrent4j.alerts.FileErrorAlert
 import org.libtorrent4j.alerts.TorrentErrorAlert
 import org.libtorrent4j.alerts.TorrentFinishedAlert
+import org.libtorrent4j.swig.file_progress_flags_t
+import org.libtorrent4j.swig.int64_vector
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -30,7 +35,9 @@ class TorrentProgressBridge @Inject constructor(
         val fileIndex: Int,
         val handle: TorrentHandle,
         /** Cached at track time — fileSize never changes, no need to re-call JNI every tick. */
-        val expectedSize: Long
+        val expectedSize: Long,
+        /** Cached too: groups files by torrent and is compared under the lock without JNI calls. */
+        val infoHash: String
     )
 
     // Single map replaces the old separate `tracked` (fileName→index) and `handles` (fileName→handle).
@@ -50,8 +57,9 @@ class TorrentProgressBridge @Inject constructor(
     fun trackDownload(fileName: String, fileIndex: Int, handle: TorrentHandle) {
         // Read expectedSize outside the lock to avoid holding the monitor during a JNI call.
         val expectedSize = handle.torrentFile()?.files()?.fileSize(fileIndex) ?: 0L
+        val infoHash = handle.infoHash().toString()
         synchronized(this) {
-            tracked[fileName] = TrackedFile(fileIndex, handle, expectedSize)
+            tracked[fileName] = TrackedFile(fileIndex, handle, expectedSize, infoHash)
             rates.remove(fileName)
             startPolling()
         }
@@ -88,77 +96,102 @@ class TorrentProgressBridge @Inject constructor(
         val snapshot: Map<String, TrackedFile>
         synchronized(this) { snapshot = tracked.toMap() }
 
-        snapshot.forEach { (fileName, info) ->
-            val handle = info.handle
+        // One status and one progress read per torrent, not per tracked file: fileProgress()
+        // copies every file of the torrent across JNI one element at a time, which for a
+        // collection torrent with hundreds of thousands of files meant millions of calls per
+        // tracked file every second.
+        snapshot.entries.groupBy { it.value.infoHash }.values.forEach { files ->
+            val handle = files.first().value.handle
             if (!handle.isValid) return@forEach
-
             val status = try { handle.status() } catch (e: Exception) { return@forEach }
-            val total = info.expectedSize
-            if (total <= 0) return@forEach
-
-            val fileProgressBytes = try { handle.fileProgress() } catch (e: Exception) { null }
-            val downloaded = if (fileProgressBytes != null && info.fileIndex < fileProgressBytes.size) {
-                fileProgressBytes[info.fileIndex]
-            } else {
-                (status.progress() * total).toLong()
+            val indices = files.map { it.value.fileIndex }
+            val received = fileBytes(handle, indices, null)
+            // Only pieces that passed the hash check: a file is finished (and gets copied) once
+            // these cover it, not when its last blocks arrive unverified.
+            val verified = fileBytes(handle, indices, TorrentHandle.PIECE_GRANULARITY)
+            files.forEach { (fileName, info) ->
+                updateFile(fileName, info, status, received?.get(info.fileIndex), verified?.get(info.fileIndex))
             }
-            val progress = (downloaded.toFloat() / total.toFloat()).coerceIn(0f, 1f)
-            val now = System.nanoTime()
-            val speedMBs: Float
-            synchronized(this) {
-                val rate = rates.getOrPut(fileName) { RateState(downloaded, now) }
-                val dtSeconds = (now - rate.nanos) / 1e9f
-                if (dtSeconds > 0.2f) {
-                    val instant = (downloaded - rate.bytes).coerceAtLeast(0L) / dtSeconds
-                    // Light smoothing: per-file deltas jitter because pieces finish out of order.
-                    rate.emaBytesPerSec =
-                        if (rate.emaBytesPerSec == 0f) instant else rate.emaBytesPerSec * 0.6f + instant * 0.4f
-                    rate.bytes = downloaded
-                    rate.nanos = now
-                }
-                speedMBs = rate.emaBytesPerSec / (1024f * 1024f)
-            }
-
-            val state = status.state()
-            val isChecking = state == org.libtorrent4j.TorrentStatus.State.CHECKING_FILES ||
-                             state == org.libtorrent4j.TorrentStatus.State.CHECKING_RESUME_DATA
-            val isFinished = downloaded >= total
-
-            val currentItem = progressTracker.downloads.value.find { it.fileName == fileName }
-            val currentStatus = currentItem?.status
-            // A file/torrent error alert may have failed this row while libtorrent still
-            // reports full fileProgress; never resurrect terminal rows from the poll.
-            if (currentStatus == DownloadStatus.FAILED || currentStatus == DownloadStatus.STOPPED ||
-                currentStatus == DownloadStatus.PAUSED) return@forEach
-
-            when {
-                isFinished && currentStatus != DownloadStatus.COMPLETED &&
-                currentStatus != DownloadStatus.UNZIPPING -> {
-                    progressTracker.updateDownloadStatus(fileName, DownloadStatus.COMPLETED)
-                }
-                isChecking -> {
-                    if (currentStatus != DownloadStatus.DOWNLOADING)
-                        progressTracker.updateDownloadStatus(fileName, DownloadStatus.DOWNLOADING)
-                }
-                !isFinished && !isChecking && currentStatus != DownloadStatus.DOWNLOADING -> {
-                    progressTracker.updateDownloadStatus(fileName, DownloadStatus.DOWNLOADING)
-                }
-            }
-
-            progressTracker.updateDownloadProgress(fileName, progress, speedMBs, downloaded)
         }
     }
 
-    fun countTrackedForHandle(handle: TorrentHandle): Int {
+    /** Bytes done of each of [indices] from one native call (only those are read back); null if it failed. */
+    private fun fileBytes(handle: TorrentHandle, indices: List<Int>, flags: file_progress_flags_t?): Map<Int, Long>? {
+        val vector = int64_vector()
+        return try {
+            if (flags == null) handle.swig().file_progress(vector) else handle.swig().file_progress(vector, flags)
+            val size = vector.size
+            indices.filter { it < size }.associateWith { vector.get(it) }
+        } catch (e: Exception) {
+            null
+        } finally {
+            vector.delete()
+        }
+    }
+
+    private fun updateFile(fileName: String, info: TrackedFile, status: TorrentStatus, receivedBytes: Long?, verifiedBytes: Long?) {
+        val total = info.expectedSize
+        if (total <= 0) return
+
+        val downloaded = receivedBytes ?: (status.progress() * total).toLong()
+        val progress = (downloaded.toFloat() / total.toFloat()).coerceIn(0f, 1f)
+        val now = System.nanoTime()
+        val speedMBs: Float
         synchronized(this) {
-            return tracked.values.count { it.handle.infoHash() == handle.infoHash() }
+            val rate = rates.getOrPut(fileName) { RateState(downloaded, now) }
+            val dtSeconds = (now - rate.nanos) / 1e9f
+            if (dtSeconds > 0.2f) {
+                val instant = (downloaded - rate.bytes).coerceAtLeast(0L) / dtSeconds
+                // Light smoothing: per-file deltas jitter because pieces finish out of order.
+                rate.emaBytesPerSec =
+                    if (rate.emaBytesPerSec == 0f) instant else rate.emaBytesPerSec * 0.6f + instant * 0.4f
+                rate.bytes = downloaded
+                rate.nanos = now
+            }
+            speedMBs = rate.emaBytesPerSec / (1024f * 1024f)
+        }
+
+        val state = status.state()
+        val isChecking = state == TorrentStatus.State.CHECKING_FILES ||
+                         state == TorrentStatus.State.CHECKING_RESUME_DATA
+        val isFinished = (verifiedBytes ?: downloaded) >= total
+
+        val currentItem = progressTracker.downloads.value.find { it.fileName == fileName }
+        val currentStatus = currentItem?.status
+        // A file/torrent error alert may have failed this row while libtorrent still
+        // reports full fileProgress; never resurrect terminal rows from the poll.
+        if (currentStatus == DownloadStatus.FAILED || currentStatus == DownloadStatus.STOPPED ||
+            currentStatus == DownloadStatus.PAUSED) return
+
+        when {
+            isFinished && currentStatus != DownloadStatus.COMPLETED &&
+            currentStatus != DownloadStatus.UNZIPPING -> {
+                progressTracker.updateDownloadStatus(fileName, DownloadStatus.COMPLETED)
+            }
+            isChecking -> {
+                if (currentStatus != DownloadStatus.DOWNLOADING)
+                    progressTracker.updateDownloadStatus(fileName, DownloadStatus.DOWNLOADING)
+            }
+            !isFinished && !isChecking && currentStatus != DownloadStatus.DOWNLOADING -> {
+                progressTracker.updateDownloadStatus(fileName, DownloadStatus.DOWNLOADING)
+            }
+        }
+
+        progressTracker.updateDownloadProgress(fileName, progress, speedMBs, downloaded)
+    }
+
+    fun countTrackedForHandle(handle: TorrentHandle): Int {
+        val hash = handle.infoHash().toString()
+        synchronized(this) {
+            return tracked.values.count { it.infoHash == hash }
         }
     }
 
     fun getTrackedFileIndicesForHandle(handle: TorrentHandle): Set<Int> {
+        val hash = handle.infoHash().toString()
         synchronized(this) {
             return tracked.values
-                .filter { it.handle.infoHash() == handle.infoHash() }
+                .filter { it.infoHash == hash }
                 .map { it.fileIndex }
                 .toSet()
         }
@@ -181,10 +214,11 @@ class TorrentProgressBridge @Inject constructor(
 
     private fun onTorrentFinished(alert: TorrentFinishedAlert) {
         val handle = alert.handle() ?: return
+        val hash = handle.infoHash().toString()
         val snapshot: Map<String, TrackedFile>
         synchronized(this) { snapshot = tracked.toMap() }
         snapshot.entries
-            .filter { (_, info) -> info.handle.infoHash() == handle.infoHash() }
+            .filter { (_, info) -> info.infoHash == hash }
             .forEach { (fn, _) ->
                 val currentItem = progressTracker.downloads.value.find { it.fileName == fn }
                 if (currentItem?.status != DownloadStatus.UNZIPPING &&
@@ -201,21 +235,31 @@ class TorrentProgressBridge @Inject constructor(
     private fun onFileError(alert: FileErrorAlert) {
         val handle = alert.handle() ?: return
         Log.e(TAG, "File error: ${alert.message()}")
+        // Usually the disk (full, or the cache unwritable): say so instead of a bare "failed".
+        val failure = DownloadFailures.classify(Exception(alert.message())).takeIf { it != DownloadFailure.UNKNOWN } ?: DownloadFailure.TORRENT
+        val hash = handle.infoHash().toString()
         val snapshot: Map<String, TrackedFile>
         synchronized(this) { snapshot = tracked.toMap() }
         snapshot.entries
-            .filter { (_, info) -> info.handle.infoHash() == handle.infoHash() }
-            .forEach { (fn, _) -> progressTracker.updateDownloadStatus(fn, DownloadStatus.FAILED) }
+            .filter { (_, info) -> info.infoHash == hash }
+            .forEach { (fn, _) ->
+                progressTracker.recordFailure(fn, failure)
+                progressTracker.updateDownloadStatus(fn, DownloadStatus.FAILED)
+            }
     }
 
     private fun onTorrentError(alert: TorrentErrorAlert) {
         val handle = alert.handle() ?: return
         Log.e(TAG, "Torrent error: ${alert.message()}")
+        val hash = handle.infoHash().toString()
         val snapshot: Map<String, TrackedFile>
         synchronized(this) { snapshot = tracked.toMap() }
         snapshot.entries
-            .filter { (_, info) -> info.handle.infoHash() == handle.infoHash() }
-            .forEach { (fn, _) -> progressTracker.updateDownloadStatus(fn, DownloadStatus.FAILED) }
+            .filter { (_, info) -> info.infoHash == hash }
+            .forEach { (fn, _) ->
+                progressTracker.recordFailure(fn, DownloadFailure.TORRENT)
+                progressTracker.updateDownloadStatus(fn, DownloadStatus.FAILED)
+            }
     }
 
     companion object { private const val TAG = "TorrentProgressBridge" }

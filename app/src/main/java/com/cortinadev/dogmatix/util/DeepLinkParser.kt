@@ -13,6 +13,8 @@ import java.net.URLDecoder
  *
  * Values are kept verbatim here; `DeepLinkResolver` maps them onto real ids / tag spellings.
  * - `q`: search text. `fav`: `1`/`true` shows favourites only, `0`/`false` all games.
+ * - `genre`: genres, comma-separated: ids (`rpg`, `platform`) or database names (`Role-playing`).
+ * - `decade`: decades, comma-separated: `1990`, `1990s`, `90s` or `90`.
  *
  * Pure JVM (no `android.net.Uri`) so it can be unit-tested.
  */
@@ -34,7 +36,9 @@ object DeepLinkParser {
         val tags = TAG_PARAMS.flatMap { params.values(it) }.toSet()
         val query = params["q"]?.trim()?.takeIf { it.isNotEmpty() }
         val fav = params["fav"]?.lowercase()?.let { it == "1" || it == "true" || it == "yes" }
-        return LibraryFilterRequest(consoles = consoles, tags = tags, query = query, favouritesOnly = fav)
+        val genres = params.values("genre")
+        val decades = params.values("decade").mapNotNull(LibraryDecades::parseDecade).toSet()
+        return LibraryFilterRequest(consoles = consoles, tags = tags, query = query, favouritesOnly = fav, genres = genres, decades = decades)
     }
 
     private fun Map<String, String>.values(key: String): Set<String> =

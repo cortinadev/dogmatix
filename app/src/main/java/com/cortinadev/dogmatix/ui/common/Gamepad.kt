@@ -15,9 +15,9 @@ import kotlinx.coroutines.flow.asStateFlow
 /**
  * Buttons the app handles itself. A / B / D-pad go through the normal focus system.
  * ZL / ZR switch sections, LB / RB switch panels inside a screen, Select stars a game,
- * R3 collapses / expands the filter panel.
+ * R3 collapses / expands the filter panel, Start reorders a row of the download queue.
  */
-enum class GamepadButton { PREV_TAB, NEXT_TAB, PREV_PANEL, NEXT_PANEL, X, Y, FAVOURITE, TOGGLE_FILTERS, FOCUS_TAB }
+enum class GamepadButton { PREV_TAB, NEXT_TAB, PREV_PANEL, NEXT_PANEL, X, Y, FAVOURITE, TOGGLE_FILTERS, FOCUS_TAB, START }
 
 /**
  * Process-wide gamepad state: whether one is connected (drives the button legend)
@@ -31,7 +31,7 @@ object Gamepad {
 
     /** One requester per section tab (keyed by route) so focus can be handed to the active tab. */
     val tabFocus: Map<String, FocusRequester> = mapOf(
-        "home" to FocusRequester(), "downloads" to FocusRequester(),
+        "home" to FocusRequester(), "downloads" to FocusRequester(), "collection" to FocusRequester(),
         "sources" to FocusRequester(), "settings" to FocusRequester()
     )
     var currentRoute: String = "home"
@@ -123,11 +123,24 @@ object Gamepad {
             KeyEvent.KEYCODE_BUTTON_Y -> GamepadButton.Y
             KeyEvent.KEYCODE_BUTTON_SELECT, KeyEvent.KEYCODE_BUTTON_THUMBL -> GamepadButton.FAVOURITE
             KeyEvent.KEYCODE_BUTTON_THUMBR -> GamepadButton.TOGGLE_FILTERS
+            // Downloads: reorder the row under the cursor (unused elsewhere).
+            KeyEvent.KEYCODE_BUTTON_START -> GamepadButton.START
             else -> null
         }
         if (shortcut != null) {
             if (event.source and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD) _connected.value = true
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) presses.tryEmit(shortcut)
+            val trigger = when (shortcut) {
+                GamepadButton.PREV_TAB -> leftTrigger
+                GamepadButton.NEXT_TAB -> rightTrigger
+                else -> null
+            }
+            when {
+                // ZL / ZR share their state with the axis: analog triggers send both.
+                trigger != null -> if (event.action == KeyEvent.ACTION_DOWN || event.action == KeyEvent.ACTION_UP) {
+                    if (trigger.onKey(event.action == KeyEvent.ACTION_DOWN)) presses.tryEmit(shortcut)
+                }
+                event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 -> presses.tryEmit(shortcut)
+            }
             return true
         }
         val dpad = when (event.keyCode) {
@@ -149,19 +162,17 @@ object Gamepad {
         return false
     }
 
-    private var leftTriggerDown = false
-    private var rightTriggerDown = false
+    private val leftTrigger = TriggerPress()
+    private val rightTrigger = TriggerPress()
 
-    /** Some pads report ZL / ZR only as analog axes; treat crossing half travel as a press. */
+    /** Some pads report ZL / ZR as analog axes (alone or along with the key): see [TriggerPress]. */
     fun onGenericMotionEvent(event: MotionEvent): Boolean {
         if (event.source and InputDevice.SOURCE_JOYSTICK != InputDevice.SOURCE_JOYSTICK &&
             event.source and InputDevice.SOURCE_GAMEPAD != InputDevice.SOURCE_GAMEPAD) return false
-        val left = maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE)) > 0.5f
-        val right = maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS)) > 0.5f
-        if (left && !leftTriggerDown) presses.tryEmit(GamepadButton.PREV_TAB)
-        if (right && !rightTriggerDown) presses.tryEmit(GamepadButton.NEXT_TAB)
-        leftTriggerDown = left
-        rightTriggerDown = right
+        val left = maxOf(event.getAxisValue(MotionEvent.AXIS_LTRIGGER), event.getAxisValue(MotionEvent.AXIS_BRAKE))
+        val right = maxOf(event.getAxisValue(MotionEvent.AXIS_RTRIGGER), event.getAxisValue(MotionEvent.AXIS_GAS))
+        if (leftTrigger.onAxis(left)) presses.tryEmit(GamepadButton.PREV_TAB)
+        if (rightTrigger.onAxis(right)) presses.tryEmit(GamepadButton.NEXT_TAB)
         return false
     }
 }

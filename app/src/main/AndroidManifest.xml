@@ -4,6 +4,13 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- escaneo: the background source scan (JobScheduler, persisted) survives a reboot. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- escaneo: JobScheduler refuses a job with a network constraint ("only on Wi-Fi") without it. -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- dl-cola: Android 13+ hides every notification without it (download progress and the
+         batch notice); asked the first time a download starts, see NotificationPermissionPrompt. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- "Configure ES-DE" / "Configure iiSU" read the frontend's bundled defaults from its
          installed APK; without these entries Android 11+ package visibility hides the app and
@@ -69,6 +76,15 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- escaneo: Settings → Automatic scan (see data/service/AutoScanScheduler). -->
+        <service
+            android:name=".data.service.AutoScanJobService"
+            android:exported="false"
+            android:permission="android.permission.BIND_JOB_SERVICE" />
+        <!-- dl-cola: Pause all / Resume / Cancel all on the download notifications. -->
+        <receiver
+            android:name=".data.service.DownloadActionReceiver"
+            android:exported="false" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"

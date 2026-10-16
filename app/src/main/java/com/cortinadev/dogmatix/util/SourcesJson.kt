@@ -23,7 +23,11 @@ data class SourceConsole(
     /** Chip abbreviation ("GBA"); null when the document does not say. */
     val shortName: String? = null,
     /** Folder names that count as this console's download folder ("gba", "Game Boy Advance"…). */
-    val folderAliases: List<String> = emptyList()
+    val folderAliases: List<String> = emptyList(),
+    /** Chip colour as `#RRGGBB`; null when the document does not set one (the family default applies). */
+    val color: String? = null,
+    /** File names of the console's starred games (the `favourites` table key, with [id]). */
+    val favourites: List<String> = emptyList()
 )
 
 /**
@@ -34,11 +38,16 @@ data class SourceConsole(
  * ```
  * { "nintendo": { "_name": "Nintendo",
  *                 "gameboy_advance": { "name": "Game Boy Advance", "short": "GBA",
- *                                      "aliases": ["gba", "gameboyadvance"],
+ *                                      "aliases": ["gba", "gameboyadvance"], "color": "#8FCF3C",
  *                                      "urls": [ { "url": "…", "contentType": "GAME", "folders": ["…"] } ] } } }
  * ```
  * `short` is the chip label in the library / downloads; `aliases` are the folder names the
- * download-path resolver accepts for the console (besides its own name and `short`).
+ * download-path resolver accepts for the console (besides its own name and `short`); `color`
+ * (optional) is the console's chip colour, written only when the user picked one;
+ * `favourites` (optional, only in exports) lists the file names of the starred games, so the
+ * stars travel with the sources: the console is the one the document nests them in. `id`
+ * (optional, only in exports) keeps a Room id that the key would not give back
+ * (`manufacturer_key`), as older versions created them.
  * Keys starting with `_` inside a manufacturer are metadata, never consoles.
  */
 object SourcesJson {
@@ -57,11 +66,13 @@ object SourcesJson {
                 .map { (consoleKey, consoleEl) ->
                     val consoleObj = consoleEl.asJsonObject
                     SourceConsole(
-                        id = "${manufacturerId}_${slug(consoleKey)}",
+                        id = consoleObj.stringOrNull("id")?.trim()?.takeIf { it.isNotEmpty() } ?: "${manufacturerId}_${slug(consoleKey)}",
                         name = consoleObj.stringOrNull("name") ?: formatConsoleName(consoleKey),
                         urls = parseUrlEntries(consoleObj.get("urls")),
                         shortName = consoleObj.stringOrNull("short")?.trim(),
-                        folderAliases = parseStrings(consoleObj.get("aliases"))
+                        folderAliases = parseStrings(consoleObj.get("aliases")),
+                        color = consoleObj.stringOrNull("color")?.let(ColorMath::parseHex)?.let(ColorMath::toHex),
+                        favourites = parseStrings(consoleObj.get("favourites"))
                     )
                 }
             SourceManufacturer(manufacturerId, manufacturerName, consoles)
@@ -76,11 +87,18 @@ object SourcesJson {
             manufacturerObj.addProperty("_name", manufacturer.name)
             manufacturer.consoles.forEach { console ->
                 val consoleObj = JsonObject()
+                val key = consoleKey(manufacturer.id, console.id)
+                // Consoles from older versions have ids without the manufacturer prefix: the key
+                // alone would come back as another id, and the stars, history and per-console
+                // settings keyed by the old one would be left behind.
+                if ("${manufacturer.id}_${slug(key)}" != console.id) consoleObj.addProperty("id", console.id)
                 consoleObj.addProperty("name", console.name)
                 console.shortName?.takeIf { it.isNotBlank() }?.let { consoleObj.addProperty("short", it) }
                 if (console.folderAliases.isNotEmpty()) consoleObj.add("aliases", stringsToJson(console.folderAliases))
+                console.color?.let(ColorMath::parseHex)?.let { consoleObj.addProperty("color", ColorMath.toHex(it)) }
                 consoleObj.add("urls", urlEntriesToJson(console.urls))
-                manufacturerObj.add(consoleKey(manufacturer.id, console.id), consoleObj)
+                if (console.favourites.isNotEmpty()) consoleObj.add("favourites", stringsToJson(console.favourites))
+                manufacturerObj.add(key, consoleObj)
             }
             root.add(manufacturer.id, manufacturerObj)
         }
@@ -124,7 +142,7 @@ object SourcesJson {
                 ?.let { runCatching { ContentType.valueOf(it.uppercase()) }.getOrNull() }
                 ?: ContentType.GAME
             val enabled = obj.get("enabled")?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive?.let { runCatching { it.asBoolean }.getOrNull() } ?: true
-            UrlEntry(url = url, contentType = contentType, folders = parseStrings(obj.get("folders")), enabled = enabled)
+            UrlEntry(url = url, contentType = contentType, folders = parseStrings(obj.get("folders")), enabled = enabled, mirrors = parseStrings(obj.get("mirrors")))
         }
     }
 
@@ -136,6 +154,7 @@ object SourcesJson {
             obj.addProperty("contentType", entry.contentType.name)
             if (entry.folders.isNotEmpty()) obj.add("folders", stringsToJson(entry.folders))
             if (!entry.enabled) obj.addProperty("enabled", false)
+            if (entry.mirrors.isNotEmpty()) obj.add("mirrors", stringsToJson(entry.mirrors))
             array.add(obj)
         }
         return array

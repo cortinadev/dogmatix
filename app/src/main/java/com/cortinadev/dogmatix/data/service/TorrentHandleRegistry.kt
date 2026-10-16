@@ -25,7 +25,8 @@ import javax.inject.Singleton
 @Singleton
 class TorrentHandleRegistry @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    private val metadataCache: TorrentMetadataCache
 ) {
 
     private val session = SessionManager()
@@ -42,6 +43,7 @@ class TorrentHandleRegistry @Inject constructor(
             // "metadata too large" and re-tried forever); multi-TB collection torrents need more.
             session.applySettings(
                 org.libtorrent4j.SettingsPack().apply { setMaxMetadataSize(TorrentConstants.MAX_METADATA_SIZE_BYTES) }
+                    .downloadRateLimit(downloadRateLimit)
             )
             TorrentConstants.DHT_BOOTSTRAP_NODES.forEach { (host, port) ->
                 try { session.swig().add_dht_node(org.libtorrent4j.swig.string_int_pair(host, port)) }
@@ -63,6 +65,14 @@ class TorrentHandleRegistry @Inject constructor(
     }
 
     val isRunning: Boolean get() = session.isRunning
+
+    /** Session download limit in bytes per second (0 = none); kept for a session started later. */
+    @Volatile private var downloadRateLimit = 0
+
+    fun setDownloadRateLimit(bytesPerSecond: Long) {
+        downloadRateLimit = bytesPerSecond.coerceIn(0L, Int.MAX_VALUE.toLong()).toInt()
+        if (session.isRunning) session.applySettings(org.libtorrent4j.SettingsPack().downloadRateLimit(downloadRateLimit))
+    }
 
     suspend fun getOrFetch(uri: String): TorrentHandle = withContext(Dispatchers.IO) {
         if (!session.isRunning) {
@@ -151,8 +161,12 @@ class TorrentHandleRegistry @Inject constructor(
 
     private suspend fun fetchMetadata(uri: String): TorrentHandle =
         withContext(Dispatchers.IO) {
+            // Metadata fetched before comes from disk: the handle is complete at once, no swarm needed.
+            val cached = if (uri.startsWith("magnet:")) metadataCache.load(uri) else null
             val params = if (uri.startsWith("magnet:")) {
-                org.libtorrent4j.AddTorrentParams.parseMagnetUri(uri)
+                org.libtorrent4j.AddTorrentParams.parseMagnetUri(uri).also { p ->
+                    cached?.let { p.torrentInfo = it; it.swig().delete() }
+                }
             } else {
                 val torrentFile = File(uri)
                 val ti = org.libtorrent4j.TorrentInfo(torrentFile)
@@ -198,7 +212,9 @@ class TorrentHandleRegistry @Inject constructor(
             // swarm starts filling the cache with random files until we get to set priorities.
             try { handle.setFlags(TorrentFlags.UPLOAD_MODE) } catch (e: Exception) { Log.w(TAG, "upload_mode: ${e.message}") }
             handle.resume() // Resume just to fetch metadata
-            waitForMetadata(handle, uri)
+            waitForMetadata(handle, uri).also { ready ->
+                if (cached == null && uri.startsWith("magnet:")) ready.torrentFile()?.let { metadataCache.store(uri, it) }
+            }
         }
 
     /**

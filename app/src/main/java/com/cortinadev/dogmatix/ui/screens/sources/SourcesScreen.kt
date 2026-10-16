@@ -36,7 +36,18 @@ import com.cortinadev.dogmatix.ui.components.closeOnGamepadB
 import com.cortinadev.dogmatix.ui.components.rememberInitialFocus
 import com.cortinadev.dogmatix.ui.screens.sources.SourcesViewModel.Dialog as SourcesDialog
 import com.cortinadev.dogmatix.ui.screens.sources.components.MergeFoldersDialog
+import com.cortinadev.dogmatix.ui.screens.sources.components.ScanActions
+import com.cortinadev.dogmatix.ui.screens.sources.components.ScanStatusCard
+import com.cortinadev.dogmatix.ui.screens.sources.components.ScanReportDialog
+import androidx.compose.runtime.saveable.rememberSaveable
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
+// busqueda
+import androidx.compose.foundation.lazy.rememberLazyListState
+import com.cortinadev.dogmatix.data.model.Manufacturer
+import com.cortinadev.dogmatix.data.search.SearchTarget
+import com.cortinadev.dogmatix.ui.navigation.SearchTargetEffect
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -50,6 +61,13 @@ fun SourcesScreen(
     val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+    // escaneo: progress of the running scan and the report of the last one.
+    val scanProgress by viewModel.scanProgress.collectAsState()
+    val scanMessage by viewModel.scanMessage.collectAsState()
+    val lastReport by viewModel.lastReport.collectAsState()
+    var showReport by rememberSaveable { mutableStateOf(false) }
+    // Only while this screen is visible: a scan it started opens its report when it ends.
+    LaunchedEffect(Unit) { viewModel.scanFinished.collect { showReport = true } }
 
     val directoryPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree(),
@@ -91,7 +109,22 @@ fun SourcesScreen(
         context.startActivity(Intent.createChooser(send, context.getString(R.string.sources_export_share_title)))
     }
 
+    // busqueda: a library search result unfolds its console and focuses it (or one of its addresses).
+    val listState = rememberLazyListState()
+    var reveal by remember { mutableStateOf<SearchTarget.Source?>(null) }
+    SearchTargetEffect<SearchTarget.Source> { target ->
+        // The list on screen, not a fresh query: the index must be the one the list shows.
+        val all = withTimeoutOrNull(3_000) {
+            snapshotFlow { manufacturers }.first { ms -> ms.any { m -> m.consoles.any { it.id == target.consoleId } } }
+        } ?: return@SearchTargetEffect
+        // Above the cards: the header, the scan buttons (portrait), the scan status and the folder card.
+        val leading = 2 + (if (isLandscape) 0 else 1) + (if (isRescanning || lastReport != null) 1 else 0)
+        listState.scrollToItem(leading + sortedConsoles(all).indexOfFirst { (_, c) -> c.id == target.consoleId })
+        reveal = target
+    }
+
     LazyColumn(
+        state = listState,
         modifier = Modifier.fillMaxSize(),
         // Padding inside the list: cards scroll edge to edge instead of being clipped 16dp early.
         // Cards sit 20dp from the edge, the same x as the app title and the Settings rows' text.
@@ -104,9 +137,23 @@ fun SourcesScreen(
                 isLandscape = isLandscape,
                 onAddConsole = { viewModel.showAddConsoleDialog() },
                 onRescan = { viewModel.rescanAllSources() },
+                onFullRescan = { viewModel.rescanAllSources(force = true) },
                 onExport = { viewModel.exportSources(::shareExport) },
                 onImport = { viewModel.confirmImport() }
             )
+        }
+
+        if (!isLandscape) {
+            item {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    ScanActions(isRescanning, onRescan = { viewModel.rescanAllSources() }, onFullRescan = { viewModel.rescanAllSources(force = true) })
+                }
+            }
+        }
+        if (isRescanning || lastReport != null) {
+            item(key = "scan-status") {
+                ScanStatusCard(isRescanning, scanProgress, scanMessage, lastReport, onOpenReport = { showReport = true })
+            }
         }
 
         item {
@@ -146,11 +193,11 @@ fun SourcesScreen(
             }
         } else {
             // Flat, alphabetical console list; the manufacturer is only a subtitle on each card.
-            val consoles = manufacturers
-                .flatMap { m -> m.consoles.map { m to it } }
-                .sortedBy { (_, c) -> c.name.lowercase() }
+            val consoles = sortedConsoles(manufacturers)
             items(consoles, key = { (_, c) -> c.id }) { (manufacturer, console) ->
                 ConsoleCard(
+                    reveal = reveal?.takeIf { it.consoleId == console.id },
+                    onRevealed = { reveal = null },
                     console = console,
                     subtitle = manufacturer.name,
                     downloadPath = consoleDownloadPaths[console.id],
@@ -200,24 +247,24 @@ fun SourcesScreen(
         SourcesDialog.AddConsole -> AddConsoleDialog(
             manufacturers = manufacturers,
             onDismiss = { viewModel.dismissDialog() },
-            onConfirmWithManufacturer = { manufacturerName, values -> viewModel.addConsoleUnderNewManufacturer(manufacturerName, values.name, values.shortName, values.aliases) },
-            onConfirmExisting = { manufacturerId, values -> viewModel.addConsole(manufacturerId, values.name, values.shortName, values.aliases) }
+            onConfirmWithManufacturer = { manufacturerName, values -> viewModel.addConsoleUnderNewManufacturer(manufacturerName, values.name, values.shortName, values.aliases, values.color) },
+            onConfirmExisting = { manufacturerId, values -> viewModel.addConsole(manufacturerId, values.name, values.shortName, values.aliases, values.color) }
         )
         is SourcesDialog.EditConsole -> AddConsoleDialog(
             existing = d.console,
             onDismiss = { viewModel.dismissDialog() },
-            onConfirm = { values -> viewModel.updateConsole(d.console.id, values.name, values.shortName, values.aliases) }
+            onConfirm = { values -> viewModel.updateConsole(d.console.id, values.name, values.shortName, values.aliases, values.color) }
         )
         is SourcesDialog.AddUrl -> AddUrlDialog(
             rommPlatforms = rommPlatforms,
             onDismiss = { viewModel.dismissDialog() },
-            onConfirm = { url, contentType -> viewModel.addUrl(d.consoleId, url, contentType) }
+            onConfirm = { url, contentType, mirrors -> viewModel.addUrl(d.consoleId, url, contentType, mirrors) }
         )
         is SourcesDialog.EditUrl -> AddUrlDialog(
             existing = d.entry,
             rommPlatforms = rommPlatforms,
             onDismiss = { viewModel.dismissDialog() },
-            onConfirm = { url, contentType -> viewModel.updateUrl(d.consoleId, d.index, url, contentType) }
+            onConfirm = { url, contentType, mirrors -> viewModel.updateUrl(d.consoleId, d.index, url, contentType, mirrors) }
         )
         is SourcesDialog.ConfirmDeleteConsole -> ConfirmDialog(
             title = stringResource(R.string.sources_delete_console_title, d.name),
@@ -242,6 +289,17 @@ fun SourcesScreen(
         )
     }
 
+    if (showReport) {
+        lastReport?.let { report ->
+            ScanReportDialog(
+                report = report,
+                canRetry = !isRescanning,
+                onRetryFailed = { viewModel.retryFailedSources() },
+                onDismiss = { showReport = false }
+            )
+        }
+    }
+
     importMessage?.let { message ->
         val okFocus = rememberInitialFocus()
         AlertDialog(
@@ -255,6 +313,11 @@ fun SourcesScreen(
         )
     }
 }
+
+/** Flat, alphabetical console list; the manufacturer is only a subtitle on each card. */
+private fun sortedConsoles(manufacturers: List<Manufacturer>) = manufacturers
+    .flatMap { m -> m.consoles.map { m to it } }
+    .sortedBy { (_, c) -> c.name.lowercase() }
 
 /**
  * Root download directory. Per-console folders (see each console's "Download path")
@@ -320,10 +383,12 @@ private fun SourcesHeader(
     isLandscape: Boolean,
     onAddConsole: () -> Unit,
     onRescan: () -> Unit,
+    onFullRescan: () -> Unit,
     onExport: () -> Unit,
     onImport: () -> Unit
 ) {
-    // The section name already lives in the tabs; only the actions stay, right-aligned.
+    // The section name already lives in the tabs; only the actions stay, right-aligned. In
+    // portrait the two scan buttons get a row of their own (below): the five do not fit in one.
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.End,
@@ -342,39 +407,7 @@ private fun SourcesHeader(
             IconButton(onClick = onImport, enabled = !isRescanning) {
                 Icon(painterResource(R.drawable.ic_import), contentDescription = stringResource(R.string.sources_import))
             }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                if (isRescanning) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        strokeWidth = 2.dp
-                    )
-                    Text(
-                        text = stringResource(R.string.sources_rescanning),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    FilledTonalButton(
-                        onClick = onRescan,
-                        shape = RoundedCornerShape(8.dp),
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            contentColor = MaterialTheme.colorScheme.onSurface
-                        )
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_retry),
-                            contentDescription = "",
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(text = stringResource(R.string.sources_rescan_all), style = MaterialTheme.typography.labelLarge)
-                    }
-                }
-            }
+            if (isLandscape) ScanActions(isRescanning, onRescan, onFullRescan)
         }
     }
 }

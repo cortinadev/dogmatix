@@ -35,4 +35,17 @@ class FavouritesRepository @Inject constructor(
         else dao.upsert(FavouriteEntity(file.consoleId, file.fileName))
         return !now
     }
+
+    // frontends
+    suspend fun all(): List<FavouriteEntity> = dao.getAll()
+
+    /** Stars every `(consoleId, fileName)` in [entries] (adds, never replaces); returns how many were new. */
+    suspend fun addAll(entries: Collection<Pair<String, String>>): Int {
+        if (entries.isEmpty()) return 0
+        return dao.insertMissing(entries.distinct().map { (console, file) -> FavouriteEntity(console, file) }).count { it != -1L }
+    }
+
+    suspend fun removeAll(entries: Collection<Pair<String, String>>) {
+        if (entries.isNotEmpty()) dao.deleteAll(entries.distinct().map { (console, file) -> FavouriteEntity(console, file) })
+    }
 }

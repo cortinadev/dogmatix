@@ -1,0 +1,104 @@
+package com.cortinadev.dogmatix.util
+
+import java.io.IOException
+import java.net.ConnectException
+import java.net.NoRouteToHostException
+import java.net.SocketException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
+import javax.net.ssl.SSLException
+
+/**
+ * Why a download failed. [transient] failures may go away on their own (the network, the server,
+ * a torrent without peers yet), so they are worth an automatic retry; the rest need the user
+ * (a file gone from the server, a full disk, a folder without access, a debrid account problem).
+ */
+enum class DownloadFailure(val transient: Boolean) {
+    NETWORK(true),
+    TIMEOUT(true),
+    SERVER(true),
+    RATE_LIMITED(true),
+    NOT_FOUND(false),
+    DENIED(false),
+    HTTP(false),
+    NO_SPACE(false),
+    STORAGE(false),
+    INCOMPLETE(true),
+    TORRENT_METADATA(true),
+    TORRENT(false),
+    DEBRID_ACCOUNT(false),
+    DEBRID(true),
+    UNKNOWN(true),
+    /** The server sent something else (a web page, an error document) where the file was expected. */
+    WRONG_CONTENT(false)
+}
+
+/** Works out a [DownloadFailure] from what the download code throws (its messages are ours or the JDK's). */
+object DownloadFailures {
+
+    /** "HTTP Error after redirect: 404", "HTTP 503", "HTTP error code: 429"… */
+    private val httpCode = Regex("""\bHTTP\b\D{0,40}?([1-5]\d\d)\b""", RegexOption.IGNORE_CASE)
+
+    fun classify(error: Throwable): DownloadFailure {
+        var current: Throwable? = error
+        val seen = HashSet<Throwable>()
+        while (current != null && seen.add(current)) {
+            classifyOne(current)?.let { return it }
+            current = current.cause
+        }
+        return DownloadFailure.UNKNOWN
+    }
+
+    private fun classifyOne(e: Throwable): DownloadFailure? {
+        val message = e.message.orEmpty()
+        return when {
+            e is UnexpectedContentException -> DownloadFailure.WRONG_CONTENT
+            e.javaClass.simpleName == "DebridAuthException" || message.contains("premium", ignoreCase = true) ->
+                DownloadFailure.DEBRID_ACCOUNT
+            message.contains("ENOSPC") || message.contains("No space left", ignoreCase = true) -> DownloadFailure.NO_SPACE
+            e is SocketTimeoutException -> DownloadFailure.TIMEOUT
+            e is UnknownHostException || e is ConnectException || e is NoRouteToHostException ||
+                e is SSLException || e is SocketException -> DownloadFailure.NETWORK
+            else -> httpCode.find(message)?.groupValues?.get(1)?.toIntOrNull()?.let(::fromHttpStatus)
+                ?: when {
+                    message.contains("Download directory", ignoreCase = true) ||
+                        message.contains("Failed to create", ignoreCase = true) ||
+                        message.contains("output stream", ignoreCase = true) -> DownloadFailure.STORAGE
+                    message.contains("Incomplete torrent data", ignoreCase = true) -> DownloadFailure.INCOMPLETE
+                    message.contains("did not finish fetching", ignoreCase = true) -> DownloadFailure.DEBRID
+                    // Anything else the network stack throws: a reset, a stream cut short…
+                    e is IOException -> DownloadFailure.NETWORK
+                    else -> null
+                }
+        }
+    }
+
+    fun fromHttpStatus(code: Int): DownloadFailure = when (code) {
+        404, 410 -> DownloadFailure.NOT_FOUND
+        401, 403 -> DownloadFailure.DENIED
+        408 -> DownloadFailure.TIMEOUT
+        429 -> DownloadFailure.RATE_LIMITED
+        in 500..599 -> DownloadFailure.SERVER
+        else -> DownloadFailure.HTTP
+    }
+
+    /** Reads back what [DownloadFailure.name] stored; null for nothing or an unknown name. */
+    fun fromName(name: String?): DownloadFailure? =
+        name?.let { stored -> DownloadFailure.entries.firstOrNull { it.name == stored } }
+}
+
+/** When a failed download is retried on its own ("Automatic retries" in Settings). */
+object AutoRetryPolicy {
+    /** Choices offered in Settings: how many automatic retries, 0 = off. */
+    val ATTEMPT_CHOICES = listOf(0, 1, 3, 5)
+    const val DEFAULT_ATTEMPTS = 3
+
+    /** Wait before each retry: 1, 5 and 15 minutes, then 30 and 60. */
+    private val delaysMinutes = listOf(1L, 5L, 15L, 30L, 60L)
+
+    fun delayMs(attemptsDone: Int): Long = delaysMinutes[attemptsDone.coerceIn(0, delaysMinutes.lastIndex)] * 60_000L
+
+    /** Unknown failures count as transient: most of what we cannot name is the network. */
+    fun shouldRetry(failure: DownloadFailure?, attemptsDone: Int, maxAttempts: Int): Boolean =
+        maxAttempts > 0 && attemptsDone < maxAttempts && (failure?.transient ?: true)
+}

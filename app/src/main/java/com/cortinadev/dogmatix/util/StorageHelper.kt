@@ -92,6 +92,42 @@ object StorageHelper {
         return currentDir
     }
 
+    /** One entry of a folder listed with [listChildren]. */
+    data class Child(val name: String, val isDirectory: Boolean, val uri: android.net.Uri)
+
+    /**
+     * The children of the tree folder [dir] (a document URI from a tree, e.g. `DocumentFile.uri`)
+     * with name and type from a single provider query. `listFiles()` followed by `name` and
+     * `isDirectory` costs 1 + 2N queries, which made walking a big ROM library take tens of
+     * seconds. Falls back to that when the query cannot be made.
+     */
+    fun listChildren(context: Context, dir: android.net.Uri): List<Child> {
+        val result = mutableListOf<Child>()
+        try {
+            val childrenUri = DocumentsContract.buildChildDocumentsUriUsingTree(dir, DocumentsContract.getDocumentId(dir))
+            val projection = arrayOf(
+                DocumentsContract.Document.COLUMN_DOCUMENT_ID,
+                DocumentsContract.Document.COLUMN_DISPLAY_NAME,
+                DocumentsContract.Document.COLUMN_MIME_TYPE
+            )
+            context.contentResolver.query(childrenUri, projection, null, null, null)?.use { cursor ->
+                while (cursor.moveToNext()) {
+                    val id = cursor.getString(0) ?: continue
+                    val name = cursor.getString(1) ?: continue
+                    val isDirectory = cursor.getString(2) == DocumentsContract.Document.MIME_TYPE_DIR
+                    result += Child(name, isDirectory, DocumentsContract.buildDocumentUriUsingTree(dir, id))
+                }
+                return result
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Listing $dir with one query failed (${e.message}); falling back to listFiles")
+        }
+        return runCatching {
+            val folder = DocumentFile.fromTreeUri(context, dir) ?: return emptyList()
+            folder.listFiles().mapNotNull { f -> f.name?.let { Child(it, f.isDirectory, f.uri) } }
+        }.getOrDefault(emptyList())
+    }
+
     /** The document at [path] under [root] ("a/b/c"); null when any segment is missing. */
     fun findFile(root: DocumentFile, path: String): DocumentFile? {
         var current = root

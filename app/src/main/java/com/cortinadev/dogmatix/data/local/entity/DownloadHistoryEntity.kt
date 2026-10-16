@@ -29,7 +29,14 @@ data class DownloadHistoryEntity(
     /** Debrid service + its torrent/file ids while a debrid download is in flight, so a retry can resume it. */
     @ColumnInfo(defaultValue = "NULL") val debridProvider: String? = null,
     @ColumnInfo(defaultValue = "NULL") val debridTorrentId: String? = null,
-    @ColumnInfo(defaultValue = "NULL") val debridFileId: Int? = null
+    @ColumnInfo(defaultValue = "NULL") val debridFileId: Int? = null,
+    /** Why the last attempt failed, a [com.cortinadev.dogmatix.util.DownloadFailure] name; null otherwise. */
+    @ColumnInfo(defaultValue = "NULL") val failureReason: String? = null,
+    // dl-cola
+    /** Place in the download queue (smaller starts first, see [com.cortinadev.dogmatix.util.DownloadQueue]). */
+    @ColumnInfo(defaultValue = "0") val queueOrder: Long = 0L,
+    /** Held in the queue: waits without starting until let go. */
+    @ColumnInfo(defaultValue = "0") val queueHeld: Boolean = false
 ) {
     fun toEntity(): DownloadableFileEntity = DownloadableFileEntity(
         name = name,
@@ -42,12 +49,18 @@ data class DownloadHistoryEntity(
         torrentMagnet = torrentMagnet
     )
 
+    /** Whether the row was still running when the process died (see [com.cortinadev.dogmatix.data.service.DownloadService.resumeInterrupted]). */
+    val wasInFlight: Boolean
+        get() = status == DownloadStatus.QUEUED.name || status == DownloadStatus.DOWNLOADING.name ||
+            status == DownloadStatus.COPYING.name || status == DownloadStatus.UNZIPPING.name
+
     /** In-flight statuses can't be resumed after a process death, so they come back as STOPPED. */
     fun toItem(): DownloadItemModel {
         val restored = when (val s = DownloadStatus.valueOf(status)) {
-            // PAUSED comes back as STOPPED too: the startup sweep clears the cache its resume relied on.
-            DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.COPYING, DownloadStatus.UNZIPPING,
-            DownloadStatus.PAUSED -> DownloadStatus.STOPPED
+            DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.COPYING, DownloadStatus.UNZIPPING -> DownloadStatus.STOPPED
+            // A paused torrent comes back as STOPPED: the startup sweep clears the cache its resume
+            // relied on. A paused web download keeps its partial file, so it stays paused.
+            DownloadStatus.PAUSED -> if (torrentFileIndex != null) DownloadStatus.STOPPED else DownloadStatus.PAUSED
             else -> s
         }
         return DownloadItemModel(

@@ -48,4 +48,14 @@ class DeepLinkParserTest {
         assertEquals(emptySet<String>(), r.consoles)
         assertEquals(emptySet<String>(), r.tags)
     }
+
+    @Test
+    fun `genres stay verbatim and decades are parsed`() {
+        val r = DeepLinkParser.parse("dogmatix://library?genre=rpg,Platformer&decade=1990,80s,nope")!!
+        assertEquals(setOf("rpg", "Platformer"), r.genres)
+        assertEquals(setOf(1990, 1980), r.decades)
+        val none = DeepLinkParser.parse("dogmatix://library?q=mario")!!
+        assertEquals(emptySet<String>(), none.genres)
+        assertEquals(emptySet<Int>(), none.decades)
+    }
 }

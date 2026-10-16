@@ -17,5 +17,7 @@ data class ConsoleEntity(
     /** Chip label (e.g. "GBA"); empty = built-in default from ConsoleFormatter. */
     @ColumnInfo(defaultValue = "") val shortName: String = "",
     /** Comma-separated folder names that count as this console's download folder; empty = built-in defaults. */
-    @ColumnInfo(defaultValue = "") val folderAliases: String = ""
+    @ColumnInfo(defaultValue = "") val folderAliases: String = "",
+    /** Chip / cover-placeholder colour as `#RRGGBB`; empty = the default of its family (ConsoleFamily). */
+    @ColumnInfo(defaultValue = "") val color: String = ""
 )

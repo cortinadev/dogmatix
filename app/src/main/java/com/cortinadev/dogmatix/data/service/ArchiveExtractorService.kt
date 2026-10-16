@@ -3,7 +3,9 @@ package com.cortinadev.dogmatix.data.service
 import android.content.Context
 import android.net.Uri
 import android.util.Log
+import androidx.documentfile.provider.DocumentFile
 import com.cortinadev.dogmatix.util.ArchiveExtractionUtils
+import com.cortinadev.dogmatix.util.ArchivePaths
 import com.cortinadev.dogmatix.util.Constants
 import com.cortinadev.dogmatix.util.StorageHelper
 import kotlinx.coroutines.Dispatchers
@@ -99,12 +101,14 @@ class ArchiveExtractorService @Inject constructor() {
         }
     }
 
+    /** Extracts every entry under [extractDir], keeping the archive's folders; returns (relative path, file). */
     private fun extractToCache(
         fis: FileInputStream,
         extractDir: File,
         onProgress: (Float) -> Unit
-    ): List<File> {
-        val results = mutableListOf<File>()
+    ): List<Pair<String, File>> {
+        val results = mutableListOf<Pair<String, File>>()
+        val paths = ArchivePaths.Allocator()
         val channel = fis.channel
         val channelSize = channel.size()
 
@@ -139,6 +143,7 @@ class ArchiveExtractorService @Inject constructor() {
                 archive.extract(null, false, object : IArchiveExtractCallback {
                     var out: OutputStream? = null
                     var dest: File? = null
+                    var destPath: String? = null
                     var skip = false
                     var done = 0
 
@@ -146,13 +151,19 @@ class ArchiveExtractorService @Inject constructor() {
                         val isFolder = archive.getProperty(index, PropID.IS_FOLDER) as? Boolean ?: false
                         if (isFolder) { skip = true; return null }
 
-                        val rawPath = (archive.getProperty(index, PropID.PATH) as? String) ?: "file_$index"
-                        val name = rawPath.replace('\\', '/').split("/").last()
-                            .replace(Regex("[<>:\"|?*\u0000]"), "_")
-                            .ifBlank { "file_$index" }
+                        val rawPath = (archive.getProperty(index, PropID.PATH) as? String)?.takeIf { it.isNotBlank() } ?: "file_$index"
+                        val safePath = ArchivePaths.safeRelativePath(rawPath)
+                        if (safePath == null) {
+                            Log.w(TAG, "Skipping archive entry outside the destination: $rawPath")
+                            skip = true
+                            return null
+                        }
+                        val path = paths.allocate(safePath)
 
-                        val file = File(extractDir, name)
+                        val file = File(extractDir, path)
+                        file.parentFile?.mkdirs()
                         dest = file
+                        destPath = path
                         val stream = BufferedOutputStream(FileOutputStream(file), Constants.EXTRACTION_BUFFER_SIZE)
                         out = stream
                         skip = false
@@ -167,12 +178,15 @@ class ArchiveExtractorService @Inject constructor() {
                         out = null
 
                         if (!skip && result == ExtractOperationResult.OK) {
-                            dest?.let { results.add(it); done++ }
+                            val file = dest
+                            val path = destPath
+                            if (file != null && path != null) { results.add(path to file); done++ }
                             onProgress(if (total > 0) done.toFloat() / total else 1f)
                         } else if (!skip) {
                             Log.w(TAG, "Entry result: $result for ${dest?.name}")
                         }
                         dest = null
+                        destPath = null
                         skip = false
                     }
 
@@ -187,24 +201,31 @@ class ArchiveExtractorService @Inject constructor() {
         return results
     }
 
+    /** Copies the extracted files into the destination, folders included; returns their relative paths. */
     private fun copyToSaf(
         context: Context,
-        files: List<File>,
+        files: List<Pair<String, File>>,
         destinationUri: Uri,
         subPath: String
     ): List<String> {
         val destUri = ArchiveExtractionUtils.prepareExtractionDestination(context, destinationUri, subPath)
+        val root = StorageHelper.getDocumentFile(context, destUri.toString()) ?: run {
+            Log.e(TAG, "Extraction destination not accessible: $destUri")
+            return emptyList()
+        }
+        val dirs = HashMap<String, DocumentFile?>()
         val copied = mutableListOf<String>()
         val buffer = ByteArray(Constants.EXTRACTION_BUFFER_SIZE)
 
-        for (file in files) {
-            val outUri = StorageHelper.createFile(
-                context = context,
-                uriString = destUri.toString(),
-                subPath = "",
-                fileName = file.name,
-                overwrite = true
-            )?.uri ?: continue
+        for ((path, file) in files) {
+            val parent = path.substringBeforeLast('/', "")
+            val name = path.substringAfterLast('/')
+            val dir = dirs.getOrPut(parent) { StorageHelper.createDirectory(root, parent) } ?: continue
+            runCatching { dir.findFile(name)?.delete() }
+            val outUri = runCatching { dir.createFile("application/octet-stream", name) }.getOrNull()?.uri ?: run {
+                Log.e(TAG, "Could not create $path in ${dir.uri}")
+                continue
+            }
 
             context.contentResolver.openOutputStream(outUri)?.use { raw ->
                 BufferedOutputStream(raw, Constants.EXTRACTION_BUFFER_SIZE).use { buffOut ->
@@ -214,8 +235,8 @@ class ArchiveExtractorService @Inject constructor() {
                     }
                 }
             }
-            copied.add(file.name)
-            Log.d(TAG, "Copied to SAF: ${file.name}")
+            copied.add(path)
+            Log.d(TAG, "Copied to SAF: $path")
         }
 
         return copied

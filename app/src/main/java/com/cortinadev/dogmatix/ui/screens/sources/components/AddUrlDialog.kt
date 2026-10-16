@@ -3,6 +3,8 @@ package com.cortinadev.dogmatix.ui.screens.sources.components
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -15,6 +17,7 @@ import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.model.ContentType
 import com.cortinadev.dogmatix.data.model.UrlEntry
 import com.cortinadev.dogmatix.data.service.RommPlatform
+import com.cortinadev.dogmatix.util.MirrorUrls
 import com.cortinadev.dogmatix.util.RommSource
 import com.cortinadev.dogmatix.ui.components.DialogButton
 import com.cortinadev.dogmatix.ui.components.closeOnGamepadB
@@ -32,10 +35,12 @@ fun AddUrlDialog(
     /** Platforms of the RomM server from Settings; one chip each sets the URL to `romm://<slug>`. */
     rommPlatforms: List<RommPlatform> = emptyList(),
     onDismiss: () -> Unit,
-    onConfirm: (String, ContentType) -> Unit
+    /** URL, content type and reserve addresses (web sources only). */
+    onConfirm: (String, ContentType, List<String>) -> Unit
 ) {
     var url by remember { mutableStateOf(existing?.url.orEmpty()) }
     var contentType by remember { mutableStateOf(existing?.contentType ?: ContentType.GAME) }
+    var mirrors by remember { mutableStateOf(existing?.mirrors.orEmpty().joinToString("\n")) }
     val urlFocus = rememberInitialFocus()
     val editing = existing != null
 
@@ -49,7 +54,8 @@ fun AddUrlDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(if (editing) R.string.dialog_edit_source else R.string.dialog_add_source)) },
         text = {
-            Column {
+            // Scrolls: in landscape the mirrors box pushes the content type chips below the fold.
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 Text(stringResource(R.string.dialog_add_source_hint))
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -87,6 +93,20 @@ fun AddUrlDialog(
                     RommPlatformChips(platforms = rommPlatforms, selected = RommSource.slugOf(url)) { url = RommSource.sourceFor(it.slug) }
                 }
 
+                // Reserve addresses only make sense for a web listing.
+                if (MirrorUrls.isWeb(url.trim())) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = mirrors,
+                        onValueChange = { mirrors = it },
+                        label = { Text(stringResource(R.string.dialog_mirrors_label)) },
+                        supportingText = { Text(stringResource(R.string.dialog_mirrors_hint)) },
+                        minLines = 1,
+                        maxLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(stringResource(R.string.dialog_content_type), style = MaterialTheme.typography.titleSmall)
@@ -97,7 +117,11 @@ fun AddUrlDialog(
         confirmButton = {
             DialogButton(
                 text = stringResource(if (editing) R.string.dialog_save else R.string.dialog_add),
-                onClick = { onConfirm(url.trim(), contentType); onDismiss() },
+                onClick = {
+                    val source = url.trim()
+                    onConfirm(source, contentType, if (MirrorUrls.isWeb(source)) MirrorUrls.parse(mirrors, source) else emptyList())
+                    onDismiss()
+                },
                 enabled = url.isNotBlank()
             )
         },

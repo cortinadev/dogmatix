@@ -29,6 +29,8 @@ import com.cortinadev.dogmatix.ui.common.Gamepad
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -62,6 +64,10 @@ private fun Wordmark(modifier: Modifier = Modifier) {
 @Composable
 fun TopTabs(currentRoute: String, onSelect: (NavRoutes) -> Unit) {
     val scheme = MaterialTheme.colorScheme
+    // Five tabs fill a 4:3 screen: narrow headers tighten the tabs, the narrowest drop their numbers.
+    val width = with(LocalDensity.current) { LocalWindowInfo.current.containerSize.width.toDp() }
+    val tabPadding = if (width < 760.dp) 10.dp else 16.dp
+    val numbered = width >= 680.dp
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -69,7 +75,7 @@ fun TopTabs(currentRoute: String, onSelect: (NavRoutes) -> Unit) {
             .padding(start = 20.dp, end = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Wordmark(modifier = Modifier.padding(end = 20.dp))
+        Wordmark(modifier = Modifier.padding(end = if (numbered) 20.dp else 12.dp))
         NavRoutes.tabs.forEachIndexed { index, route ->
             val selected = route.route == currentRoute
             val source = rememberFocusSource()
@@ -77,9 +83,7 @@ fun TopTabs(currentRoute: String, onSelect: (NavRoutes) -> Unit) {
                 modifier = Modifier
                     .fillMaxHeight()
                     .focusRequester(Gamepad.tabFocus.getValue(route.route))
-                    .clip(RoundedCornerShape(6.dp))
-                    .focusRing(source, 6.dp)
-                    .clickable(interactionSource = source, indication = null) { onSelect(route) }
+                    // The underline goes before the clip: inside it the rounded corners (the focus ring's) cut its ends.
                     .drawBehind {
                         if (selected) {
                             drawRect(
@@ -89,14 +93,17 @@ fun TopTabs(currentRoute: String, onSelect: (NavRoutes) -> Unit) {
                             )
                         }
                     }
-                    .padding(horizontal = 16.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .focusRing(source, 6.dp)
+                    .clickable(interactionSource = source, indication = null) { onSelect(route) }
+                    .padding(horizontal = tabPadding)
             ) {
                 Row(
                     modifier = Modifier.align(Alignment.Center),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
+                    if (numbered) Text(
                         "0${index + 1}",
                         style = MaterialTheme.typography.labelSmall,
                         color = if (selected) scheme.onSurface else scheme.onSurfaceVariant
@@ -132,7 +139,7 @@ fun PortraitHeader(trailing: @Composable (() -> Unit)? = null) {
     }
 }
 
-/** Portrait bottom bar with the four sections. */
+/** Portrait bottom bar with the sections. */
 @Composable
 fun BottomTabs(currentRoute: String, activeDownloads: Int, onSelect: (NavRoutes) -> Unit) {
     val scheme = MaterialTheme.colorScheme
@@ -200,6 +207,10 @@ fun legendFor(route: String): List<LegendEntry> {
             LegendEntry("SELECT", stringResource(R.string.pad_tick)), section
         )
         NavRoutes.Sources.route -> listOf(LegendEntry("A", stringResource(R.string.pad_open)), back, section)
+        // The Collection tools publish their own; this is what is left when one of them does not.
+        NavRoutes.Collection.route -> listOf(
+            LegendEntry("A", stringResource(R.string.pad_open)), LegendEntry("LB · RB", stringResource(R.string.pad_panels)), back, section
+        )
         NavRoutes.Settings.route, NavRoutes.Romm.route -> listOf(
             LegendEntry("A", stringResource(R.string.pad_change)),
             LegendEntry("◀ ▶", stringResource(R.string.pad_adjust)), back, section

@@ -25,6 +25,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,7 +38,6 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -54,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusDirection
+import androidx.compose.ui.focus.FocusEnterExitScope
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
@@ -89,27 +91,66 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.layout.Spacer
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.cortinadev.dogmatix.R
+import com.cortinadev.dogmatix.ui.components.rememberInitialFocus
+import com.cortinadev.dogmatix.ui.components.closeOnGamepadB
+import com.cortinadev.dogmatix.ui.components.DialogButton
 import com.cortinadev.dogmatix.ui.components.stripExtension
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
+import com.cortinadev.dogmatix.data.model.LibraryGame
+import com.cortinadev.dogmatix.ui.screens.home.components.VersionState
 import com.cortinadev.dogmatix.data.model.SortOption
 import com.cortinadev.dogmatix.data.model.SourceFilter
 import com.cortinadev.dogmatix.ui.common.Gamepad
 import com.cortinadev.dogmatix.ui.common.GamepadButton
 import com.cortinadev.dogmatix.ui.common.Legend
 import com.cortinadev.dogmatix.ui.components.LegendEntry
+import com.cortinadev.dogmatix.ui.components.SidePanelWidth
+import com.cortinadev.dogmatix.ui.screens.collection.collections.AddToCollectionDialog
 import com.cortinadev.dogmatix.ui.components.focusRing
 import com.cortinadev.dogmatix.ui.components.rememberFocusSource
 import com.cortinadev.dogmatix.ui.components.swapFaceButtons
+import com.cortinadev.dogmatix.ui.screens.home.components.ActiveFilter
+import com.cortinadev.dogmatix.ui.screens.home.components.ActiveFiltersBar
 import com.cortinadev.dogmatix.ui.screens.home.components.FilterOption
+import com.cortinadev.dogmatix.ui.screens.home.components.activeFiltersOf
 import com.cortinadev.dogmatix.ui.screens.home.components.FilterPanel
 import com.cortinadev.dogmatix.ui.screens.home.components.FilterRowSpec
+import com.cortinadev.dogmatix.ui.screens.home.components.SortButton
 import com.cortinadev.dogmatix.ui.screens.home.components.GameDetailsDialog
+import com.cortinadev.dogmatix.ui.screens.home.components.CoverGap
 import com.cortinadev.dogmatix.ui.screens.home.components.RomRow
+import com.cortinadev.dogmatix.ui.screens.home.components.RommGameSection
+import com.cortinadev.dogmatix.ui.screens.home.components.TableCoverSize
 import com.cortinadev.dogmatix.ui.screens.home.components.SearchField
+import com.cortinadev.dogmatix.ui.screens.home.components.Recommendations
+import com.cortinadev.dogmatix.ui.screens.home.components.rememberListLetterJump
+import com.cortinadev.dogmatix.ui.screens.home.components.genreDecadeRows
+import com.cortinadev.dogmatix.ui.navigation.NavRoutes
+import com.cortinadev.dogmatix.util.LetterJump
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.snapshotFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import com.cortinadev.dogmatix.util.ConsoleFormatter
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+// busqueda
+import androidx.compose.foundation.layout.heightIn
+import com.cortinadev.dogmatix.data.search.SearchEntry
+import com.cortinadev.dogmatix.data.search.SearchGroup
+import com.cortinadev.dogmatix.data.search.SearchGroupHits
+import com.cortinadev.dogmatix.ui.screens.home.components.AlsoInLine
+import com.cortinadev.dogmatix.ui.screens.home.components.GroupJump
+import com.cortinadev.dogmatix.ui.screens.home.components.RecentSearchesPanel
+import com.cortinadev.dogmatix.ui.screens.home.components.globalSearchGroupOffset
+import com.cortinadev.dogmatix.ui.screens.home.components.globalSearchGroups
+import com.cortinadev.dogmatix.ui.screens.home.components.noGamesItem
+import com.cortinadev.dogmatix.util.RecentSearches
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val FAV_ALL = "all"
 private const val FAV_ONLY = "only"
@@ -121,6 +162,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val results by viewModel.results.collectAsState()
+    val games by viewModel.games.collectAsState()
     val hasMoreResults by viewModel.hasMoreResults.collectAsState()
     val isLoadingMore by viewModel.isLoadingMore.collectAsState()
     val query by viewModel.searchQuery.collectAsState()
@@ -136,6 +178,21 @@ fun HomeScreen(
     val activeDownloads by viewModel.activeDownloads.collectAsState()
     val favoriteLanguages by viewModel.favoriteLanguages.collectAsState()
     val detailsState by viewModel.details.collectAsState()
+    val showListCovers by viewModel.showListCovers.collectAsState()
+    val similar by viewModel.similar.collectAsState()
+    // busqueda
+    val recentSearches by viewModel.search.recent.collectAsState()
+    val globalResults by viewModel.search.results.collectAsState()
+    val genres by viewModel.genres.collectAsState()
+    val decades by viewModel.decades.collectAsState()
+    val traitsLoading by viewModel.traitsLoading.collectAsState()
+    val showRecommendations by viewModel.showRecommendations.collectAsState()
+    val recommendations by viewModel.recommendations.collectAsState()
+    val listForced by viewModel.listForced.collectAsState()
+    val letterJumpEnabled by viewModel.letterJumpEnabled.collectAsState()
+    // coleccion-gestion
+    val collection by viewModel.collection.collectAsState()
+    var addToCollection by remember { mutableStateOf<DownloadableFileWithTags?>(null) }
 
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -160,6 +217,104 @@ fun HomeScreen(
     // Row under the D-pad cursor: X opens its details card.
     var focusedItem by remember { mutableStateOf<DownloadableFileWithTags?>(null) }
     val focusManager = LocalFocusManager.current
+
+    // busqueda: recent searches under the open, empty box; matches in other sections under the games.
+    val recentsFocus = remember { FocusRequester() }
+    var recentsFocused by remember { mutableStateOf(false) }
+    var fieldFocused by remember { mutableStateOf(false) }
+    val showRecents = searchActive && query.isEmpty() && recentSearches.isNotEmpty()
+    val inRecents = showRecents && recentsFocused
+    LaunchedEffect(showRecents) { if (!showRecents) recentsFocused = false }
+    val globalGroups = if (query.isBlank()) emptyList() else globalResults.groups
+    var groupJump by remember { mutableStateOf<GroupJump?>(null) }
+    var globalFocused by remember { mutableStateOf(false) }
+    var alsoInFocused by remember { mutableStateOf(false) }
+    var sortFocused by remember { mutableStateOf(false) }
+    var sortMenuOpen by remember { mutableStateOf(false) }
+    val sortFocus = remember { FocusRequester() }
+    // Set by ▶ in the search box so that closing it lands on the sort button.
+    var searchToSort by remember { mutableStateOf(false) }
+    val searchToSortButton = {
+        searchToSort = true
+        runCatching { sortFocus.requestFocus() }.isSuccess
+    }
+    // Matches under the cursor (the legend changes there). Moving between two of them must not
+    // recompose this heavy screen, so a lost focus only counts if no other match took it a frame later.
+    val globalFocusCount = remember { intArrayOf(0) }
+    LaunchedEffect(globalGroups.isEmpty()) {
+        if (globalGroups.isEmpty()) { globalFocusCount[0] = 0; globalFocused = false; alsoInFocused = false }
+    }
+    val onGlobalFocusChange: (Boolean) -> Unit = { focused ->
+        globalFocusCount[0] = (globalFocusCount[0] + if (focused) 1 else -1).coerceAtLeast(0)
+        if (focused) {
+            globalFocused = true
+            // X and SELECT act on the game row under the cursor: none while on another section's match.
+            focusedItem = null
+        } else scope.launch {
+            withFrameNanos { }
+            if (globalFocusCount[0] == 0) globalFocused = false
+        }
+    }
+    val confirmSearch = { viewModel.search.confirm(viewModel.searchQuery.value) { viewModel.results.value.isNotEmpty() } }
+    // ▼ into the recent searches keeps the search open; closing the keyboard any other way confirms it.
+    val dismissSearch = {
+        if (!recentsFocused) {
+            searchActive = false
+            // ▶ from the box went to the sort button: leave the focus there, not on the list.
+            runCatching { (if (searchToSort) sortFocus else listFocus).requestFocus() }
+            searchToSort = false
+            confirmSearch()
+        }
+    }
+    // The panel that had the focus goes away with the new results: land on them once they are in.
+    var focusAfterApply by remember { mutableStateOf<Pair<String, List<DownloadableFileWithTags>>?>(null) }
+    LaunchedEffect(focusAfterApply) {
+        val (applied, before) = focusAfterApply ?: return@LaunchedEffect
+        withTimeoutOrNull(2_000) {
+            viewModel.results.first { it !== before }
+            viewModel.search.results.first { it.query == RecentSearches.clean(applied) }
+        }
+        withFrameNanos { }
+        withFrameNanos { }
+        if (!runCatching { listFocus.requestFocus() }.getOrDefault(false)) runCatching { Gamepad.sectionFocus.requestFocus() }
+        focusAfterApply = null
+    }
+    val applyRecent: (String) -> Unit = { recent ->
+        focusAfterApply = recent to viewModel.results.value
+        searchActive = false
+        viewModel.setSearch(recent)
+        viewModel.search.record(recent)
+    }
+    val openGlobal: (SearchEntry) -> Unit = { viewModel.search.open(it, viewModel.searchQuery.value) }
+    val recentsPanel: @Composable (Modifier) -> Unit = { modifier ->
+        RecentSearchesPanel(
+            recents = recentSearches,
+            onApply = applyRecent,
+            onRemove = viewModel.search::forget,
+            onClear = viewModel.search::clearRecent,
+            firstFocus = recentsFocus,
+            fieldFocus = searchFocus,
+            onFocusChange = { has ->
+                val had = recentsFocused
+                recentsFocused = has
+                // LB / RB or a tap took the focus elsewhere: close the search (▲ back to the box keeps it).
+                // Only a focus the panel had and lost: onFocusChanged also reports "unfocused" when
+                // the panel appears, and that must not close the search Y is just opening.
+                if (had && !has) scope.launch {
+                    withFrameNanos { }
+                    if (!recentsFocused && !fieldFocused) searchActive = false
+                }
+            },
+            modifier = modifier.heightIn(max = 320.dp)
+        )
+    }
+    val alsoInLine: @Composable (Modifier) -> Unit = { modifier ->
+        AlsoInLine(
+            groups = globalGroups,
+            onJump = { groupJump = GroupJump(it) },
+            modifier = modifier.onFocusChanged { alsoInFocused = it.hasFocus }
+        )
+    }
     // Folding hides whichever side holds the focus, so it is handed over explicitly
     // (two frames later when expanding: the panel has to be laid out first).
     val collapseFilters = {
@@ -172,6 +327,11 @@ fun HomeScreen(
         if (railHasFocus) scope.launch { withFrameNanos { }; withFrameNanos { }; runCatching { filterFocus.requestFocus() } }
     }
 
+    // Sorting by console only makes sense with more than one in play (the console filter's, or the library's).
+    val consoleSortAvailable = (selectedConsoles.ifEmpty { consolesWithFiles.map { it.id }.toSet() }).size > 1
+    LaunchedEffect(consoleSortAvailable) {
+        if (!consoleSortAvailable && sort == SortOption.CONSOLE) viewModel.setSort(SortOption.NAME_ASC)
+    }
     val consoleOptions = remember(consolesWithFiles) {
         consolesWithFiles.map { FilterOption(it.id, ConsoleFormatter.getConsoleFolderName(it.id), ConsoleFormatter.getConsoleShortName(it.id)) }
     }
@@ -192,6 +352,7 @@ fun HomeScreen(
         tagRow(stringResource(R.string.filter_region), categorizedTags?.regions?.tags.orEmpty()),
         tagRow(stringResource(R.string.filter_language), categorizedTags?.languages?.tags.orEmpty(), featured = favoriteLanguages),
         tagRow(stringResource(R.string.filter_tag), categorizedTags?.contentTypes?.tags.orEmpty()),
+    ) + genreDecadeRows(genres, decades, viewModel::setGenres, viewModel::setDecades) + listOf(
         FilterRowSpec(
             label = stringResource(R.string.filter_favourites),
             options = listOf(
@@ -213,21 +374,29 @@ fun HomeScreen(
             selected = setOf(sourceFilter.name),
             single = true,
             onSelectionChange = { sel -> viewModel.setSource(sel.firstOrNull()?.let { SourceFilter.valueOf(it) } ?: SourceFilter.ALL) }
-        ),
-        FilterRowSpec(
-            label = stringResource(R.string.filter_sort),
-            options = listOf(
-                FilterOption(SortOption.NAME_ASC.name, stringResource(R.string.sort_name_asc)),
-                FilterOption(SortOption.NAME_DESC.name, stringResource(R.string.sort_name_desc)),
-                FilterOption(SortOption.SIZE_DESC.name, stringResource(R.string.sort_size_desc), stringResource(R.string.sort_size_desc_short)),
-                FilterOption(SortOption.SIZE_ASC.name, stringResource(R.string.sort_size_asc), stringResource(R.string.sort_size_asc_short))
-            ),
-            selected = setOf(sort.name),
-            single = true,
-            onSelectionChange = { sel -> viewModel.setSort(sel.firstOrNull()?.let { SortOption.valueOf(it) } ?: SortOption.NAME_ASC) }
         )
     )
-    val activeFilterCount = selectedConsoles.size + activeTags.size + (if (favouritesOnly) 1 else 0) + (if (sourceFilter != SourceFilter.ALL) 1 else 0)
+    val activeFilterCount = selectedConsoles.size + activeTags.size + (if (favouritesOnly) 1 else 0) + (if (sourceFilter != SourceFilter.ALL) 1 else 0) +
+        (if (similar != null) 1 else 0) + genres.size + decades.size + (if (collection != null) 1 else 0)
+    // The filters in force, as chips under the search box. Portrait leaves the console out: its own
+    // chips are on screen already (it is the first row).
+    val activeFilters = buildList {
+        similar?.let { add(ActiveFilter("similar", stringResource(R.string.similar_to, it.title), loading = it.loading, onRemove = viewModel::clearSimilar)) }
+        collection?.let { add(ActiveFilter("collection", stringResource(R.string.collections_filter, it.name), onRemove = viewModel::clearCollection)) }
+        addAll(activeFiltersOf(if (isLandscape) filterRows else filterRows.drop(1)))
+    }
+    val barFocus = remember { FocusRequester() }
+    var barFocused by remember { mutableStateOf(false) }
+    LaunchedEffect(activeFilters.isEmpty()) { if (activeFilters.isEmpty()) barFocused = false }
+    // ▲ off the top of the list or the shelves (landscape): the tabs line up better with the left-hand
+    // cards, so the focus search would skip the sort pill; send it there unless "also in" or the
+    // chips of the filters in force sit between (the search finds those on its own).
+    val upToSort: FocusEnterExitScope.() -> Unit = {
+        if (requestedFocusDirection == FocusDirection.Up && globalGroups.isEmpty() && activeFilters.isEmpty()) {
+            cancelFocusChange()
+            runCatching { sortFocus.requestFocus() }
+        }
+    }
 
     val startedMessage = stringResource(R.string.download_started, "%s")
     val favouriteAddedMessage = stringResource(R.string.favourite_added, "%s")
@@ -256,31 +425,34 @@ fun HomeScreen(
     var ownedDialogItem by remember { mutableStateOf<DownloadableFileWithTags?>(null) }
     val onFileClick: (DownloadableFileWithTags) -> Unit = { item ->
         when {
-            viewModel.isDownloading(item.file, activeDownloads) -> showMessage(alreadyDownloadingMessage.format(item.file.name))
-            viewModel.isOwned(item.file, ownedKeys) -> ownedDialogItem = item
+            viewModel.isGameDownloading(item, activeDownloads) -> showMessage(alreadyDownloadingMessage.format(item.file.name))
+            viewModel.isGameOwned(item, ownedKeys) -> ownedDialogItem = item
             else -> download(item)
         }
     }
 
     ownedDialogItem?.let { item ->
         AlertDialog(
+            // B closes it; the focus starts on "Download again", never on "Delete" (the dialog
+            // opens with A, and a second A must not wipe the game).
+            modifier = Modifier.closeOnGamepadB { ownedDialogItem = null },
             onDismissRequest = { ownedDialogItem = null },
             title = { Text(stripExtension(item.file.name)) },
             text = { Text(stringResource(R.string.owned_dialog_message)) },
             confirmButton = {
-                TextButton(onClick = {
+                DialogButton(stringResource(R.string.owned_download_again), onClick = {
                     ownedDialogItem = null
                     download(item)
-                }) { Text(stringResource(R.string.owned_download_again)) }
+                }, initialFocus = rememberInitialFocus())
             },
             dismissButton = {
-                TextButton(onClick = {
+                DialogButton(stringResource(R.string.owned_delete), onClick = {
                     ownedDialogItem = null
                     scope.launch {
                         val ok = viewModel.deleteOwned(item)
                         showMessage((if (ok) deletedMessage else deleteFailedMessage).format(item.file.name))
                     }
-                }) { Text(stringResource(R.string.owned_delete)) }
+                })
             }
         )
     }
@@ -289,50 +461,184 @@ fun HomeScreen(
         GameDetailsDialog(
             state = state,
             consoleName = ConsoleFormatter.getConsoleShortName(state.item.file.consoleId),
-            favourite = viewModel.isFavourite(state.item.file, favouriteKeys),
+            favourite = viewModel.isGameFavourite(state.item, favouriteKeys),
             onToggleFavourite = { toggleFavourite(state.item) },
             onDownload = { viewModel.closeDetails(); onFileClick(state.item) },
-            onDismiss = viewModel::closeDetails
+            onDismiss = viewModel::closeDetails,
+            onShowSimilar = { viewModel.showSimilar(state.item, state.details) },
+            versionState = { version ->
+                when {
+                    viewModel.isVersionDownloading(version, activeDownloads) -> VersionState.DOWNLOADING
+                    viewModel.isVersionOwned(version, ownedKeys) -> VersionState.OWNED
+                    else -> VersionState.NONE
+                }
+            },
+            onDownloadVersion = { version ->
+                scope.launch { viewModel.downloadVersion(version, context) }
+                showMessage(startedMessage.format(version.primary.file.name))
+            },
+            // romm-catalogo: the game on the RomM server (nothing when it is not there); it
+            // shares the room left with the top block so the buttons always fit.
+            extra = { RommGameSection(state, Modifier.weight(1f, fill = false)) },
+            onAddToCollection = { addToCollection = state.item }
         )
+    }
+    addToCollection?.let { item ->
+        AddToCollectionDialog(
+            consoleId = item.file.consoleId,
+            groupKey = item.file.groupKey,
+            gameName = stripExtension(item.file.name),
+            onDismiss = { addToCollection = null }
+        )
+    }
+
+    // The similar list replaces the rows the details card was opened from: land on its first one.
+    val similarReady = similar?.takeIf { !it.loading }?.fileId
+    LaunchedEffect(similarReady, results.isNotEmpty()) {
+        if (similarReady == null || results.isEmpty()) return@LaunchedEffect
+        withFrameNanos { }
+        withFrameNanos { }
+        runCatching { listFocus.requestFocus() }
+    }
+    val emptyText = when {
+        similar?.loading == true -> stringResource(R.string.similar_searching)
+        (genres.isNotEmpty() || decades.isNotEmpty()) && traitsLoading -> stringResource(R.string.traits_loading)
+        else -> null
+    }
+
+    // Leaving the list for the recommendations, or the other way, takes the D-pad focus along:
+    // once the new view is on screen, its first card / row gets it.
+    var refocus by remember { mutableStateOf<Refocus?>(null) }
+    var refocusSerial by remember { mutableIntStateOf(0) }
+    LaunchedEffect(refocus) {
+        val target = refocus ?: return@LaunchedEffect
+        // An undone layer may leave the list on screen (the list was opened by a deep link or a
+        // collection): its new rows arriving count too, and its first row then takes the focus.
+        val before = results
+        withTimeoutOrNull(1_000) {
+            snapshotFlow { showRecommendations == target.toRecommendations || results !== before }.first { it }
+        }
+        // Shelves still being worked out: wait a little for them rather than land on "All games".
+        if (showRecommendations) withTimeoutOrNull(3_000) { snapshotFlow { recommendations.ready }.first { it } }
+        for (attempt in 0 until 10) {
+            withFrameNanos { }
+            if (runCatching { listFocus.requestFocus() }.isSuccess) break
+        }
+    }
+    val activeFiltersBar: @Composable (Modifier) -> Unit = { modifier ->
+        ActiveFiltersBar(
+            filters = activeFilters,
+            onClearAll = viewModel::clearAllFilters,
+            entryFocus = barFocus,
+            upFocus = sortFocus,
+            // The last chip gone with the focus on it: the list (or the shelves) takes it.
+            onEmptied = { if (barFocused) refocus = Refocus(toRecommendations = true, serial = ++refocusSerial) },
+            modifier = modifier.onFocusChanged { barFocused = it.hasFocus }
+        )
+    }
+    val showAllGames = {
+        viewModel.showAllGames()
+        refocus = Refocus(toRecommendations = false, serial = ++refocusSerial)
+    }
+    val openSources = {
+        navController.navigate(NavRoutes.Sources.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
+    // First letter of every loaded row, for ◀ ▶ letter jumps in the A→Z / Z→A list.
+    val rowLetters = remember(results, games, letterJumpEnabled) {
+        if (!letterJumpEnabled) null else results.map { LetterJump.letterOf(listName(it, games)) }
+    }
+
+    // coleccion-gestion: opening a collection (Collection tab) lands on its first game, once.
+    val landOnCollection by viewModel.landOnCollection.collectAsState()
+    LaunchedEffect(landOnCollection) {
+        if (!landOnCollection) return@LaunchedEffect
+        withFrameNanos { }
+        withFrameNanos { }
+        runCatching { listFocus.requestFocus() }
+        viewModel.landedOnCollection()
     }
 
     // Button legend follows where the focus is. Kept short: B (back) and LB / RB are left out
     // of the list and filter legends so they fit on one line even on 4:3 screens.
     val filtersKey = if (isLandscape) listOf(LegendEntry("R3", stringResource(R.string.pad_filters))) else emptyList()
     val section = LegendEntry("ZL · ZR", stringResource(R.string.pad_section))
-    val legendList = listOf(
+    val legendCards = listOf(
         LegendEntry("A", stringResource(R.string.pad_download)), LegendEntry("X", stringResource(R.string.pad_details)),
         LegendEntry("Y", stringResource(R.string.pad_search)), LegendEntry("SELECT", stringResource(R.string.pad_favourite))
     ) + filtersKey + section
+    // ◀ ▶ jump letter by letter in the A→Z / Z→A list.
+    val letterKey = if (rowLetters != null) listOf(LegendEntry("◀ ▶", stringResource(R.string.pad_letter))) else emptyList()
+    val legendList = legendCards.take(4) + letterKey + filtersKey + section
     val legendFilters = listOf(
         LegendEntry("A", stringResource(R.string.pad_options)), LegendEntry("◀ ▶", stringResource(R.string.pad_change))
     ) + filtersKey + section
     val legendDetails = listOf(
         LegendEntry("A", stringResource(R.string.pad_select)), LegendEntry("B", stringResource(R.string.pad_close)),
         LegendEntry("SELECT", stringResource(R.string.pad_favourite)), LegendEntry("▲ ▼", stringResource(R.string.pad_scroll))
-    )
+    ) + if ((detailsState?.versions?.size ?: 0) > 1) {
+        // Versions box ⇄ buttons, like filters ⇄ list.
+        listOf(LegendEntry("LB · RB", stringResource(R.string.pad_panels)))
+    } else emptyList()
     val legendSearch = listOf(
         LegendEntry("A", stringResource(R.string.pad_keyboard)), LegendEntry("B", stringResource(R.string.pad_close_keyboard))
+    ) + (if (showRecents) listOf(LegendEntry("▼", stringResource(R.string.pad_recent))) else emptyList()) +
+        LegendEntry("▶", stringResource(R.string.pad_sort))
+    val legendRecents = listOf(
+        LegendEntry("A", stringResource(R.string.pad_apply)), LegendEntry("X", stringResource(R.string.pad_delete)),
+        LegendEntry("B", stringResource(R.string.pad_close))
     )
+    val legendSort = listOf(
+        LegendEntry("A", stringResource(R.string.pad_sort)), LegendEntry("◀", stringResource(R.string.pad_search)), section
+    )
+    val legendSortMenu = listOf(
+        LegendEntry("A", stringResource(R.string.pad_select)), LegendEntry("B", stringResource(R.string.pad_close))
+    )
+    val legendBar = listOf(LegendEntry("A", stringResource(R.string.pad_remove)), section)
+    val legendGlobal = listOf(
+        LegendEntry("A", stringResource(R.string.pad_open)), LegendEntry("Y", stringResource(R.string.pad_search))
+    ) + section
     val legend = when {
         detailsState != null -> legendDetails
+        sortMenuOpen -> legendSortMenu
+        inRecents -> legendRecents
         searchActive -> legendSearch
         filtersHaveFocus || showFilterSheet -> legendFilters
+        barFocused -> legendBar
+        globalFocused || alsoInFocused -> legendGlobal
+        sortFocused -> legendSort
+        showRecommendations -> legendCards
         else -> legendList
     }
-    val published = remember(legend) { Legend(legend) }
-    LaunchedEffect(published) { Gamepad.legendOverride.value = published }
+    // Only while this is the current section: leaving it (a search result in another section) the
+    // focus goes and the legend changes while this screen is still composed, which would replace
+    // the new section's legend, and the dispose that follows would leave none.
+    val onThisTab = navController.currentBackStackEntryAsState().value?.destination?.route == NavRoutes.Home.route
+    val published = remember(legend, onThisTab) { if (onThisTab) Legend(legend) else null }
+    LaunchedEffect(published) { if (published != null) Gamepad.legendOverride.value = published }
     // Only clear our own legend: another screen may already have published its own during the transition.
-    DisposableEffect(published) { onDispose { if (Gamepad.legendOverride.value === published) Gamepad.legendOverride.value = null } }
+    DisposableEffect(published) { onDispose { if (published != null && Gamepad.legendOverride.value === published) Gamepad.legendOverride.value = null } }
 
     // B / Back undoes one layer at a time and never leaves the app from here (Home is the root).
     BackHandler {
+        // Undoing the last filter brings the recommendations back; the focus follows from the list.
+        fun undo(action: () -> Unit) {
+            if (listHasFocus) refocus = Refocus(toRecommendations = true, serial = ++refocusSerial)
+            action()
+        }
         when {
             showFilterSheet -> showFilterSheet = false
             expandedFilter != null -> expandedFilter = null
+            inRecents -> { searchActive = false; runCatching { listFocus.requestFocus() } }
             searchActive -> { focusManager.clearFocus(); searchActive = false }
-            query.isNotEmpty() -> viewModel.setSearch("")
-            activeFilterCount > 0 || sort != SortOption.NAME_ASC -> viewModel.clearAllFilters()
+            similar != null -> undo(viewModel::clearSimilar)
+            collection != null -> undo(viewModel::clearCollection)
+            query.isNotEmpty() -> undo { viewModel.setSearch("") }
+            activeFilterCount > 0 || sort != SortOption.NAME_ASC || listForced -> undo(viewModel::clearAllFilters)
             else -> runCatching { Gamepad.sectionFocus.requestFocus() }
         }
     }
@@ -344,7 +650,8 @@ fun HomeScreen(
                 GamepadButton.X -> focusedItem?.takeIf { listHasFocus }?.let { viewModel.openDetails(it) }
                 // Select stars the row under the cursor, or the game whose details card is open.
                 GamepadButton.FAVOURITE -> (viewModel.details.value?.item ?: focusedItem?.takeIf { listHasFocus })?.let(toggleFavourite)
-                GamepadButton.Y -> searchActive = true
+                // From the recent searches Y goes back up to the box.
+                GamepadButton.Y -> if (recentsFocused) runCatching { searchFocus.requestFocus() } else searchActive = true
                 GamepadButton.PREV_PANEL -> if (isLandscape) {
                     filtersCollapsed = false
                     scope.launch { withFrameNanos { }; withFrameNanos { }; runCatching { filterFocus.requestFocus() } }
@@ -368,7 +675,7 @@ fun HomeScreen(
             // child is measured once at a fixed size and the animated width is read only while
             // placing. No alpha fade either: an alpha graphicsLayer renders the panel to an
             // offscreen buffer and the GPU wait alone was ~190 ms per frame.
-            val panelWidth = 216.dp
+            val panelWidth = SidePanelWidth
             val railWidth = 48.dp
             val dividerWidth = 1.dp
             val targetWidth = if (filtersCollapsed) railWidth else panelWidth
@@ -427,7 +734,6 @@ fun HomeScreen(
                     ) {
                     FilterPanel(
                         rows = filterRows,
-                        onClear = viewModel::clearAllFilters,
                         compact = true,
                         firstRowFocus = filterFocus,
                         expandedRow = expandedFilter,
@@ -459,41 +765,83 @@ fun HomeScreen(
                             .fillMaxSize()
                             .padding(start = 12.dp, end = 12.dp, top = 12.dp)
                     ) {
-                        SearchField(
-                            value = query,
-                            onValueChange = viewModel::setSearch,
-                            active = searchActive,
-                            onActivate = { searchActive = true },
-                            onDismiss = { searchActive = false; runCatching { listFocus.requestFocus() } },
-                            focusRequester = searchFocus,
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            SearchField(
+                                value = query,
+                                onValueChange = viewModel::setSearch,
+                                active = searchActive,
+                                onActivate = { searchActive = true },
+                                onDismiss = dismissSearch,
+                                focusRequester = searchFocus,
+                                contentShift = contentShift,
+                                onSubmit = confirmSearch,
+                                onDirectionDown = { showRecents && runCatching { recentsFocus.requestFocus() }.getOrDefault(false) },
+                                onDirectionRight = searchToSortButton,
+                                modifier = Modifier.weight(1f).onFocusChanged { fieldFocused = it.hasFocus }
+                            )
+                            SortButton(
+                                sort, viewModel::setSort, onLeft = { searchActive = true }, consoleSort = consoleSortAvailable,
+                                modifier = Modifier.onFocusChanged { sortFocused = it.hasFocus },
+                                focusRequester = sortFocus, onMenuChange = { sortMenuOpen = it }
+                            )
+                        }
+                        if (showRecents) recentsPanel(Modifier)
+                        if (activeFilters.isNotEmpty()) activeFiltersBar(Modifier.offset { IntOffset(contentShift(), 0) })
+                        if (globalGroups.isNotEmpty()) alsoInLine(Modifier)
+                        if (showRecommendations) Recommendations(
+                            state = recommendations,
+                            consoleName = { ConsoleFormatter.getConsoleShortName(it) },
+                            isFavourite = { viewModel.isGameFavourite(it, favouriteKeys) },
+                            isDownloading = { viewModel.isGameDownloading(it, activeDownloads) },
+                            onClick = onFileClick,
+                            onLongClick = viewModel::openDetails,
+                            onCardFocused = { focusedItem = it },
+                            onShowAll = showAllGames,
+                            onOpenSources = openSources,
+                            firstFocus = listFocus,
+                            modifier = Modifier
+                                .weight(1f)
+                                .onFocusChanged { listHasFocus = it.hasFocus }
+                                .focusProperties { onExit = upToSort }
+                                .focusGroup(),
                             contentShift = contentShift
-                        )
-                        if (tableRows) TableHeader(contentShift) else Text(
+                        ) else {
+                        if (tableRows) TableHeader(contentShift, nameInset = if (showListCovers) TableCoverSize + CoverGap else 0.dp) else ResultsLabel(
                             resultsLabel(results.size, hasMoreResults),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(start = 14.dp, top = 8.dp, bottom = 6.dp)
                         )
                         ResultList(
                             results = results,
                             compact = tableRows,
+                            showCovers = showListCovers,
+                            emptyText = emptyText,
                             hasMore = hasMoreResults,
                             isLoadingMore = isLoadingMore,
                             onLoadMore = { scope.launch { viewModel.loadMore() } },
                             getConsoleName = { ConsoleFormatter.getConsoleShortName(it) },
                             onFileClick = onFileClick,
-                            isOwned = { viewModel.isOwned(it.file, ownedKeys) },
-                            isFavourite = { viewModel.isFavourite(it.file, favouriteKeys) },
-                            isDownloading = { viewModel.isDownloading(it.file, activeDownloads) },
+                            isOwned = { viewModel.isGameOwned(it, ownedKeys) },
+                            isFavourite = { viewModel.isGameFavourite(it, favouriteKeys) },
+                            isDownloading = { viewModel.isGameDownloading(it, activeDownloads) },
+                            gameOf = { games[it.file.id] },
                             onRowFocused = { focusedItem = it },
                             onRowLongClick = viewModel::openDetails,
                             modifier = Modifier
                                 .weight(1f)
                                 .onFocusChanged { listHasFocus = it.hasFocus }
+                                .focusProperties { onExit = upToSort }
                                 .focusGroup(),
                             firstRowFocus = listFocus,
-                            contentShift = contentShift
+                            contentShift = contentShift,
+                            globalGroups = globalGroups,
+                            onOpenGlobal = openGlobal,
+                            onGlobalFocusChange = onGlobalFocusChange,
+                            groupJump = groupJump,
+                            onGroupJumpDone = { groupJump = null },
+                            rowLetters = rowLetters,
+                            nextLetterBeyond = viewModel::nextLetterStart
                         )
+                        }
                     }
                     }
                 }
@@ -525,43 +873,79 @@ fun HomeScreen(
                         onValueChange = viewModel::setSearch,
                         active = searchActive,
                         onActivate = { searchActive = true },
-                        onDismiss = { searchActive = false; runCatching { listFocus.requestFocus() } },
+                        onDismiss = dismissSearch,
                         focusRequester = searchFocus,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).onFocusChanged { fieldFocused = it.hasFocus },
+                        onSubmit = confirmSearch,
+                        onDirectionDown = { showRecents && runCatching { recentsFocus.requestFocus() }.getOrDefault(false) },
+                        onDirectionRight = searchToSortButton
+                    )
+                    SortButton(
+                        sort, viewModel::setSort, onLeft = { searchActive = true }, consoleSort = consoleSortAvailable,
+                        modifier = Modifier.onFocusChanged { sortFocused = it.hasFocus },
+                        focusRequester = sortFocus, onMenuChange = { sortMenuOpen = it }
                     )
                     FilterButton(count = activeFilterCount) { showFilterSheet = true }
                 }
+                if (showRecents) recentsPanel(Modifier.padding(horizontal = 16.dp))
+                if (activeFilters.isNotEmpty()) activeFiltersBar(Modifier.padding(horizontal = 16.dp))
                 ConsoleChips(
                     options = consoleOptions,
                     selected = selectedConsoles,
                     onSelect = viewModel::setConsoleSelection,
                     modifier = Modifier.padding(vertical = 10.dp)
                 )
-                Text(
+                if (globalGroups.isNotEmpty()) alsoInLine(Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp))
+                if (showRecommendations) Recommendations(
+                    state = recommendations,
+                    consoleName = { ConsoleFormatter.getConsoleShortName(it) },
+                    isFavourite = { viewModel.isGameFavourite(it, favouriteKeys) },
+                    isDownloading = { viewModel.isGameDownloading(it, activeDownloads) },
+                    onClick = onFileClick,
+                    onLongClick = viewModel::openDetails,
+                    onCardFocused = { focusedItem = it },
+                    onShowAll = showAllGames,
+                    onOpenSources = openSources,
+                    firstFocus = listFocus,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(horizontal = 12.dp)
+                        .onFocusChanged { listHasFocus = it.hasFocus }
+                ) else {
+                ResultsLabel(
                     resultsLabel(results.size, hasMoreResults),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = 30.dp, bottom = 6.dp)
+                    modifier = Modifier.padding(start = 30.dp, end = 16.dp, bottom = 6.dp)
                 )
                 ResultList(
                     results = results,
                     compact = false,
+                    showCovers = showListCovers,
+                    emptyText = emptyText,
                     hasMore = hasMoreResults,
                     isLoadingMore = isLoadingMore,
                     onLoadMore = { scope.launch { viewModel.loadMore() } },
                     getConsoleName = { ConsoleFormatter.getConsoleShortName(it) },
                     onFileClick = onFileClick,
-                    isOwned = { viewModel.isOwned(it.file, ownedKeys) },
-                    isFavourite = { viewModel.isFavourite(it.file, favouriteKeys) },
-                    isDownloading = { viewModel.isDownloading(it.file, activeDownloads) },
+                    isOwned = { viewModel.isGameOwned(it, ownedKeys) },
+                    isFavourite = { viewModel.isGameFavourite(it, favouriteKeys) },
+                    isDownloading = { viewModel.isGameDownloading(it, activeDownloads) },
+                    gameOf = { games[it.file.id] },
                     onRowFocused = { focusedItem = it },
                     onRowLongClick = viewModel::openDetails,
                     modifier = Modifier
                         .weight(1f)
                         .padding(horizontal = 12.dp)
                         .onFocusChanged { listHasFocus = it.hasFocus },
-                    firstRowFocus = listFocus
+                    firstRowFocus = listFocus,
+                    globalGroups = globalGroups,
+                    onOpenGlobal = openGlobal,
+                    onGlobalFocusChange = onGlobalFocusChange,
+                    groupJump = groupJump,
+                    onGroupJumpDone = { groupJump = null },
+                    rowLetters = rowLetters,
+                    nextLetterBeyond = viewModel::nextLetterStart
                 )
+                }
             }
 
             if (showFilterSheet) {
@@ -586,19 +970,22 @@ fun HomeScreen(
                     LaunchedEffect(Unit) { runCatching { filterFocus.requestFocus() } }
                     Box(
                         modifier = Modifier.swapFaceButtons().onPreviewKeyEvent { event ->
+                            // ZL / ZR (down and up) go through the shared trigger state, so the axis of an
+                            // analog pull that closes the sheet does not count it again in the Activity.
+                            if (event.key == Key.ButtonL2 || event.key == Key.ButtonR2) {
+                                if (event.type == KeyEventType.KeyDown) showFilterSheet = false
+                                return@onPreviewKeyEvent Gamepad.interceptKey(event.nativeKeyEvent)
+                            }
                             if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                             when (event.key) {
                                 Key.ButtonR1, Key.ButtonThumbRight -> { showFilterSheet = false; true }
                                 Key.ButtonY -> { showFilterSheet = false; searchActive = true; true }
-                                Key.ButtonL2 -> { showFilterSheet = false; Gamepad.presses.tryEmit(GamepadButton.PREV_TAB); true }
-                                Key.ButtonR2 -> { showFilterSheet = false; Gamepad.presses.tryEmit(GamepadButton.NEXT_TAB); true }
                                 else -> false
                             }
                         }
                     ) {
                     FilterPanel(
                         rows = filterRows,
-                        onClear = viewModel::clearAllFilters,
                         compact = false,
                         firstRowFocus = filterFocus,
                         expandedRow = expandedFilter,
@@ -633,8 +1020,26 @@ fun HomeScreen(
 private fun resultsLabel(count: Int, hasMore: Boolean): String =
     stringResource(if (hasMore) R.string.results_count_more else R.string.results_count, count)
 
+/** A request to move the focus into the recommendations ([toRecommendations]) or the list once it is shown. */
+private data class Refocus(val toRecommendations: Boolean, val serial: Int)
+
+/** The name a game sorts by in the list (the DAO's `MIN(name)` over its files), for letter jumps. */
+private fun listName(item: DownloadableFileWithTags, games: Map<Long, LibraryGame>): String =
+    games[item.file.id]?.files?.minOfOrNull { it.file.name } ?: item.file.name
+
+/** "N results" above the stacked list. */
 @Composable
-private fun TableHeader(contentShift: () -> Int = { 0 }) {
+private fun ResultsLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier.fillMaxWidth()
+    )
+}
+
+@Composable
+private fun TableHeader(contentShift: () -> Int = { 0 }, nameInset: Dp = 0.dp) {
     val color = MaterialTheme.colorScheme.onSurfaceVariant
     val style = MaterialTheme.typography.labelMedium
     Row(
@@ -647,7 +1052,7 @@ private fun TableHeader(contentShift: () -> Int = { 0 }) {
     ) {
         Text(
             stringResource(R.string.column_name), style = style, color = color,
-            modifier = Modifier.weight(1f).clipToBounds().offset { IntOffset(contentShift(), 0) }
+            modifier = Modifier.weight(1f).clipToBounds().offset { IntOffset(contentShift(), 0) }.padding(start = nameInset)
         )
         Text(stringResource(R.string.column_tags), style = style, color = color, modifier = Modifier.width(300.dp))
         Text(stringResource(R.string.column_size), style = style, color = color, textAlign = TextAlign.End, modifier = Modifier.width(64.dp))
@@ -658,6 +1063,9 @@ private fun TableHeader(contentShift: () -> Int = { 0 }) {
 private fun ResultList(
     results: List<DownloadableFileWithTags>,
     compact: Boolean,
+    showCovers: Boolean,
+    /** Shown instead of "no results" (e.g. while the similar games are being looked for). */
+    emptyText: String?,
     hasMore: Boolean,
     isLoadingMore: Boolean,
     onLoadMore: () -> Unit,
@@ -669,13 +1077,25 @@ private fun ResultList(
     onRowFocused: (DownloadableFileWithTags) -> Unit,
     onRowLongClick: (DownloadableFileWithTags) -> Unit,
     modifier: Modifier = Modifier,
+    /** The game behind a row: its versions and discs (see HomeViewModel.games). */
+    gameOf: (DownloadableFileWithTags) -> LibraryGame? = { null },
     firstRowFocus: FocusRequester? = null,
-    contentShift: () -> Int = { 0 }
+    contentShift: () -> Int = { 0 },
+    // busqueda: matches in other sections, listed under the games while the search has text.
+    globalGroups: List<SearchGroupHits> = emptyList(),
+    onOpenGlobal: (SearchEntry) -> Unit = {},
+    onGlobalFocusChange: (Boolean) -> Unit = {},
+    groupJump: GroupJump? = null,
+    onGroupJumpDone: () -> Unit = {},
+    /** First letter of each row (see LetterJump); null when the order is not by name (◀ ▶ then move the focus as usual). */
+    rowLetters: List<Char>? = null,
+    /** Where the next letter starts when it is past the loaded rows (loads up to it); null at the last letter. */
+    nextLetterBeyond: suspend (Int) -> Int? = { null }
 ) {
-    if (results.isEmpty()) {
+    if (results.isEmpty() && globalGroups.isEmpty()) {
         Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
             Text(
-                stringResource(R.string.no_results),
+                emptyText ?: stringResource(R.string.no_results),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -699,9 +1119,23 @@ private fun ResultList(
         runCatching { newPageFocus.requestFocus() }
         pendingFocusIndex = null
     }
+    // "Also in": scroll to the group and land on its first entry.
+    val groupFocus = remember { mutableMapOf<SearchGroup, FocusRequester>() }
+    val groupFocusFor: (SearchGroup) -> FocusRequester = { groupFocus.getOrPut(it) { FocusRequester() } }
+    LaunchedEffect(groupJump) {
+        val jump = groupJump ?: return@LaunchedEffect
+        globalSearchGroupOffset(globalGroups, jump.group)?.let { offset ->
+            val start = results.size + (if (hasMore) 1 else 0) + (if (results.isEmpty()) 1 else 0)
+            listState.scrollToItem(start + offset)
+            withFrameNanos { }
+            runCatching { groupFocusFor(jump.group).requestFocus() }
+        }
+        onGroupJumpDone()
+    }
+    val letterJump = rememberListLetterJump(listState, results.size, rowLetters, hasMore, nextLetterBeyond)
     LazyColumn(
         state = listState,
-        modifier = modifier,
+        modifier = modifier.then(letterJump.modifier),
         contentPadding = PaddingValues(bottom = 12.dp),
         verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
@@ -715,13 +1149,21 @@ private fun ResultList(
                 owned = isOwned(item),
                 favourite = isFavourite(item),
                 downloading = isDownloading(item),
+                showCover = showCovers,
+                game = gameOf(item),
                 contentShift = contentShift,
                 // RB from the filters lands on the first row currently on screen.
                 modifier = when {
                     index == pendingFocusIndex -> Modifier.focusRequester(newPageFocus)
+                    index == letterJump.focusIndex -> Modifier.focusRequester(letterJump.focus)
                     index == focusIndex && firstRowFocus != null -> Modifier.focusRequester(firstRowFocus)
                     else -> Modifier
-                }.onFocusChanged { if (it.isFocused) onRowFocused(item) }
+                }.onFocusChanged {
+                    if (it.isFocused) {
+                        letterJump.onRowFocused(index)
+                        onRowFocused(item)
+                    }
+                }
             )
         }
         if (hasMore) {
@@ -744,6 +1186,19 @@ private fun ResultList(
                     }
                 }
             }
+        }
+        if (globalGroups.isNotEmpty()) {
+            if (results.isEmpty()) noGamesItem()
+            globalSearchGroups(
+                groups = globalGroups,
+                groupFocus = groupFocusFor,
+                // No games: the first match is where B from the box and RB from the filters land.
+                firstEntryFocus = firstRowFocus.takeIf { results.isEmpty() },
+                onOpen = onOpenGlobal,
+                // ◀ ▶ jump letters on the game rows only; on these they move the focus as usual.
+                onFocusChange = { focused -> letterJump.paused = focused; onGlobalFocusChange(focused) },
+                contentShift = contentShift
+            )
         }
     }
 }
@@ -802,7 +1257,7 @@ private fun FilterButton(count: Int, onClick: () -> Unit) {
             .height(44.dp)
             .clip(RoundedCornerShape(10.dp))
             .background(if (active) scheme.primary else scheme.surfaceContainerHigh)
-            .focusRing(source, 10.dp)
+            .focusRing(source, 10.dp, width = if (active) 2.dp else 1.5.dp, ringColor = if (active) scheme.onSurface else null)
             .clickable(interactionSource = source, indication = null, onClick = onClick)
             .padding(horizontal = 14.dp),
         verticalAlignment = Alignment.CenterVertically,

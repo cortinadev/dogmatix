@@ -5,11 +5,16 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.PowerManager
-import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
-import com.cortinadev.dogmatix.DogmatixApplication
-import com.cortinadev.dogmatix.R
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @AndroidEntryPoint
@@ -18,6 +23,14 @@ class DownloadForegroundService : Service() {
     @Inject lateinit var downloadService: DownloadService
     @Inject lateinit var torrentHandleRegistry: TorrentHandleRegistry
     @Inject lateinit var torrentProgressBridge: TorrentProgressBridge
+    @Inject lateinit var seedingManager: SeedingManager
+    @Inject lateinit var notifications: DownloadNotifications
+
+    /**
+     * Keeps the notification's figures current while the service runs. Posts on the main thread,
+     * like onDestroy: no update can land after the service took its notification away.
+     */
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private var wakeLock: PowerManager.WakeLock? = null
 
@@ -38,10 +51,20 @@ class DownloadForegroundService : Service() {
         wakeLock = pm.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "dogmatix:DownloadWakeLock").apply {
             acquire()
         }
+        scope.launch {
+            // Conflated + a pause per update: at most one post per REFRESH_MS, always the latest figures.
+            notifications.progress().distinctUntilChanged().conflate().collect {
+                notifications.updateOngoing(NOTIFICATION_ID, it)
+                delay(DownloadNotifications.REFRESH_MS)
+            }
+        }
     }
 
     override fun onDestroy() {
+        scope.cancel()
         downloadService.cancelAllDownloads()
+        // Release live seeds first: stop() only pauses handles, so their cached data would pile up.
+        seedingManager.stopAll()
         torrentHandleRegistry.session().removeListener(torrentProgressBridge)
         torrentHandleRegistry.stop()
         wakeLock?.release()
@@ -58,13 +81,9 @@ class DownloadForegroundService : Service() {
     }
 
     private fun promoteToForeground() {
-        val notification = NotificationCompat.Builder(this, DogmatixApplication.DOWNLOAD_CHANNEL_ID)
-            .setContentTitle("Downloading")
-            .setContentText("Downloads are running in the background")
-            .setSmallIcon(R.drawable.ic_arrow_down)
-            .setOngoing(true)
-            .setSilent(true)
-            .build()
+        // Downloads run again: the "paused" notice left by Pause all has done its job.
+        notifications.clearPaused()
+        val notification = notifications.ongoing(notifications.currentProgress())
 
         ServiceCompat.startForeground(
             this,

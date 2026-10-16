@@ -4,6 +4,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsFocusedAsState
@@ -25,10 +26,12 @@ fun Modifier.focusRing(
     cornerRadius: Dp = 8.dp,
     width: Dp = 1.5.dp,
     /** Shift (px) of the ring's left edge, read while drawing: follows the filter panel animation. */
-    startShift: () -> Int = { 0 }
+    startShift: () -> Int = { 0 },
+    /** Ring colour; something filled with the accent needs another one to show it. */
+    ringColor: Color? = null
 ): Modifier {
     val focused by interactionSource.collectIsFocusedAsState()
-    val color = MaterialTheme.colorScheme.primary
+    val color = ringColor ?: MaterialTheme.colorScheme.primary
     return this.drawWithContent {
         drawContent()
         if (!focused) return@drawWithContent

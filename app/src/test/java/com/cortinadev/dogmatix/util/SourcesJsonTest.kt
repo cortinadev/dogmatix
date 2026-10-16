@@ -127,6 +127,22 @@ class SourcesJsonTest {
     }
 
     @Test
+    fun colorIsOptionalNormalisedAndOnlyWrittenWhenSet() {
+        val doc = SourcesJson.parseDocument(
+            """{ "nintendo": { "snes": { "color": "ff5a5f", "urls": [] }, "nes": { "color": "red", "urls": [] }, "gb": { "urls": [] } } }"""
+        )
+        val consoles = doc[0].consoles.associateBy { it.id }
+        assertEquals("#FF5A5F", consoles.getValue("nintendo_snes").color)
+        assertEquals(null, consoles.getValue("nintendo_nes").color)   // not a colour: family default
+        assertEquals(null, consoles.getValue("nintendo_gb").color)
+
+        val json = SourcesJson.serializeDocument(doc)
+        assertTrue(json.contains("\"color\": \"#FF5A5F\""))
+        assertEquals(1, Regex("\"color\"").findAll(json).count())
+        assertEquals("#FF5A5F", SourcesJson.parseDocument(json)[0].consoles.first { it.id == "nintendo_snes" }.color)
+    }
+
+    @Test
     fun slugsAndConsoleKeysMatchRoomIds() {
         assertEquals("game_boy_advance", SourcesJson.slug("  Game Boy   Advance "))
         assertEquals("gameboy_advance", SourcesJson.consoleKey("nintendo", "nintendo_gameboy_advance"))

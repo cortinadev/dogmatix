@@ -35,4 +35,24 @@ class GameTitleCleanerTest {
         assertFalse(GameTitleCleaner.matches("'93 Chaoji Hun", "Cheman"))
         assertFalse(GameTitleCleaner.matches("Metroid Fusion", "Metroid Prime"))
     }
+
+    @Test
+    fun entryNumbersMustAgree() {
+        assertFalse(GameTitleCleaner.matches("Naruto Clash of Ninja 2", "Naruto: Clash of Ninja"))
+        assertTrue(GameTitleCleaner.matches("Naruto Clash of Ninja 2", "Naruto: Clash of Ninja 2"))
+        assertFalse(GameTitleCleaner.matches("Zelda", "Zelda II: The Adventure of Link"))
+        assertTrue(GameTitleCleaner.matches("Final Fantasy VII", "Final Fantasy 7"))
+        assertFalse(GameTitleCleaner.matches("Final Fantasy VII", "Final Fantasy VIII"))
+        assertTrue(GameTitleCleaner.matches("James Bond 007 Everything or Nothing", "007: Everything or Nothing"))
+        // A database's disambiguation in brackets does not count as an entry number.
+        assertTrue(GameTitleCleaner.matches("Doom", "DOOM (1993)"))
+        assertTrue(GameTitleCleaner.matches("Mega Man X", "Mega Man X"))
+    }
+
+    @Test
+    fun bestPicksTheClosestHit() {
+        val hits = listOf("Naruto: Clash of Ninja", "Naruto: Clash of Ninja 2 Special", "Naruto: Clash of Ninja 2")
+        assertEquals("Naruto: Clash of Ninja 2", GameTitleCleaner.best("Naruto Clash of Ninja 2", hits) { it })
+        assertEquals(null, GameTitleCleaner.best("Naruto Clash of Ninja 3", hits) { it })
+    }
 }

@@ -13,7 +13,11 @@ data class LibraryFilterRequest(
     val consoles: Set<String> = emptySet(),
     val tags: Set<String> = emptySet(),
     val query: String? = null,
-    val favouritesOnly: Boolean? = null
+    val favouritesOnly: Boolean? = null,
+    /** Genre ids or names, verbatim (resolved by `LibraryGenre.resolve`). */
+    val genres: Set<String> = emptySet(),
+    /** Decades: 1980, 1990… */
+    val decades: Set<Int> = emptySet()
 )
 
 /**

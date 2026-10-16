@@ -27,6 +27,13 @@ interface DownloadHistoryDao {
     @Query("UPDATE download_history SET debridProvider = :provider, debridTorrentId = :torrentId, debridFileId = :fileId WHERE fileName = :fileName")
     suspend fun setDebrid(fileName: String, provider: String?, torrentId: String?, fileId: Int?)
 
+    @Query("UPDATE download_history SET failureReason = :reason WHERE fileName = :fileName")
+    suspend fun setFailure(fileName: String, reason: String?)
+
     @Query("DELETE FROM download_history WHERE fileName = :fileName")
     suspend fun delete(fileName: String)
+
+    // dl-cola
+    @Query("UPDATE download_history SET queueOrder = :order, queueHeld = :held WHERE fileName = :fileName")
+    suspend fun setQueuePlace(fileName: String, order: Long, held: Boolean)
 }

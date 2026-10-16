@@ -4,6 +4,8 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.util.Log
+import coil.ImageLoader
+import coil.ImageLoaderFactory
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,7 +16,7 @@ import java.io.File
 import javax.inject.Inject
 
 @HiltAndroidApp
-class DogmatixApplication : Application() {
+class DogmatixApplication : Application(), ImageLoaderFactory {
     
     @Inject
     lateinit var versionCheckerService: com.cortinadev.dogmatix.data.service.VersionCheckerService
@@ -28,6 +30,41 @@ class DogmatixApplication : Application() {
     /** Injected so it starts watching finished downloads from the first one. */
     @Inject
     lateinit var rommUploadService: com.cortinadev.dogmatix.data.service.RommUploadService
+
+    // Both watch the downloads from the first one, like the RomM upload.
+    @Inject
+    lateinit var downloadAutoRetry: com.cortinadev.dogmatix.data.service.DownloadAutoRetry
+
+    @Inject
+    lateinit var multiDiscService: com.cortinadev.dogmatix.data.service.MultiDiscService
+
+    // dl-motor: checks every finished download against RomM / the console's DAT.
+    @Inject
+    lateinit var downloadVerifier: com.cortinadev.dogmatix.data.service.DownloadVerifier
+
+    // dl-cola: watches the queue from the first download to tell when a batch is over.
+    @Inject
+    lateinit var downloadNotifications: com.cortinadev.dogmatix.data.service.DownloadNotifications
+
+    // romm-transporte: images from a RomM server with a self-signed certificate (see RommTls).
+    @Inject
+    lateinit var rommTls: com.cortinadev.dogmatix.data.service.RommTls
+
+    // frontends: carries ★ changes over to ES-DE and syncs its favourites once after launch
+    @Inject
+    lateinit var esdeFavouriteSync: com.cortinadev.dogmatix.data.service.EsdeFavouriteSyncService
+
+    // romm-catalogo: the RomM catalogue reads itself on start / foreground, the favourites sync
+    // watches the stars from the first one.
+    @Inject
+    lateinit var rommCatalogService: com.cortinadev.dogmatix.data.service.RommCatalogService
+
+    @Inject
+    lateinit var rommFavouritesSync: com.cortinadev.dogmatix.data.service.RommFavouritesSyncService
+
+    // coleccion-analisis: refreshes the Collection analysis after downloads.
+    @Inject
+    lateinit var libraryScanService: com.cortinadev.dogmatix.data.service.LibraryScanService
 
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
@@ -68,13 +105,23 @@ class DogmatixApplication : Application() {
         }
     }
 
+    /**
+     * Coil's app-wide loader (covers, details artwork). libretro-thumbnails is served with
+     * five-minute cache headers, but a cover never changes: keep the disk copy regardless.
+     * Its OkHttp client also trusts the RomM server's certificate, on that server only.
+     */
+    override fun newImageLoader(): ImageLoader = ImageLoader.Builder(this)
+        .respectCacheHeaders(false)
+        .okHttpClient { rommTls.imageClient() }
+        .build()
+
     private fun createNotificationChannel() {
         val channel = NotificationChannel(
             DOWNLOAD_CHANNEL_ID,
-            "Downloads",
+            getString(R.string.notification_channel_downloads),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Active download progress"
+            description = getString(R.string.notification_channel_downloads_desc)
             setShowBadge(false)
         }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)

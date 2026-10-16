@@ -20,6 +20,15 @@ object DgmtxFile {
      */
     const val SHORTCUT_NAME = "★ Search for more games..."
 
+    /** File name of the shortcut in a console's own folder. */
+    const val SHORTCUT_FILE = "$SHORTCUT_NAME.$EXTENSION"
+
+    /**
+     * File name of a console's shortcut when every console shares the download root ("separate
+     * subfolders by console" off): the console has to be in the name, or they would collide.
+     */
+    fun rootShortcutFile(consoleShortName: String): String = "★ Search for more $consoleShortName games....$EXTENSION"
+
     /** Cap when reading a shortcut handed over by another app: anything bigger is not ours. */
     const val MAX_BYTES = 64 * 1024
 

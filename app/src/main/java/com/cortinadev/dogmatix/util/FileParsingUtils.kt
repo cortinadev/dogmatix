@@ -8,6 +8,13 @@ import java.nio.charset.StandardCharsets
 
 object FileParsingUtils {
 
+    // Compiled once: every indexed file of every source goes through these.
+    private val TAG_GROUP = Regex("\\(([^)]+)\\)")
+    private val SPACES = Regex("\\s+")
+
+    /** A table cell holding nothing but a size: `1.2 MiB`, `12 MB`, `66M` (Apache), `512` (bytes). */
+    private val SIZE_CELL_TEXT = Regex("""\d[\d.,]*\s*(?:[KMGTPE](?:i?B)?|B)?""", RegexOption.IGNORE_CASE)
+
     fun toUserReadablePath(uriString: String): String {
         if (uriString.isBlank()) return ""
         return try {
@@ -62,8 +69,7 @@ object FileParsingUtils {
         val tags = mutableListOf<String>()
         var cleanName = displayName
 
-        val tagPattern = Regex("\\(([^)]+)\\)")
-        val matches = tagPattern.findAll(displayName)
+        val matches = TAG_GROUP.findAll(displayName)
 
         for (match in matches) {
             val content = match.groupValues[1].trim()
@@ -82,7 +88,7 @@ object FileParsingUtils {
         }
 
         // Clean up any extra spaces that might be left
-        cleanName = cleanName.replace(Regex("\\s+"), " ").trim()
+        cleanName = cleanName.replace(SPACES, " ").trim()
 
         return Pair(cleanName, tags)
     }
@@ -132,9 +138,10 @@ object FileParsingUtils {
         }
     }
 
-    fun parseFileFromRow(row: Element, baseUrl: String, consoleId: String): Pair<DownloadableFileEntity?, List<FileTagEntity>> {
-        val linkCell = row.select("td.link a").first() ?: row.select("a").first()
-        val sizeCell = row.select("td.size").first() ?: row.select("td").getOrNull(1)
+    /** [link]: the row's link when the caller already found it (saves selecting it again). */
+    fun parseFileFromRow(row: Element, baseUrl: String, consoleId: String, link: Element? = null): Pair<DownloadableFileEntity?, List<FileTagEntity>> {
+        val linkCell = link ?: row.select("td.link a").first() ?: row.select("a").first()
+        val sizeCell = sizeCellOf(row)
 
         if (linkCell == null) return Pair(null, emptyList())
 
@@ -175,10 +182,24 @@ object FileParsingUtils {
         return Pair(fileEntity, tagEntities)
     }
 
+    /**
+     * The size column of a listing row: `td.size` (Myrient and similar), `td.fb-s` (h5ai), else
+     * the last cell without a link that reads as a size (Apache: icon, name, date, size,
+     * description), else the second cell as before.
+     */
+    fun sizeCellOf(row: Element): Element? {
+        val cells = row.select("td")
+        return row.selectFirst("td.size, td.fb-s")
+            ?: cells.lastOrNull { it.select("a").isEmpty() && SIZE_CELL_TEXT.matches(it.text().trim()) }
+            ?: cells.getOrNull(1)
+    }
+
     private fun shouldSkipFile(href: String): Boolean {
         return href == ScrapingConstants.PARENT_DIRECTORY ||
                href == ScrapingConstants.CURRENT_DIRECTORY ||
-               href.endsWith("/")
+               href.endsWith("/") ||
+               // Column sort links of Apache / nginx indexes ("?C=N;O=D"): the header row, not a file.
+               href.startsWith("?")
     }
 
     /**

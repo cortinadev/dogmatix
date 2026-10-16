@@ -41,6 +41,9 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.ui.components.focusRing
@@ -66,7 +69,6 @@ data class FilterRowSpec(
 @Composable
 fun FilterPanel(
     rows: List<FilterRowSpec>,
-    onClear: () -> Unit,
     modifier: Modifier = Modifier,
     compact: Boolean = true,
     firstRowFocus: FocusRequester? = null,
@@ -74,38 +76,23 @@ fun FilterPanel(
     onExpandedRowChange: (String?) -> Unit = {},
     footer: @Composable (() -> Unit)? = null
 ) {
+    // Every label takes the width of the longest one, so all the ‹ value › selectors start (and end) on the same line.
+    val measurer = rememberTextMeasurer()
+    val labelStyle = MaterialTheme.typography.bodyMedium
+    val density = LocalDensity.current
+    val labels = rows.map { it.label }
+    val labelWidth = remember(labels, labelStyle, density) {
+        with(density) { (labels.maxOfOrNull { measurer.measure(it, labelStyle, maxLines = 1, softWrap = false).size.width } ?: 0).toDp() }
+    }
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 8.dp, vertical = 12.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(start = 14.dp, end = 14.dp, bottom = 10.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                stringResource(R.string.filters).uppercase(),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            val clearSource = rememberFocusSource()
-            Text(
-                stringResource(R.string.clear),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(6.dp))
-                    .focusRing(clearSource, 6.dp)
-                    .clickable(interactionSource = clearSource, indication = null, onClick = onClear)
-                    .padding(horizontal = 6.dp, vertical = 4.dp)
-            )
-        }
         rows.forEachIndexed { index, row ->
             FilterRow(
                 spec = row,
+                labelWidth = labelWidth,
                 compact = compact,
                 expanded = expandedRow == row.label,
                 onExpandedChange = { onExpandedRowChange(if (it) row.label else null) },
@@ -122,6 +109,7 @@ fun FilterPanel(
 @Composable
 private fun FilterRow(
     spec: FilterRowSpec,
+    labelWidth: Dp,
     compact: Boolean,
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
@@ -197,7 +185,8 @@ private fun FilterRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = scheme.onSurfaceVariant,
                 maxLines = 1,
-                softWrap = false
+                softWrap = false,
+                modifier = Modifier.width(labelWidth)
             )
             Spacer(Modifier.width(8.dp))
             ArrowButton("‹") { cycle(-1) }

@@ -40,3 +40,11 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# coleccion-analisis: the Collection analysis is cached as JSON (Gson); keep the field names it was written with.
+-keepclassmembers class com.cortinadev.dogmatix.util.LibrarySnapshot { <fields>; }
+-keepclassmembers class com.cortinadev.dogmatix.util.DiskFile { <fields>; }
+-keepclassmembers class com.cortinadev.dogmatix.util.DiskFolder { <fields>; }
+-keepclassmembers class com.cortinadev.dogmatix.util.VolumeUsage { <fields>; }
+-keepclassmembers class com.cortinadev.dogmatix.util.LibraryRoot { <fields>; }
+-keepclassmembers class com.cortinadev.dogmatix.util.CatalogRow { <fields>; }

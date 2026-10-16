@@ -6,7 +6,10 @@ import com.cortinadev.dogmatix.data.local.dao.DownloadableFileDao
 import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
 import com.cortinadev.dogmatix.data.model.DownloadStatus
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
+import com.cortinadev.dogmatix.util.ActionTypes
 import com.cortinadev.dogmatix.util.FileParsingUtils
+import com.cortinadev.dogmatix.util.LibraryMoveRules
+import com.cortinadev.dogmatix.util.TrashRules
 import com.cortinadev.dogmatix.util.LibraryKeys
 import com.cortinadev.dogmatix.util.StorageHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -42,7 +45,9 @@ class LibraryIndexService @Inject constructor(
     @param:ApplicationContext private val context: Context,
     private val settingsRepository: SettingsRepository,
     private val downloadService: DownloadService,
-    private val downloadableFileDao: DownloadableFileDao
+    private val downloadableFileDao: DownloadableFileDao,
+    // coleccion-gestion: "Delete" goes to the trash.
+    private val history: ActionHistoryService
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -53,10 +58,13 @@ class LibraryIndexService @Inject constructor(
     private val _freeBytes = MutableStateFlow<Long?>(null)
     val freeBytes: StateFlow<Long?> = _freeBytes.asStateFlow()
 
+    /** Finished downloads already marked as owned (only touched by the collector in init). */
+    private val markedCompleted = HashSet<String>()
+
     init {
         scope.launch {
-            combine(settingsRepository.downloadDirectory, settingsRepository.consoleDownloadDirectories) { root, perConsole ->
-                listOf(root) + perConsole.values
+            combine(settingsRepository.downloadDirectory, settingsRepository.consoleDownloadDirectories, settingsRepository.secondaryStorageRoot) { root, perConsole, second ->
+                listOf(root, second) + perConsole.values
             }.distinctUntilChanged().collect { refresh() }
         }
         scope.launch {
@@ -64,15 +72,22 @@ class LibraryIndexService @Inject constructor(
                 .map { list -> list.filter { it.status == DownloadStatus.COMPLETED }.map { it.fileName }.toSet() }
                 .distinctUntilChanged()
                 // Mark finished downloads as owned right away; the full disk walk is slow over SAF.
-                .onEach { completed -> _ownedKeys.update { it + completed.flatMap { keysForCompleted(it) } } }
+                // Only the ones not marked yet: resolving every finished row again each time one
+                // more finished was quadratic, enough for an ANR with a big queue or after a restart.
+                .onEach { completed ->
+                    markedCompleted.retainAll(completed)
+                    val keys = completed.filter { markedCompleted.add(it) }.flatMap { keysForCompleted(it) }
+                    if (keys.isNotEmpty()) _ownedKeys.update { it + keys }
+                }
                 .debounce(500)
                 .collect { refresh() }
         }
     }
 
-    /** Keys for a download that just finished: scoped to its console (looked up by file name). */
+    /** Keys for a download that just finished: scoped to its console (from the download itself when known). */
     private suspend fun keysForCompleted(fileName: String): List<String> {
-        val consoleId = downloadableFileDao.getFileByFileName(fileName)?.consoleId ?: return emptyList()
+        val consoleId = (downloadService.entityFor(fileName) ?: downloadableFileDao.getFileByFileName(fileName))?.consoleId
+            ?: return emptyList()
         return LibraryKeys.keysFor(LibraryKeys.consoleScope(consoleId), fileName)
     }
 
@@ -82,20 +97,23 @@ class LibraryIndexService @Inject constructor(
     suspend fun refresh() = withContext(Dispatchers.IO) {
         val root = settingsRepository.downloadDirectory.first()
         val custom = settingsRepository.consoleDownloadDirectories.first()
+        // Free space first: it is one call, the walk below can take a while on a big library.
+        _freeBytes.value = (listOf(root) + custom.values).firstOrNull { it.isNotBlank() }
+            ?.let { StorageHelper.getFreeBytes(context, it) }
         val keys = HashSet<String>()
-        if (root.isNotBlank()) {
-            runCatching { StorageHelper.getDocumentFile(context, root) }.getOrNull()?.let { dir ->
-                collectRoot(dir, keys)
+        // The second root of smart storage holds console folders laid out like the main one.
+        for (rootUri in listOf(root, settingsRepository.secondaryStorageRoot.first())) {
+            if (rootUri.isBlank()) continue
+            runCatching { StorageHelper.getDocumentFile(context, rootUri) }.getOrNull()?.let { dir ->
+                collectRoot(dir.uri, keys)
             }
         }
         custom.forEach { (consoleId, uri) ->
             if (uri.isBlank()) return@forEach
             val dir = runCatching { StorageHelper.getDocumentFile(context, uri) }.getOrNull() ?: return@forEach
-            collect(dir, LibraryKeys.customScope(consoleId), keys, depth = 0)
+            collect(dir.uri, LibraryKeys.customScope(consoleId), keys, depth = 0)
         }
         _ownedKeys.value = keys
-        _freeBytes.value = (listOf(root) + custom.values).firstOrNull { it.isNotBlank() }
-            ?.let { StorageHelper.getFreeBytes(context, it) }
     }
 
     /**
@@ -108,28 +126,37 @@ class LibraryIndexService @Inject constructor(
         val scopes = LibraryKeys.scopesFor(file.consoleId)
         val root = settingsRepository.downloadDirectory.first()
         val custom = settingsRepository.consoleDownloadDirectories.first()
-        var deleted = false
+        val found = ArrayList<DocumentFile>()
 
-        if (root.isNotBlank()) {
-            runCatching { StorageHelper.getDocumentFile(context, root) }.getOrNull()?.let { dir ->
+        for (rootUri in listOf(root, settingsRepository.secondaryStorageRoot.first())) {
+            if (rootUri.isBlank()) continue
+            runCatching { StorageHelper.getDocumentFile(context, rootUri) }.getOrNull()?.let { dir ->
                 val children = runCatching { dir.listFiles() }.getOrNull().orEmpty()
                 for (child in children) {
                     val childName = child.name ?: continue
                     if (child.isDirectory) {
                         if (LibraryKeys.folderScope(childName) in scopes) {
-                            deleted = deleteMatching(child, name, base, depth = 1) || deleted
+                            findMatching(child, name, base, depth = 1, found)
                         }
                     } else if (matches(childName, name, base)) {
-                        deleted = runCatching { child.delete() }.getOrDefault(false) || deleted
+                        found += child
                     }
                 }
             }
         }
         custom[file.consoleId]?.takeIf { it.isNotBlank() }?.let { uri ->
             runCatching { StorageHelper.getDocumentFile(context, uri) }.getOrNull()?.let { dir ->
-                deleted = deleteMatching(dir, name, base, depth = 0) || deleted
+                findMatching(dir, name, base, depth = 0, found)
             }
         }
+        // coleccion-gestion: to the trash as one entry; what it cannot take is deleted as before.
+        val unique = found.distinctBy { it.uri }
+        val result = if (unique.isEmpty()) null else runCatching {
+            history.trash(unique.map { TrashRequest(it.uri, it.parentFile?.uri) }, ActionTypes.LIBRARY_DELETE, file.name, refreshLibrary = false)
+        }.getOrNull()
+        val leftovers = result?.failed?.map { it.uri }?.toSet() ?: unique.map { it.uri }.toSet()
+        val removed = unique.filter { it.uri in leftovers }.count { runCatching { it.delete() }.getOrDefault(false) }
+        val deleted = (result?.moved ?: 0) + removed > 0
         if (deleted) {
             // Drop the keys now so the list reflects the deletion immediately; rescan in the background.
             _ownedKeys.update { keys -> keys.filterNot { k -> scopes.any { s -> k == "$s|$name" || k == "$s|$base" } }.toSet() }
@@ -143,41 +170,42 @@ class LibraryIndexService @Inject constructor(
         return lower == name || LibraryKeys.baseName(lower) == base
     }
 
-    private fun deleteMatching(dir: DocumentFile, name: String, base: String, depth: Int): Boolean {
-        val children = runCatching { dir.listFiles() }.getOrNull() ?: return false
-        var deleted = false
+    private fun findMatching(dir: DocumentFile, name: String, base: String, depth: Int, into: MutableList<DocumentFile>) {
+        val children = runCatching { dir.listFiles() }.getOrNull() ?: return
         for (child in children) {
             val childName = child.name ?: continue
+            if (TrashRules.isHidden(childName)) continue
             if (child.isDirectory) {
-                if (depth < 2) deleted = deleteMatching(child, name, base, depth + 1) || deleted
+                if (depth < 2) findMatching(child, name, base, depth + 1, into)
             } else if (matches(childName, name, base)) {
-                deleted = runCatching { child.delete() }.getOrDefault(false) || deleted
-            }
-        }
-        return deleted
-    }
-
-    /** Root of the download directory: loose files are root-scoped, each first-level folder is its own scope. */
-    private fun collectRoot(dir: DocumentFile, into: MutableSet<String>) {
-        val children = runCatching { dir.listFiles() }.getOrNull() ?: return
-        for (child in children) {
-            val name = child.name ?: continue
-            if (child.isDirectory) {
-                collect(child, LibraryKeys.folderScope(name), into, depth = 1)
-            } else {
-                into += LibraryKeys.keysFor(LibraryKeys.ROOT_SCOPE, name)
+                into += child
             }
         }
     }
 
-    private fun collect(dir: DocumentFile, scope: String, into: MutableSet<String>, depth: Int) {
-        val children = runCatching { dir.listFiles() }.getOrNull() ?: return
-        for (child in children) {
-            val name = child.name ?: continue
+    /**
+     * Root of the download directory: loose files are root-scoped, each first-level folder is its own scope.
+     * Folders are listed with [StorageHelper.listChildren] (one provider query per folder).
+     */
+    private fun collectRoot(dir: android.net.Uri, into: MutableSet<String>) {
+        for (child in StorageHelper.listChildren(context, dir)) {
+            // The trash, copies half-way through a library move and other hidden entries.
+            if (TrashRules.isHidden(child.name) || LibraryMoveRules.isPart(child.name)) continue
             if (child.isDirectory) {
-                if (depth < 2) collect(child, scope, into, depth + 1)
+                collect(child.uri, LibraryKeys.folderScope(child.name), into, depth = 1)
             } else {
-                into += LibraryKeys.keysFor(scope, name)
+                into += LibraryKeys.keysFor(LibraryKeys.ROOT_SCOPE, child.name)
+            }
+        }
+    }
+
+    private fun collect(dir: android.net.Uri, scope: String, into: MutableSet<String>, depth: Int) {
+        for (child in StorageHelper.listChildren(context, dir)) {
+            if (TrashRules.isHidden(child.name) || LibraryMoveRules.isPart(child.name)) continue
+            if (child.isDirectory) {
+                if (depth < 2) collect(child.uri, scope, into, depth + 1)
+            } else {
+                into += LibraryKeys.keysFor(scope, child.name)
             }
         }
     }

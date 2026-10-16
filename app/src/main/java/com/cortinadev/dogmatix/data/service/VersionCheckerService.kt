@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
+import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.model.GitHubRelease
 import com.cortinadev.dogmatix.util.ToastUtil
 import com.cortinadev.dogmatix.util.VersionUtils
@@ -32,10 +33,7 @@ class VersionCheckerService @Inject constructor(
             
             if (latestRelease != null && isNewerVersion(latestRelease.tagName, currentVersion)) {
                 withContext(Dispatchers.Main) {
-                    ToastUtil.showInfo(
-                        context, 
-                        "Update available! Latest version: ${latestRelease.tagName}"
-                    )
+                    ToastUtil.showInfo(context, context.getString(R.string.update_available, latestRelease.tagName))
                 }
             }
         } catch (_: Exception) {

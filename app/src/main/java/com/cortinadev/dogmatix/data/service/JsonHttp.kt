@@ -30,10 +30,17 @@ object JsonHttp {
         body: ByteArray? = null,
         contentType: String? = null,
         connectTimeoutMs: Int = 15_000,
-        readTimeoutMs: Int = 30_000
+        readTimeoutMs: Int = 30_000,
+        /** Bytes of [body] to send, from its start (a reused buffer may be longer). */
+        bodyLength: Int = body?.size ?: 0,
+        /** Called as the body goes out, with the bytes written so far (upload progress). */
+        onBodySent: ((Int) -> Unit)? = null,
+        /** Adjusts the connection before it opens (TLS trust of the RomM server, see [RommTls.secure]). */
+        configure: ((HttpURLConnection) -> Unit)? = null
     ): Response {
         val connection = URL(url).openConnection() as HttpURLConnection
         try {
+            configure?.invoke(connection)
             connection.requestMethod = method
             connection.connectTimeout = connectTimeoutMs
             connection.readTimeout = readTimeoutMs
@@ -43,8 +50,16 @@ object JsonHttp {
             if (body != null) {
                 connection.doOutput = true
                 contentType?.let { connection.setRequestProperty("Content-Type", it) }
-                connection.setFixedLengthStreamingMode(body.size)
-                connection.outputStream.use { it.write(body) }
+                connection.setFixedLengthStreamingMode(bodyLength)
+                connection.outputStream.use { out ->
+                    var sent = 0
+                    while (sent < bodyLength) {
+                        val n = minOf(BODY_SLICE, bodyLength - sent)
+                        out.write(body, sent, n)
+                        sent += n
+                        onBodySent?.invoke(sent)
+                    }
+                }
             }
             val code = connection.responseCode
             val stream = if (code in 200..299) connection.inputStream else connection.errorStream
@@ -76,6 +91,9 @@ object JsonHttp {
         sb.append("--").append(boundary).append("--\r\n")
         return sb.toString().toByteArray(Charsets.UTF_8) to "multipart/form-data; boundary=$boundary"
     }
+
+    /** Body bytes per write, so [request]'s `onBodySent` reports a long upload as it goes. */
+    private const val BODY_SLICE = 256 * 1024
 
     const val FORM_URLENCODED = "application/x-www-form-urlencoded"
     const val JSON = "application/json"

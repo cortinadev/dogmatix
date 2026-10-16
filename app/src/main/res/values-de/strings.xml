@@ -1,0 +1,1375 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App Info -->
+    <string name="app_name">Dogmatix</string>
+    <string name="credits_title">Credits</string>
+    <string name="credits_fork_role">Softwareentwickler · Dogmatix (UI/UX-Fork)</string>
+    <string name="credits_fork_name">Rafa Cortina</string>
+    <string name="credits_original_role">Mutmaßlicher Software-Ingenieur · Originalautor von Milou</string>
+    <string name="credits_original_name">santiifm</string>
+    <string name="credits_original_note">Dogmatix ist ein Fork von Milou. Die gesamte Technik für Scraping, Indexierung und Downloads ist sein Werk.</string>
+    <string name="credits_link_github">GitHub</string>
+    <string name="credits_link_linkedin">LinkedIn</string>
+    <string name="credits_link_web">Website</string>
+
+    <!-- Navigation -->
+    <string name="nav_home">Start</string>
+    <string name="nav_downloads">Downloads</string>
+    <string name="nav_settings">Einstellungen</string>
+    <string name="nav_sources">Quellen</string>
+    <string name="nav_library">Bibliothek</string>
+    <string name="nav_contact">Kontakt</string>
+
+    <!-- Gamepad legend -->
+    <string name="pad_download">Download</string>
+    <string name="pad_back">Zurück</string>
+    <string name="pad_filters">Filter</string>
+    <string name="pad_search">Suche</string>
+    <string name="pad_section">Bereich</string>
+    <string name="pad_panels">Panel</string>
+    <string name="pad_select">Auswählen</string>
+    <string name="pad_retry">Wiederholen / Stopp</string>
+    <string name="pad_delete">Löschen</string>
+    <string name="pad_open">Öffnen</string>
+    <string name="pad_change">Ändern</string>
+    <string name="pad_adjust">Anpassen</string>
+    <string name="pad_column">Spalte</string>
+    <string name="pad_none">Kein Controller · zum Navigieren tippen</string>
+    <string name="pad_games">Spieleliste</string>
+    <string name="pad_options">Optionen</string>
+    <string name="pad_details">Details</string>
+    <string name="pad_close">Schließen</string>
+    <string name="pad_scroll">Scrollen</string>
+    <string name="details_loading">Spielinfos werden gesucht…</string>
+    <string name="details_not_found">Keine Details zu diesem Spiel gefunden.</string>
+    <string name="details_source">Daten von %1$s</string>
+    <string name="details_close">Schließen</string>
+    <string name="details_download">Herunterladen</string>
+    <string name="pad_keyboard">Tastatur</string>
+    <string name="pad_close_keyboard">Tastatur schließen</string>
+    <string name="owned">In deiner Bibliothek</string>
+    <string name="owned_dialog_message">Dieses Spiel ist bereits in deiner Bibliothek. Erneut herunterladen oder vom Speicher löschen?</string>
+    <string name="owned_download_again">Erneut herunterladen</string>
+    <string name="owned_delete">Löschen</string>
+    <string name="owned_deleted">„%1$s“ wurde gelöscht</string>
+    <string name="owned_delete_failed">„%1$s“ konnte nicht gelöscht werden</string>
+    <string name="downloading_badge">Lädt herunter</string>
+    <string name="favourite">Favorit</string>
+    <string name="favourites_only">Nur Favoriten</string>
+    <string name="favourites_only_short">★</string>
+    <string name="filter_favourites">Favoriten</string>
+    <string name="favourite_added">★ „%1$s“ zu den Favoriten hinzugefügt</string>
+    <string name="favourite_removed">„%1$s“ aus den Favoriten entfernt</string>
+    <string name="details_favourite">☆ Favorit</string>
+    <string name="details_unfavourite">★ Kein Favorit mehr</string>
+    <string name="pad_favourite">Favorit</string>
+    <string name="pad_tick">Markieren</string>
+    <string name="pad_apply">Anwenden</string>
+    <string name="pad_select_all">Alle</string>
+    <string name="pad_cancel">Abbrechen</string>
+    <string name="pad_remove">Entfernen</string>
+    <string name="selection_selected">Ausgewählt</string>
+    <string name="selection_clear">Auswahl aufheben</string>
+    <string name="download_already_active">„%1$s“ wird bereits heruntergeladen</string>
+    <string name="free_space">%1$s frei</string>
+
+    <!-- Library -->
+    <string name="filters">Filter</string>
+    <string name="collapse_filters">Filter ausblenden</string>
+    <string name="expand_filters">Filter einblenden</string>
+    <string name="filter_console">Konsole</string>
+    <string name="filter_region">Region</string>
+    <string name="filter_language">Sprache</string>
+    <string name="filter_tag">Label</string>
+    <string name="filter_source">Quelle</string>
+    <string name="source_torrent">Torrent</string>
+    <string name="source_romm">RomM</string>
+    <string name="source_direct">Direktlink</string>
+    <string name="filter_sort">Sortierung</string>
+    <string name="filter_any">Alle</string>
+    <string name="filter_all">Alle</string>
+    <string name="filter_selected_count">%1$d ausgewählt</string>
+    <string name="filter_show_more">Mehr anzeigen…</string>
+    <string name="filter_show_less">Weniger anzeigen</string>
+    <string name="sort_name_asc">A → Z</string>
+    <string name="sort_name_desc">Z → A</string>
+    <string name="sort_size_desc">Größe: groß → klein</string>
+    <string name="sort_size_desc_short">Größe ↓</string>
+    <string name="sort_size_asc">Größe: klein → groß</string>
+    <string name="sort_size_asc_short">Größe ↑</string>
+    <string name="results_count">%1$d Ergebnisse</string>
+    <string name="results_count_more">%1$d+ Ergebnisse</string>
+    <string name="no_results">Nichts passt zu diesen Filtern.</string>
+    <string name="show_results">Ergebnisse anzeigen</string>
+    <string name="column_name">NAME</string>
+    <string name="column_tags">LABELS</string>
+    <string name="column_size">GRÖSSE</string>
+
+    <!-- Downloads -->
+    <string name="downloads_empty">Noch keine Downloads. Wähle ein Spiel in der Bibliothek.</string>
+    <plurals name="downloads_selected">
+        <item quantity="one">%1$d ausgewählt</item>
+        <item quantity="other">%1$d ausgewählt</item>
+    </plurals>
+    <string name="status_downloading">%1$d%%</string>
+    <string name="status_completed">Fertig</string>
+    <string name="status_failed">Fehlgeschlagen</string>
+    <string name="status_stopped">Gestoppt</string>
+    <string name="status_paused">Pausiert</string>
+    <string name="download_pause">Pausieren</string>
+    <string name="download_resume">Fortsetzen</string>
+    <string name="status_copying">Wird in den Speicher kopiert…</string>
+    <string name="status_queued_debrid">%1$s %2$d%%</string>
+    <string name="settings_debrid">Debrid-Dienst</string>
+    <string name="settings_debrid_hint">Der Dienst holt die Torrents, die dann per HTTP heruntergeladen werden</string>
+    <string name="settings_debrid_key">%1$s-API-Schlüssel</string>
+    <string name="settings_torbox_key_dialog_hint">Unter torbox.app → Settings → API. Wird nur auf diesem Gerät gespeichert.</string>
+    <string name="settings_realdebrid_key_dialog_hint">Unter real-debrid.com/apitoken (Premium-Konto nötig). Wird nur auf diesem Gerät gespeichert.</string>
+    <string name="settings_test">Testen</string>
+    <string name="api_key_label">API-Schlüssel</string>
+    <string name="debrid_key_valid">%1$s: verbunden als %2$s</string>
+    <string name="debrid_key_invalid">%1$s: %2$s</string>
+    <string name="settings_frontend_shortcuts">Frontend-Verknüpfungen</string>
+    <string name="settings_frontend_shortcuts_hint">Legt eine Dogmatix-Verknüpfung (.dgmtx) in jeden Plattformordner, für ES-DE und ähnliche Frontends</string>
+    <string name="settings_frontend_shortcuts_action">Erstellen</string>
+    <string name="frontend_shortcuts_done">%1$d Verknüpfungen erstellt</string>
+    <string name="frontend_shortcuts_partial">%1$d Verknüpfungen erstellt, %2$d fehlgeschlagen</string>
+    <string name="frontend_shortcuts_none">Kein Download-Ordner festgelegt</string>
+    <string name="dgmtx_invalid">Keine Dogmatix-Verknüpfungsdatei</string>
+    <string name="settings_esde">ES-DE einrichten</string>
+    <string name="settings_esde_hint">Wähle deinen ES-DE-Ordner und Dogmatix trägt sich in jede Plattform ein (ES-DE vorher schließen)</string>
+    <string name="settings_esde_action">Einrichten</string>
+    <string name="esde_configured">ES-DE: %1$d Systeme bereit, %2$d Verknüpfungen – ES-DE neu starten</string>
+    <string name="esde_folders_skipped">%1$d Ordner ohne passendes ES-DE-System</string>
+    <string name="esde_not_installed">ES-DE ist auf diesem Gerät nicht installiert</string>
+    <string name="settings_iisu">iiSU einrichten</string>
+    <string name="settings_iisu_hint">Wähle den iiSULauncher-Ordner von iiSU und Dogmatix trägt sich als Emulator ein (iiSU danach neu starten)</string>
+    <string name="settings_iisu_action">Einrichten</string>
+    <string name="iisu_configured">iiSU: %1$d Konsolen bereit, %2$d Verknüpfungen – iiSU neu starten</string>
+    <string name="iisu_folders_skipped">%1$d Ordner ohne passende iiSU-Konsole</string>
+    <string name="iisu_not_installed">iiSU ist auf diesem Gerät nicht installiert</string>
+    <string name="iisu_wrong_folder">Das ist nicht der iiSULauncher-Ordner von iiSU (er liegt in Android/media/com.iisulauncher)</string>
+    <string name="frontend_folder_not_writable">In den gewählten Ordner kann nicht geschrieben werden</string>
+    <string name="frontend_no_console_folders">Keine Ordner pro Konsole: Aktiviere zuerst „Unterordner pro Konsole“</string>
+    <string name="frontend_config_unreadable">Die Konfiguration des Frontends konnte nicht gelesen werden – nichts wurde geändert</string>
+    <string name="frontend_config_corrupt">Die Konfigurationsdatei des Frontends scheint beschädigt – nichts wurde geändert</string>
+    <string name="frontend_write_failed">Schreiben in den Ordner des Frontends fehlgeschlagen</string>
+    <string name="settings_daijisho">Daijishō einrichten</string>
+    <string name="settings_daijisho_hint">Daijishō kann keine Emulator-Konfiguration importieren: Hier stehen die Werte zum Eintragen von Hand</string>
+    <string name="settings_daijisho_action">Anzeigen</string>
+    <string name="daijisho_dialog_title">Dogmatix zu Daijishō hinzufügen</string>
+    <string name="daijisho_dialog_body">%1$d Verknüpfungen sind angelegt. Daijishō speichert seine Player in einer privaten Datenbank, daher muss der Eintrag von Hand angelegt werden: Öffne Einstellungen › Bibliothek › Emulator hinzufügen, trage diese Werte ein (den Schalter zum Beenden von Prozessen ausgeschaltet lassen) und synchronisiere dann.</string>
+    <string name="daijisho_field_name">Emulatorname</string>
+    <string name="daijisho_field_arguments">Emulator-Argumente für am start</string>
+    <string name="daijisho_field_regex">Regex für akzeptierte Dateinamen</string>
+    <string name="dialog_copy">Kopieren</string>
+    <string name="dialog_close">Schließen</string>
+    <string name="onboarding_esde_title">Mit ES-DE verbinden</string>
+    <string name="onboarding_esde_body">ES-DE ist auf diesem Gerät installiert. Wähle seinen Datenordner (den mit gamelists und downloaded_media, meist ES-DE) und Dogmatix erscheint in jeder Plattform als „★ Search for more games…“. Schließe ES-DE vorher – du kannst das auch später in den Einstellungen erledigen.</string>
+    <string name="onboarding_esde_choose">ES-DE-Ordner wählen</string>
+    <string name="onboarding_esde_configuring">ES-DE wird eingerichtet…</string>
+    <string name="nav_romm">RomM</string>
+    <string name="settings_romm">RomM-Server</string>
+    <string name="settings_romm_hint">Fertige Downloads in eine RomM-Bibliothek hochladen</string>
+    <string name="romm_server_url">Server-URL</string>
+    <string name="romm_url_dialog_hint">z. B. https://romm.example.com (ohne Pfad am Ende)</string>
+    <string name="romm_token">API-Token</string>
+    <string name="romm_token_dialog_hint">Ein Client-API-Token (rmm_…) aus Administration → Client API Tokens, oder benutzer:passwort.</string>
+    <string name="romm_test_connection">Verbindung testen</string>
+    <string name="romm_testing">Wird getestet…</string>
+    <string name="romm_connected">RomM: verbunden, %1$d Plattformen</string>
+    <string name="romm_connection_failed">RomM: %1$s</string>
+    <string name="romm_platforms_none">Noch keine Plattformen geladen</string>
+    <string name="romm_platforms_count">%1$d Plattformen auf dem Server</string>
+    <string name="romm_auto_upload">Fertige Downloads hochladen</string>
+    <string name="romm_auto_upload_hint">Nur Konsolen, die unten einer Plattform zugeordnet sind</string>
+    <string name="romm_platforms_header">Konsole → Plattform</string>
+    <string name="romm_platforms_hint">◀ ▶ wählt die RomM-Plattform, in die jede Konsole hochlädt</string>
+    <string name="romm_apply_suggestions">Vorschläge übernehmen</string>
+    <string name="romm_suggestions_applied">%1$d Konsole(n) zugeordnet</string>
+    <string name="romm_not_mapped">Nicht zugeordnet</string>
+    <string name="romm_suggested">%1$s · vorgeschlagen</string>
+    <string name="romm_upload_progress">↑ RomM %1$d%%</string>
+    <string name="romm_uploaded">↑ Zu RomM hochgeladen</string>
+    <string name="romm_upload_failed">↑ RomM-Upload fehlgeschlagen: %1$s</string>
+    <string name="romm_upload_retry">RomM-Upload wiederholen</string>
+    <string name="status_extracting">Wird entpackt…</string>
+
+    <!-- Settings (new) -->
+    <string name="settings_theme">Design</string>
+    <string name="settings_theme_hint">Folgt standardmäßig dem System</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Hell</string>
+    <string name="theme_dark">Dunkel</string>
+    <string name="theme_true_black">Reines Schwarz</string>
+    <string name="theme_suffix_dark">dunkel</string>
+    <string name="theme_suffix_light">hell</string>
+    <string name="settings_accent">Akzentfarbe</string>
+    <string name="settings_accent_hint">Fokus, aktiver Tab und Downloads</string>
+    <string name="settings_download_directory_hint">Wo fertige Downloads gespeichert werden</string>
+    <string name="settings_concurrent_label">Gleichzeitige Downloads</string>
+    <string name="settings_limit_label">Geschwindigkeitslimit</string>
+    <string name="settings_limit_hint">Bei 0 unbegrenzt</string>
+    <string name="settings_max_results">Max. Suchergebnisse</string>
+    <string name="settings_max_results_hint">Wie viele Spiele eine Suche in der Bibliothek auf einmal lädt; „Mehr laden“ holt die nächsten</string>
+    <string name="settings_unlimited">Unbegrenzt</string>
+    <string name="settings_seeding">Nach Download seeden</string>
+    <string name="settings_seeding_hint">Fertige Torrents weiter für andere Peers hochladen; das Seeden endet, wenn die App geschlossen wird</string>
+    <string name="seeding_mode_off">Aus</string>
+    <string name="seeding_mode_30m">30 min</string>
+    <string name="seeding_mode_1h">1 Stunde</string>
+    <string name="seeding_mode_ratio">Bis Ratio 1,0</string>
+    <string name="seeding_mode_unlimited">Unbegrenzt</string>
+    <string name="settings_metadata_timeout">Metadaten-Timeout</string>
+    <string name="settings_metadata_timeout_hint">Wie lange ohne Fortschritt auf die Dateiliste eines Magnets gewartet wird (Neuscan und Torrent-Downloads); die Zeit läuft neu an, solange Daten ankommen</string>
+    <string name="seconds_short">%1$d s</string>
+    <string name="settings_auto_unzip_hint">ZIP und 7z, sobald der Download fertig ist</string>
+    <string name="settings_separate_hint">Funktioniert mit ES-DE und Daijishō</string>
+    <string name="settings_favorite_languages">Lieblingssprachen</string>
+    <string name="settings_favorite_languages_hint">Stehen im Sprachfilter ganz oben</string>
+    <string name="settings_favorite_languages_empty">Noch keine Sprachen indexiert</string>
+    <string name="settings_reset_default">Zurücksetzen</string>
+    <string name="settings_done">Fertig</string>
+    <string name="settings_about">Info &amp; Kontakt</string>
+    <string name="settings_category_library">Bibliothek</string>
+    <string name="settings_category_general">Allgemein</string>
+    <string name="settings_category_appearance">Darstellung</string>
+    <string name="settings_category_downloads">Downloads</string>
+    <string name="settings_category_integrations">Integrationen</string>
+    <string name="settings_group_folder">Ordner</string>
+    <string name="settings_group_sources">Quellen</string>
+    <string name="settings_group_preferences">Präferenzen</string>
+    <string name="settings_group_gamepad">Controller</string>
+    <string name="settings_group_colors">Farben</string>
+    <string name="settings_group_app">App</string>
+    <string name="settings_group_game_list">Spieleliste</string>
+    <string name="settings_group_queue">Warteschlange</string>
+    <string name="settings_group_after_download">Nach dem Download</string>
+    <string name="settings_group_torrents">Torrents</string>
+    <string name="settings_group_frontends">Frontends</string>
+    <string name="settings_group_servers">Server</string>
+    <string name="settings_change">Ändern</string>
+    <string name="settings_not_set">Nicht festgelegt</string>
+    <string name="settings_gamepad_layout">Controller-Layout</string>
+    <string name="settings_gamepad_layout_hint">Wie die Tasten in der Legende heißen; ihre Funktion ändert sich nicht</string>
+    <string name="gamepad_layout_xbox">Xbox</string>
+    <string name="gamepad_layout_nintendo">Nintendo</string>
+    <string name="gamepad_layout_playstation">PlayStation</string>
+    <string name="settings_swap_face_buttons">A/B und X/Y tauschen</string>
+    <string name="settings_swap_face_buttons_hint">Für Controller, die die Aktionstasten vertauscht melden; die Legende bleibt, wie sie ist</string>
+    <string name="settings_language">Sprache</string>
+    <string name="settings_language_hint">Folgt standardmäßig der Gerätesprache</string>
+    <string name="language_system">System</string>
+    <string name="language_en">English</string>
+    <string name="language_es">Español</string>
+    <string name="language_de">Deutsch</string>
+    <string name="language_fr">Français</string>
+    <string name="language_pt">Português</string>
+    <string name="language_it">Italiano</string>
+
+    <!-- Top Bar -->
+    <string name="topbar_title">Dogmatix</string>
+    <string name="topbar_logo_desc">Dogmatix</string>
+
+    <!-- Search & Filter -->
+    <string name="search_library">Bibliothek durchsuchen</string>
+    <string name="search_consoles">Konsolen suchen…</string>
+    <string name="filter_by_console">Nach Konsole filtern</string>
+    <string name="filter_by_tags">Nach Labels filtern</string>
+    <string name="all_consoles">Alle Konsolen</string>
+    <string name="clear">Zurücksetzen</string>
+
+    <!-- FAB -->
+    <string name="fab_menu">Menü</string>
+    <string name="fab_navigation_actions">Navigation &amp; Aktionen</string>
+
+    <!-- Downloads -->
+    <string name="download_started">Download von „%1$s“ gestartet</string>
+    <string name="download_speed">%1$.2f MB/s</string>
+    <string name="download_started_at">Gestartet %1$s</string>
+    <string name="download_finished_at">%1$s</string>
+    <string name="download_size">Größe: %1$s</string>
+    <string name="download_cancel">Download abbrechen</string>
+    <string name="extracting_files">Dateien werden entpackt…</string>
+    <string name="download_retry">Download wiederholen</string>
+    <string name="download_delete">Download löschen</string>
+    <string name="download_action">Aktion</string>
+    <string name="load_more">100 weitere laden</string>
+
+    <!-- Delete Confirmation -->
+    <string name="delete_download_title">Download löschen</string>
+    <string name="delete_downloads_title">Downloads löschen</string>
+    <string name="delete_download_message">Dieser Download ist abgeschlossen. Möchtest du die Datei vom Speicher löschen oder sie nur aus der Download-Liste entfernen?</string>
+    <string name="delete_downloads_message">%1$d Downloads ausgewählt, einige davon abgeschlossen. Möchtest du ihre Dateien vom Speicher löschen oder sie nur aus der Download-Liste entfernen?</string>
+    <string name="delete_file">Datei löschen</string>
+    <string name="delete_files">Dateien löschen</string>
+    <string name="keep_file">Datei behalten</string>
+    <string name="keep_files">Dateien behalten</string>
+
+    <!-- File Sizes -->
+    <string name="file_size_bytes">%1$d B</string>
+    <string name="file_size_kb">%1$.1f KB</string>
+    <string name="file_size_mb">%1$.1f MB</string>
+    <string name="file_size_gb">%1$.1f GB</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Einstellungen</string>
+    <string name="settings_download_directory">Download-Ordner</string>
+    <string name="settings_pick_folder">Ordner wählen</string>
+    <string name="settings_separate_by_console">Unterordner pro Konsole</string>
+    <string name="settings_auto_unzip">Automatisch entpacken</string>
+    <string name="settings_limit_speed">Download-Tempo begrenzen: %1$s</string>
+    <string name="settings_unrestricted">Unbegrenzt</string>
+    <string name="settings_concurrent_downloads">Gleichzeitige Downloads: %1$d</string>
+
+    <!-- Messages -->
+    <string name="msg_db_rebuild_started">Neuaufbau der Datenbank gestartet!</string>
+    <string name="msg_db_rebuild_complete">Neuaufbau der Datenbank abgeschlossen!</string>
+    <string name="msg_configure_directory">Bitte lege den Download-Ordner in den Einstellungen fest</string>
+    <string name="msg_operation_failed">Vorgang fehlgeschlagen</string>
+    <string name="msg_unknown_error">Unbekannter Fehler</string>
+    <string name="msg_http_error">HTTP-Fehler: %1$d</string>
+    <string name="msg_failed_create_file">Datei konnte im Speicher nicht erstellt werden</string>
+    <string name="msg_failed_output_stream">Ausgabestream konnte nicht geöffnet werden</string>
+
+    <!-- Status -->
+    <string name="status_unknown">Unbekannt</string>
+    <string name="status_idle">Inaktiv</string>
+    <string name="status_building_db">DB wird erstellt: %1$d / %2$d Dateien</string>
+
+    <!-- Progress Messages -->
+    <string name="progress_idle">Inaktiv</string>
+    <string name="progress_building_db">DB wird erstellt: %1$d / %2$d Dateien</string>
+    <string name="toast_db_rebuild_complete">Neuaufbau der Datenbank abgeschlossen!</string>
+
+    <!-- Error Messages -->
+    <string name="error_operation_failed">Vorgang fehlgeschlagen: %1$s</string>
+    <string name="error_unknown">Unbekannter Fehler</string>
+    <string name="error_configure_directory">Bitte lege den Download-Ordner in den Einstellungen fest</string>
+
+    <!-- Sources: merge duplicate console folders -->
+    <string name="merge_folders_notice">%1$d Ordner passen zu dieser Konsole: %2$s</string>
+    <string name="merge_folders_action">Zusammenführen…</string>
+    <string name="merge_folders_title">Konsolenordner zusammenführen</string>
+    <string name="merge_folders_hint">Mehrere Ordner im Download-Ordner gehören zu %1$s. Wähle den, der bleiben soll: Die Dateien der anderen werden dorthin verschoben (identische Kopien werden verworfen, abweichende mit gleichem Namen bleiben, wo sie sind) und geleerte Ordner entfernt. Du kannst auch alles lassen, wie es ist.</string>
+    <string name="merge_folders_confirm">In den gewählten zusammenführen</string>
+    <string name="merge_folders_keep">So lassen</string>
+    <string name="merge_folders_working">Dateien werden verschoben…</string>
+    <string name="merge_folders_result">%1$d Dateien verschoben, %2$d identische Kopien verworfen, %3$d übersprungen, %4$d fehlgeschlagen. %5$d leere Ordner entfernt.</string>
+    <string name="merge_folders_done">Fertig</string>
+
+    <!-- Sources -->
+    <string name="sources_empty_title">Keine Quellen eingerichtet</string>
+    <string name="sources_empty_hint">Füge eine Konsole hinzu, um Spiele zu entdecken</string>
+    <string name="sources_add_console">Konsole hinzufügen</string>
+    <string name="sources_edit_console">Konsole bearbeiten</string>
+    <string name="sources_rescan_all">Alle neu scannen</string>
+    <string name="sources_rescanning">Wird neu gescannt…</string>
+    <string name="sources_rescanning_sources">Quellen werden neu gescannt…</string>
+    <string name="sources_directory_unset">Nicht festgelegt – zum Wählen tippen</string>
+    <string name="sources_choose">Wählen</string>
+    <string name="sources_add_url">URL hinzufügen</string>
+    <string name="sources_set_custom_path">Eigenen Download-Pfad festlegen</string>
+    <string name="sources_refresh_console">Konsole aktualisieren</string>
+    <string name="sources_delete_console">Konsole löschen</string>
+    <string name="sources_delete_url">URL löschen</string>
+    <string name="sources_edit_url">URL bearbeiten</string>
+    <string name="sources_export">Quellen exportieren</string>
+    <string name="sources_import">Quellen importieren</string>
+    <string name="sources_export_share_title">Quellen-JSON teilen</string>
+    <string name="sources_export_failed">Quellen konnten nicht exportiert werden: %1$s</string>
+    <string name="sources_import_confirm_title">Quellen importieren?</string>
+    <string name="sources_import_confirm_message">Die aktuellen Quellen und die indexierte Spieleliste werden durch die gewählte JSON-Datei ersetzt, danach werden alle Quellen neu gescannt.</string>
+    <string name="sources_import_pick">Datei wählen</string>
+    <string name="sources_import_done">%1$d Konsolen importiert. Alle Quellen werden neu gescannt…</string>
+    <string name="sources_import_failed">Quellen konnten nicht importiert werden: %1$s</string>
+    <string name="sources_import_result_title">Import</string>
+    <string name="sources_url_not_added">Die Quelle konnte nicht gespeichert werden. Prüfe die URL oder die Datei.</string>
+    <string name="sources_delete_console_title">%1$s löschen?</string>
+    <string name="sources_delete_console_message">Die Konsole, ihre Quellen und ihre indexierten Spiele werden entfernt. Heruntergeladene Dateien bleiben erhalten.</string>
+    <string name="sources_delete_url_title">Quelle löschen?</string>
+    <string name="sources_delete_url_message">%1$s wird aus dieser Konsole entfernt. Scanne neu, um ihre Spiele aus der Bibliothek zu entfernen.</string>
+    <string name="dialog_delete">Löschen</string>
+    <string name="dialog_save">Speichern</string>
+    <string name="dialog_ok">OK</string>
+    <string name="dialog_edit_source">Quelle bearbeiten</string>
+    <string name="dialog_short_name">Kurzname (Chip-Beschriftung)</string>
+    <string name="dialog_folder_aliases">Aliase für den Download-Ordner, durch Kommas getrennt</string>
+    <string name="dialog_aliases_hint">Ordnernamen, die als Download-Ordner dieser Konsole gelten (z. B. gba, Game Boy Advance). Leer lassen, um die eingebauten zu verwenden.</string>
+    <string name="sources_expand">Ausklappen</string>
+    <string name="sources_collapse">Einklappen</string>
+    <string name="sources_path">Download-Pfad: %1$s</string>
+    <string name="sources_path_custom">Download-Pfad: %1$s (eigener)</string>
+    <string name="sources_path_will_create">Download-Pfad: %1$s (wird erstellt)</string>
+    <string name="sources_path_unset">Download-Pfad: nicht festgelegt (in den Einstellungen wählen)</string>
+    <string name="sources_url_type">Typ: %1$s</string>
+    <string name="sources_url_disabled">Deaktiviert – wird beim Neuscan übersprungen</string>
+
+    <!-- Sources: dialogs -->
+    <string name="dialog_add_source">Quelle hinzufügen</string>
+    <string name="dialog_add_source_hint">Gib eine URL oder einen Magnet-Link ein, lade eine .torrent-Datei hoch oder wähle eine RomM-Plattform:</string>
+    <string name="dialog_from_romm">Von deinem RomM-Server:</string>
+    <string name="dialog_url_label">URL / Magnet</string>
+    <string name="dialog_url_placeholder">https://…, magnet:? oder romm://psp</string>
+    <string name="dialog_upload_torrent">.torrent hochladen</string>
+    <string name="dialog_content_type">Inhaltstyp:</string>
+    <string name="dialog_add">Hinzufügen</string>
+    <string name="dialog_cancel">Abbrechen</string>
+    <string name="dialog_confirm">Bestätigen</string>
+    <string name="dialog_console_name_hint">Konsolenname eingeben:</string>
+    <string name="dialog_name">Name</string>
+    <string name="dialog_manufacturer">Hersteller:</string>
+    <string name="dialog_new_manufacturer">Oder ein neuer Hersteller</string>
+
+    <!-- Library errors -->
+    <string name="error_download_dir_missing">Kein Download-Ordner eingerichtet. Bitte lege in den Einstellungen einen fest.</string>
+    <string name="error_download_dir_inaccessible">Kein Zugriff auf den Download-Ordner. Bitte prüfe die Ordnerberechtigungen in den Einstellungen.</string>
+
+    <!-- MIME Types -->
+
+    <!-- HTTP -->
+    <!-- Onboarding -->
+    <string name="onboarding_welcome_title">Willkommen bei Dogmatix</string>
+    <string name="onboarding_welcome_body">Dogmatix indexiert den Inhalt von ROM-Quellen – Torrents, Magnets und Webverzeichnisse –, versieht jede Datei mit Labels für Konsole, Region und Sprache und lässt dich stöbern, filtern und direkt in deinen ROM-Ordner herunterladen. Archive werden automatisch entpackt.</string>
+    <string name="onboarding_welcome_point_1">Quellen werden indexiert, nicht heruntergeladen: Stöbere durch Tausende Titel, ohne deinen Speicher zu füllen.</string>
+    <string name="onboarding_welcome_point_2">Filtere nach Konsole, Region, Sprache, Label und Quelle; ✓ markiert, was du schon hast.</string>
+    <string name="onboarding_welcome_point_3">Downloads landen in einem Ordner pro Konsole, bereit für Frontends wie ES-DE.</string>
+    <string name="onboarding_folder_title">Wo sind deine ROMs?</string>
+    <string name="onboarding_folder_body">Wähle den Stammordner deiner ROM-Bibliothek. Jede Konsole bekommt darin einen eigenen Unterordner (vorhandene wie „gba“ oder „psx“ werden weiterverwendet). Du kannst ihn später in den Einstellungen ändern.</string>
+    <string name="onboarding_folder_current">Ordner: %1$s</string>
+    <string name="onboarding_folder_choose">Ordner wählen</string>
+    <string name="onboarding_folder_change">Ordner ändern</string>
+    <string name="onboarding_sources_title">Füge deine Quellen hinzu</string>
+    <string name="onboarding_sources_body">Dogmatix bringt keine Quellen mit. Importiere ein Quellen-JSON (zum Beispiel eines, das von einem anderen Gerät geteilt wurde), und jede Konsole darin wird sofort indexiert. Du kannst Konsolen und URLs auch später im Tab Quellen von Hand hinzufügen.</string>
+    <string name="onboarding_sources_import">JSON importieren</string>
+    <string name="onboarding_skip">Vorerst überspringen</string>
+    <string name="onboarding_continue">Weiter</string>
+    <string name="onboarding_start">Los geht’s</string>
+    <string name="onboarding_finish">Fertig</string>
+    <string name="onboarding_step">Schritt %1$d von %2$d</string>
+    <string name="onboarding_select">Auswählen</string>
+    <string name="onboarding_back">Zurück</string>
+
+    <!-- Covers, tag colours and similar games -->
+    <string name="settings_list_covers">Cover in der Liste</string>
+    <string name="settings_list_covers_hint">Quadratisches Cover vor jedem Spiel</string>
+    <string name="settings_tag_colors">Label-Farben</string>
+    <string name="settings_tag_colors_hint">Region, Sprache, Revision und Demo / Beta</string>
+    <string name="tag_color_region">Region</string>
+    <string name="tag_color_language">Sprache</string>
+    <string name="tag_color_revision">Revision</string>
+    <string name="tag_color_release">Demo / Beta / Hack</string>
+    <string name="tag_colors_reset">Zurücksetzen</string>
+    <string name="dialog_console_color">Chip-Farbe</string>
+    <string name="dialog_console_color_default">Standard der Familie</string>
+    <string name="color_picker_hue">Farbton</string>
+    <string name="color_picker_saturation">Sättigung</string>
+    <string name="color_picker_brightness">Helligkeit</string>
+    <string name="color_picker_default">Standard</string>
+    <string name="details_similar">Ähnliche</string>
+    <string name="similar_to">Ähnlich wie „%1$s“</string>
+    <string name="similar_searching">Ähnliche Spiele werden gesucht…</string>
+
+    <!-- Texts that were hard-coded in English -->
+    <string name="notification_channel_downloads">Downloads</string>
+    <string name="notification_channel_downloads_desc">Fortschritt aktiver Downloads</string>
+    <string name="notification_downloading">Download läuft</string>
+    <string name="notification_downloading_text">Downloads laufen im Hintergrund</string>
+    <string name="update_available">Update verfügbar! Neueste Version: %1$s</string>
+    <string name="scrape_error_title">Scanfehler</string>
+    <string name="scrape_failed">%1$s konnte nicht gescannt werden: %2$s</string>
+    <string name="scrape_fetching_torrent">Torrent-Metadaten für %1$s werden abgerufen…</string>
+    <string name="scrape_indexing_torrent">Dateien für %1$s werden indexiert…</string>
+    <string name="scrape_listing_romm">%1$s wird auf RomM aufgelistet…</string>
+    <string name="scrape_romm_invalid_source">Ungültige RomM-Quelle „%1$s“ (erwartet: romm://&lt;plattform&gt;)</string>
+    <string name="scrape_romm_not_configured">RomM-Server nicht eingerichtet (Einstellungen → RomM)</string>
+    <string name="scrape_romm_no_platform">RomM hat keine Plattform „%1$s“</string>
+
+    <!-- Download retries and failures, per-server limit, mirrors, multi-disc, game versions -->
+    <string name="status_retry_at">Neuer Versuch um %1$s</string>
+    <string name="failure_network">Keine Verbindung</string>
+    <string name="failure_timeout">Zeitüberschreitung</string>
+    <string name="failure_server">Serverfehler</string>
+    <string name="failure_rate_limited">Zu viele Anfragen an den Server</string>
+    <string name="failure_not_found">Nicht mehr auf dem Server</string>
+    <string name="failure_denied">Zugriff verweigert</string>
+    <string name="failure_http">Der Server hat den Download abgelehnt</string>
+    <string name="failure_no_space">Nicht genug Speicherplatz</string>
+    <string name="failure_storage">Kein Zugriff auf den Download-Ordner</string>
+    <string name="failure_incomplete">Unvollständige Daten</string>
+    <string name="failure_torrent_metadata">Keine Torrent-Metadaten (noch keine Peers?)</string>
+    <string name="failure_torrent">Torrent-Fehler</string>
+    <string name="failure_debrid_account">Problem mit dem Debrid-Konto</string>
+    <string name="failure_debrid">Fehler des Debrid-Dienstes</string>
+    <string name="failure_unknown">Unbekannter Fehler</string>
+    <string name="settings_auto_retry">Automatisch wiederholen</string>
+    <string name="settings_auto_retry_hint">Downloads, die am Netzwerk, am Server oder an einem Torrent ohne Peers scheitern, werden nach 1, 5 und 15 Minuten erneut versucht</string>
+    <string name="settings_off">Aus</string>
+    <string name="settings_per_host">Downloads pro Server</string>
+    <string name="settings_per_host_hint">Gleichzeitige Web-Downloads vom selben Server; manche Server sperren Clients mit vielen Verbindungen</string>
+    <string name="settings_multi_disc">Multi-Disc-Spiele (.m3u)</string>
+    <string name="settings_multi_disc_hint">Sobald alle Discs da sind, kommen sie mit ihrer Playlist in einen Ordner „Spiel.m3u“: Das Frontend zeigt ein einziges Spiel und der Emulator wechselt die Discs</string>
+    <string name="settings_region">Bevorzugte Region</string>
+    <string name="settings_region_hint">Bestimmt mit deinen Lieblingssprachen, welche Version die Bibliothek lädt, wenn es von einem Spiel mehrere gibt</string>
+    <string name="region_europe">Europa</string>
+    <string name="region_spain">Spanien</string>
+    <string name="region_france">Frankreich</string>
+    <string name="region_germany">Deutschland</string>
+    <string name="region_italy">Italien</string>
+    <string name="region_uk">Großbritannien</string>
+    <string name="region_usa">USA</string>
+    <string name="region_japan">Japan</string>
+    <string name="region_brazil">Brasilien</string>
+    <string name="region_korea">Korea</string>
+    <string name="region_china">China</string>
+    <string name="region_australia">Australien</string>
+    <string name="dialog_mirrors_label">Ersatzadressen (eine pro Zeile)</string>
+    <string name="dialog_mirrors_hint">Derselbe Ordner auf anderen Servern: Sie werden der Reihe nach versucht, wenn ein Download von der Hauptadresse fehlschlägt</string>
+    <plurals name="game_discs">
+        <item quantity="one">%d Disc</item>
+        <item quantity="other">%d Discs</item>
+    </plurals>
+    <string name="details_versions">Versionen</string>
+    <string name="details_version_preferred">Bevorzugt</string>
+    <string name="onboarding_versions_title">Welche Versionen bevorzugst du?</string>
+    <string name="onboarding_versions_body">Viele Spiele gibt es in mehreren Versionen (Regionen, Revisionen, Discs). Die Bibliothek zeigt jedes Spiel nur einmal, und A lädt die Version für deine Region und Sprachen; die anderen findest du mit X in den Details.</string>
+    <string name="onboarding_versions_region">Region</string>
+    <string name="onboarding_versions_languages">Sprachen</string>
+    <!-- escaneo -->
+    <string name="scan_full">Kompletter Neuscan</string>
+    <string name="scan_progress_title">Quellen werden gescannt</string>
+    <string name="scan_percent">%1$d %%</string>
+    <string name="scan_eta">noch ~%1$s</string>
+    <string name="scan_duration_minutes">%1$d min</string>
+    <string name="scan_duration_hours">%1$d h %2$d min</string>
+    <string name="scan_duration_less_minute">&lt;1 min</string>
+    <string name="scan_scanning_console">%1$s wird gescannt…</string>
+    <string name="scan_last_title">Letzter Scan · %1$s</string>
+    <string name="scan_report_title">Letzter Scan</string>
+    <string name="scan_report_retry_failed">Fehlgeschlagene wiederholen</string>
+    <string name="scan_report_empty">Es wurden keine Quellen gescannt.</string>
+    <string name="scan_kind_manual">Neuscan</string>
+    <string name="scan_kind_full">Kompletter Neuscan</string>
+    <string name="scan_kind_console">Eine Konsole</string>
+    <string name="scan_kind_auto">Automatisch</string>
+    <string name="scan_kind_retry">Wiederholung fehlgeschlagener Quellen</string>
+    <string name="scan_kind_new_sources">Neue mitgelieferte Quellen</string>
+    <string name="scan_status_updated">Aktualisiert</string>
+    <string name="scan_status_unchanged">Unverändert</string>
+    <string name="scan_status_failed">Fehlgeschlagen</string>
+    <string name="scan_via_mirror">über %1$s</string>
+    <string name="scan_failure_with_code">%1$s (HTTP %2$d)</string>
+    <string name="scan_failure_rate_limited">Der Server bat darum, langsamer zu machen</string>
+    <string name="scan_failure_server">Serverfehler</string>
+    <string name="scan_failure_timeout">Der Server hat zu lange nicht geantwortet</string>
+    <string name="scan_failure_connection">Die Verbindung wurde unterbrochen</string>
+    <string name="scan_failure_offline">Server nicht gefunden oder keine Verbindung</string>
+    <string name="scan_failure_secure">Die sichere Verbindung ist fehlgeschlagen</string>
+    <string name="scan_failure_not_found">Die Adresse existiert nicht mehr</string>
+    <string name="scan_failure_denied">Zugriff verweigert (oft eine Bot-Prüfung)</string>
+    <string name="scan_failure_http">Unerwartete Antwort vom Server</string>
+    <string name="scan_failure_no_listing">Keine Dateiliste auf der Seite (die Website hat sich womöglich geändert)</string>
+    <string name="scan_failure_empty">Die Liste kam leer zurück; nichts wurde geändert</string>
+    <string name="scan_failure_torrent_metadata">Die Dateiliste des Torrents kam nicht rechtzeitig an</string>
+    <string name="scan_failure_other">Fehler</string>
+    <plurals name="scan_sources_count">
+        <item quantity="one">%d Quelle</item>
+        <item quantity="other">%d Quellen</item>
+    </plurals>
+    <plurals name="scan_updated_count">
+        <item quantity="one">%d aktualisiert</item>
+        <item quantity="other">%d aktualisiert</item>
+    </plurals>
+    <plurals name="scan_unchanged_count">
+        <item quantity="one">%d unverändert</item>
+        <item quantity="other">%d unverändert</item>
+    </plurals>
+    <plurals name="scan_failed_count">
+        <item quantity="one">%d fehlgeschlagen</item>
+        <item quantity="other">%d fehlgeschlagen</item>
+    </plurals>
+    <plurals name="scan_files_count">
+        <item quantity="one">%d Datei</item>
+        <item quantity="other">%d Dateien</item>
+    </plurals>
+    <plurals name="scan_new_files_count">
+        <item quantity="one">%d neu</item>
+        <item quantity="other">%d neu</item>
+    </plurals>
+    <plurals name="scan_failed_notice">
+        <item quantity="one">%d Quelle konnte nicht gescannt werden. Details unter Quellen → Letzter Scan.</item>
+        <item quantity="other">%d Quellen konnten nicht gescannt werden. Details unter Quellen → Letzter Scan.</item>
+    </plurals>
+    <string name="settings_auto_scan">Automatischer Scan</string>
+    <string name="settings_auto_scan_hint">Sucht im Hintergrund nach neuen Spielen in deinen Quellen und liest nur, was sich geändert hat</string>
+    <string name="auto_scan_daily">Täglich</string>
+    <string name="auto_scan_weekly">Wöchentlich</string>
+    <string name="settings_auto_scan_wifi">Automatischer Scan nur im WLAN</string>
+    <string name="settings_auto_scan_wifi_hint">Nie über mobile Daten</string>
+    <string name="settings_auto_scan_charging">Automatischer Scan nur beim Laden</string>
+    <string name="settings_auto_scan_charging_hint">Wartet, bis das Gerät am Strom hängt</string>
+    <string name="scan_notification_channel">Quellen-Scans</string>
+    <string name="scan_notification_channel_desc">Neue Spiele, die der automatische Scan gefunden hat</string>
+    <plurals name="scan_notification_new_games">
+        <item quantity="one">%d neues Spiel in deinen Quellen</item>
+        <item quantity="other">%d neue Spiele in deinen Quellen</item>
+    </plurals>
+    <string name="scan_notification_text">Vom automatischen Scan gefunden</string>
+    <!-- dl-motor -->
+    <string name="failure_wrong_content">Der Server hat eine Webseite statt der Datei geschickt</string>
+    <string name="check_checking">Wird geprüft…</string>
+    <string name="check_verified">Verifiziert · %1$s</string>
+    <string name="check_verified_partial">Verifiziert · %1$s (%2$d/%3$d)</string>
+    <string name="check_mismatch">Stimmt nicht mit %1$s überein</string>
+    <string name="check_mismatch_detail">%1$s: %2$s ist %3$s, erwartet %4$s</string>
+    <string name="check_unknown_no_reference">Nicht verifiziert · kein DAT für diese Konsole</string>
+    <string name="check_unknown_not_listed">Nicht verifiziert · nicht in %1$s</string>
+    <string name="check_unknown_unsupported">Nicht verifiziert · Format nicht in DATs beschrieben</string>
+    <string name="check_unknown_not_found">Nicht verifiziert · Datei nicht gefunden</string>
+    <string name="check_unknown_error">Nicht verifiziert · Datei nicht lesbar</string>
+    <string name="check_against_romm">RomM</string>
+    <string name="check_against_no_intro">No-Intro</string>
+    <string name="check_against_redump">Redump</string>
+    <string name="check_against_imported">DAT (importiert)</string>
+    <string name="check_hash_size">Größe</string>
+    <string name="check_hash_crc32">CRC32</string>
+    <string name="check_hash_md5">MD5</string>
+    <string name="check_hash_sha1">SHA-1</string>
+    <string name="sources_url_reliability">%1$d %% erfolgreich · %2$s</string>
+    <string name="sources_url_reliability_no_speed">%1$d %% erfolgreich</string>
+    <string name="settings_verify_downloads">Downloads verifizieren</string>
+    <string name="settings_verify_downloads_hint">Prüfsummen gegen RomM oder das No-Intro- / Redump-DAT, im Hintergrund</string>
+    <string name="settings_dat_files">DAT-Dateien</string>
+    <string name="settings_dat_files_hint_none">No-Intro- / Redump-DATs importieren oder automatisch laden lassen</string>
+    <plurals name="settings_dat_files_hint">
+        <item quantity="one">%d DAT gespeichert</item>
+        <item quantity="other">%d DATs gespeichert</item>
+    </plurals>
+    <string name="dat_auto_download">Aus libretro-database laden</string>
+    <string name="dat_auto_download_hint">No-Intro- und Redump-DATs, geladen, sobald eine Konsole eines braucht</string>
+    <string name="dat_import">DAT importieren…</string>
+    <string name="dat_none">Noch kein DAT gespeichert.</string>
+    <string name="dat_row">%1$s · %2$s</string>
+    <plurals name="dat_entries">
+        <item quantity="one">%d Eintrag</item>
+        <item quantity="other">%d Einträge</item>
+    </plurals>
+    <string name="dat_origin_imported">Importiert</string>
+    <string name="dat_remove_title">Dieses DAT entfernen?</string>
+    <string name="dat_remove_text">%1$s, für %2$s. Bereits geprüfte Downloads behalten ihr Ergebnis.</string>
+    <string name="dat_remove">Entfernen</string>
+    <string name="dat_assign_title">Für welche Konsole ist dieses DAT?</string>
+    <string name="dat_reading">DAT wird gelesen…</string>
+    <string name="dat_saved">DAT für %1$s gespeichert</string>
+    <string name="dat_invalid">Diese Datei ist kein DAT</string>
+    <string name="dat_no_consoles">Füge zuerst unter Quellen eine Konsole hinzu.</string>
+    <!-- dl-cola -->
+    <string name="status_waiting">In Warteschlange · %1$d</string>
+    <string name="status_held">Gesperrt</string>
+    <string name="download_queue_up">Nach oben</string>
+    <string name="download_queue_down">Nach unten</string>
+    <string name="download_queue_next">Als Nächstes laden</string>
+    <string name="download_queue_hold">Sperren</string>
+    <string name="download_queue_release">Freigeben</string>
+    <string name="download_queue_reorder">Umsortieren</string>
+    <string name="download_queue_done">Fertig</string>
+    <string name="downloads_filter_all">Alle</string>
+    <string name="downloads_filter_running">Aktiv</string>
+    <string name="downloads_filter_waiting">Wartend</string>
+    <string name="downloads_filter_held">Gesperrt</string>
+    <string name="downloads_filter_failed">Fehler</string>
+    <string name="downloads_filter_completed">Fertig</string>
+    <string name="downloads_filter_count">%1$s %2$d</string>
+    <string name="search_downloads">Downloads durchsuchen</string>
+    <string name="downloads_no_match">Kein Download passt</string>
+    <string name="downloads_pause_all">Alle pausieren</string>
+    <string name="downloads_resume_all">Alle fortsetzen</string>
+    <string name="downloads_retry_failed">Fehlgeschlagene wiederholen</string>
+    <string name="downloads_clear_completed">Fertige entfernen</string>
+    <plurals name="downloads_clear_message">
+        <item quantity="one">%d abgeschlossener Download verschwindet aus der Liste. Die Datei bleibt in deinem Ordner.</item>
+        <item quantity="other">%d abgeschlossene Downloads verschwinden aus der Liste. Ihre Dateien bleiben in deinem Ordner.</item>
+    </plurals>
+    <string name="downloads_clear_confirm">Entfernen</string>
+    <string name="pad_order">Umsortieren</string>
+    <string name="pad_move">Verschieben</string>
+    <string name="pad_first">Als Nächstes</string>
+    <string name="pad_hold">Sperren</string>
+    <string name="pad_release">Freigeben</string>
+    <string name="pad_done">Fertig</string>
+    <string name="pad_pause">Pause</string>
+    <string name="pad_stop">Stopp</string>
+    <string name="pad_retry_only">Wiederholen</string>
+    <string name="notification_channel_results">Download-Ergebnisse</string>
+    <string name="notification_channel_results_desc">Wenn eine Reihe von Downloads zu Ende ist</string>
+    <string name="notif_progress_title">%1$d aktiv</string>
+    <string name="notif_progress_title_queued">%1$d aktiv · %2$d wartend</string>
+    <string name="notif_progress_bytes">%1$s von %2$s</string>
+    <string name="notif_progress_bytes_speed">%1$s · %2$s</string>
+    <string name="notif_resume">Fortsetzen</string>
+    <string name="notif_cancel_all">Alle abbrechen</string>
+    <plurals name="notif_paused_title">
+        <item quantity="one">%d Download pausiert</item>
+        <item quantity="other">%d Downloads pausiert</item>
+    </plurals>
+    <string name="notif_paused_text">Fortsetzen macht dort weiter, wo sie aufgehört haben</string>
+    <string name="notif_batch_title">Downloads abgeschlossen</string>
+    <plurals name="notif_batch_completed">
+        <item quantity="one">%d Download abgeschlossen</item>
+        <item quantity="other">%d Downloads abgeschlossen</item>
+    </plurals>
+    <plurals name="notif_batch_failed">
+        <item quantity="one">%d fehlgeschlagen</item>
+        <item quantity="other">%d fehlgeschlagen</item>
+    </plurals>
+    <plurals name="notif_batch_failed_only">
+        <item quantity="one">%d Download fehlgeschlagen</item>
+        <item quantity="other">%d Downloads fehlgeschlagen</item>
+    </plurals>
+    <string name="notif_batch_both">%1$s, %2$s</string>
+    <string name="settings_batch_notice">Hinweis, wenn alles fertig ist</string>
+    <string name="settings_batch_notice_hint">Sobald die Warteschlange leer ist, eine Benachrichtigung, wie viele Downloads abgeschlossen und wie viele fehlgeschlagen sind</string>
+    <!-- romm-transporte -->
+    <string name="romm_upload_preparing">↑ RomM: ZIP wird vorbereitet %1$d%%</string>
+    <string name="romm_upload_resuming">↑ RomM: wird fortgesetzt… %1$d%%</string>
+    <string name="romm_upload_waiting">↑ RomM: wartet auf die anderen Discs</string>
+    <string name="romm_upload_retry_at">↑ RomM-Upload fehlgeschlagen: %1$s · neuer Versuch um %2$s</string>
+    <string name="romm_upload_now">Jetzt zu RomM hochladen</string>
+    <string name="romm_upload_no_folder">kein Zugriff auf den Download-Ordner</string>
+    <string name="romm_upload_missing_file">%1$s ist nicht mehr auf dem Gerät</string>
+    <string name="romm_upload_source_changed">eine Datei hat sich beim Senden geändert</string>
+    <string name="romm_upload_cert_refused">dem Zertifikat des Servers wird nicht vertraut (Einstellungen → RomM → Verbindung testen)</string>
+    <string name="romm_cert_untrusted_title">Nicht vertrauenswürdiges Zertifikat</string>
+    <string name="romm_cert_changed_title">Das Zertifikat hat sich geändert</string>
+    <string name="romm_cert_untrusted_message">%1$s zeigt ein Zertifikat, dem dieses Gerät nicht vertraut. Vertraue ihm nur, wenn es das deines Servers ist.</string>
+    <string name="romm_cert_changed_message">%1$s zeigt ein anderes Zertifikat als das, dem du vertraut hast. Vertraue ihm nur, wenn du es selbst ersetzt hast.</string>
+    <string name="romm_cert_subject">Ausgestellt für: %1$s</string>
+    <string name="romm_cert_issuer">Ausgestellt von: %1$s</string>
+    <string name="romm_cert_validity">Gültig: %1$s – %2$s</string>
+    <string name="romm_cert_validity_expired">Gültig: %1$s – %2$s (abgelaufen)</string>
+    <string name="romm_cert_fingerprint">SHA-256: %1$s</string>
+    <string name="romm_cert_name_mismatch">Sein Name stimmt nicht mit %1$s überein.</string>
+    <string name="romm_cert_trust">Diesem Zertifikat vertrauen</string>
+    <string name="romm_cert_trusted">Zertifikat akzeptiert</string>
+    <string name="romm_cert_row">Vertrauenswürdiges Zertifikat</string>
+    <string name="romm_cert_row_hint">%1$s · SHA-256 %2$s</string>
+    <string name="romm_cert_forget">Vergessen</string>
+    <string name="romm_cert_forget_title">Zertifikat vergessen?</string>
+    <string name="romm_cert_forget_message">Dogmatix lehnt %1$s ab, bis du seinem Zertifikat wieder vertraust (Verbindung testen).</string>
+    <string name="romm_cert_forgotten">Zertifikat vergessen</string>
+
+    <!-- frontends -->
+    <string name="settings_esde_favourites">Favoriten mit ES-DE abgleichen</string>
+    <string name="settings_esde_favourites_hint">Deine ★ und die Favoriten in ES-DE, in beide Richtungen; passiert auch automatisch</string>
+    <string name="settings_esde_favourites_action">Abgleichen</string>
+    <string name="esde_favourites_synced">Favoriten abgeglichen: %1$d Änderungen hier, %2$d in ES-DE (ES-DE neu starten, um sie zu sehen)</string>
+    <string name="esde_favourites_in_sync">Die Favoriten stimmen bereits mit ES-DE überein</string>
+    <string name="esde_favourites_not_set_up">Richte zuerst ES-DE ein</string>
+    <string name="settings_frontend_check">Frontends prüfen</string>
+    <string name="settings_frontend_check_hint">ES-DE, iiSU und die .dgmtx-Verknüpfungen: was eingerichtet ist und was fehlt, mit Reparieren</string>
+    <string name="settings_frontend_check_action">Prüfen</string>
+    <string name="frontend_check_title">Frontend-Prüfung</string>
+    <string name="frontend_check_running">Wird geprüft…</string>
+    <string name="frontend_check_again">Erneut prüfen</string>
+    <string name="frontend_check_repair">Reparieren</string>
+    <string name="frontend_check_section_esde">ES-DE</string>
+    <string name="frontend_check_section_iisu">iiSU</string>
+    <string name="frontend_check_section_shortcuts">Verknüpfungen (.dgmtx)</string>
+    <string name="frontend_check_daijisho_note">Daijishō behält seine Einstellungen für sich: Es braucht nur diese Verknüpfungen und den Emulator aus „Daijishō einrichten“.</string>
+    <string name="fc_esde_folder_ok">Datenordner: Zugriff erteilt</string>
+    <string name="fc_esde_folder_not_set">Noch nicht eingerichtet: Wähle seinen Datenordner</string>
+    <string name="fc_esde_folder_no_access">Kein Zugriff mehr auf seinen Datenordner: Wähle ihn erneut</string>
+    <string name="fc_esde_not_installed">ES-DE ist nicht installiert: Die Einrichtung kann nicht wiederholt werden</string>
+    <string name="fc_esde_find_rule_ok">Dogmatix ist als Emulator registriert</string>
+    <string name="fc_esde_find_rule_missing">Dogmatix ist nicht als Emulator registriert (es_find_rules.xml)</string>
+    <string name="fc_esde_find_rule_other">Für einen anderen Build von Dogmatix registriert (%1$s), nicht für diesen</string>
+    <string name="fc_esde_systems_ok">Systeme, die die Verknüpfung mit Dogmatix öffnen: %1$d</string>
+    <string name="fc_esde_systems_missing">Ohne .dgmtx oder den Dogmatix-Befehl (%1$d von %2$d): %3$s</string>
+    <string name="fc_esde_no_systems">Kein Konsolenordner passt zu einem ES-DE-System</string>
+    <string name="fc_esde_gamelists_ok">Gamelists mit der Verknüpfung: %1$d</string>
+    <string name="fc_esde_gamelists_missing">Gamelists ohne den Eintrag der Verknüpfung (%1$d von %2$d): %3$s</string>
+    <string name="fc_esde_covers_ok">Systeme mit dem Cover der Verknüpfung: %1$d</string>
+    <string name="fc_esde_covers_missing">Cover der Verknüpfung fehlt (%1$d von %2$d): %3$s</string>
+    <string name="fc_iisu_folder_ok">iiSULauncher-Ordner: Zugriff erteilt</string>
+    <string name="fc_iisu_folder_not_set">Noch nicht eingerichtet: Wähle seinen iiSULauncher-Ordner</string>
+    <string name="fc_iisu_folder_no_access">Kein Zugriff mehr auf seinen Ordner: Wähle ihn erneut</string>
+    <string name="fc_iisu_wrong_folder">Der gewählte Ordner ist nicht iiSULauncher: Wähle ihn erneut</string>
+    <string name="fc_iisu_not_installed">iiSU ist nicht installiert</string>
+    <string name="fc_iisu_file_missing">emuladores.json nicht gefunden</string>
+    <string name="fc_iisu_file_corrupt">emuladores.json ist nicht lesbar oder scheint beschädigt: Es kann nichts hinzugefügt werden</string>
+    <string name="fc_iisu_no_consoles">Kein Konsolenordner passt zu einer iiSU-Konsole</string>
+    <string name="fc_iisu_emulators_ok">Konsolen mit dem Dogmatix-Emulator: %1$d</string>
+    <string name="fc_iisu_emulators_missing">Konsolen ohne den Dogmatix-Emulator (%1$d von %2$d): %3$s</string>
+    <string name="fc_shortcuts_ok">Konsolenordner mit ihrer Verknüpfung: %1$d</string>
+    <string name="fc_shortcuts_missing">Konsolen ohne Verknüpfung (%1$d von %2$d): %3$s</string>
+    <string name="fc_shortcuts_no_folder">Kein Download-Ordner festgelegt</string>
+    <string name="fc_shortcuts_no_consoles">Noch keine Konsolen</string>
+    <!-- busqueda -->
+    <string name="recent_searches">Letzte Suchen</string>
+    <string name="recent_searches_clear">Verlauf löschen</string>
+    <string name="recent_search_remove">Aus dem Verlauf entfernen</string>
+    <string name="pad_recent">Zuletzt</string>
+    <string name="search_also_in">Auch in:</string>
+    <string name="search_group_count">%1$s (%2$d)</string>
+    <string name="search_group_collection">Sammlung</string>
+    <string name="search_no_games">Keine Spiele passen zu dieser Suche.</string>
+    <string name="search_download_in_progress">Läuft</string>
+    <string name="search_kw_download_dir">ordner, verzeichnis, speicher, pfad, sd-karte, speicherkarte, roms, download-ordner</string>
+    <string name="search_kw_theme">dunkler modus, heller modus, dark mode, schwarz, amoled, design, darstellung, thema</string>
+    <string name="search_kw_language">englisch, spanisch, deutsch, französisch, portugiesisch, italienisch, übersetzung, sprache</string>
+    <string name="search_kw_accent">farbe, akzent, hervorhebung, darstellung</string>
+    <string name="search_kw_list_covers">cover, boxart, bilder, vorschaubilder, thumbnails, grafiken</string>
+    <string name="search_kw_tag_colors">farbe, labels, tags, chips, region, sprache</string>
+    <string name="search_kw_gamepad_layout">controller, gamepad, tasten, knöpfe, xbox, nintendo, playstation, legende</string>
+    <string name="search_kw_swap_buttons">controller, gamepad, tasten, bestätigen, zurück, vertauschen, umkehren</string>
+    <string name="search_kw_concurrent">parallel, gleichzeitig, warteschlange, auf einmal</string>
+    <string name="search_kw_per_host">server, verbindungen, host, parallel</string>
+    <string name="search_kw_speed_limit">bandbreite, drosseln, drosselung, geschwindigkeit, kb/s, langsam</string>
+    <string name="search_kw_metadata_timeout">magnet, torrent, warten, wartezeit, neuscan</string>
+    <string name="search_kw_seeding">torrent, seeden, upload, hochladen, ratio, teilen, peers</string>
+    <string name="search_kw_auto_retry">fehlgeschlagen, fehler, wiederholen, erneut versuchen, netzwerk</string>
+    <string name="search_kw_auto_unzip">entpacken, extrahieren, zip, 7z, dekomprimieren, archiv</string>
+    <string name="search_kw_multi_disc">m3u, playlist, discs, cd, mehrere discs, multi-disc</string>
+    <string name="search_kw_separate_console">ordner, unterordner, pro konsole, plattform</string>
+    <string name="search_kw_debrid">torbox, real-debrid, api-schlüssel, token, premium</string>
+    <string name="search_kw_max_results">seitengröße, mehr laden, ergebnisse, suche</string>
+    <string name="search_kw_region">version, land, europa, deutschland, usa, japan, bevorzugt</string>
+    <string name="search_kw_favorite_languages">übersetzung, versionen, sprachen</string>
+    <string name="search_kw_frontend_shortcuts">dgmtx, es-de, launcher, verknüpfung</string>
+    <string name="search_kw_esde">es-de, emulationstation, frontend, launcher</string>
+    <string name="search_kw_iisu">frontend, launcher, emulator</string>
+    <string name="search_kw_daijisho">daijisho, frontend, launcher, emulator</string>
+    <string name="search_kw_romm">server, hochladen, upload, self-hosted, bibliothek</string>
+    <string name="search_kw_about">kontakt, credits, mitwirkende, version, hilfe, info</string>
+    <!-- search keywords of the Settings rows added in 1.3 -->
+    <string name="search_kw_auto_scan">hintergrund, neuscan, zeitplan, täglich, wöchentlich, neue spiele</string>
+    <string name="search_kw_auto_scan_wifi">wlan, wifi, wi-fi, mobile daten, netzwerk, hintergrundscan</string>
+    <string name="search_kw_auto_scan_charging">akku, batterie, ladegerät, laden, strom, hintergrundscan</string>
+    <string name="search_kw_verify_downloads">prüfsumme, checksumme, crc, sha-1, md5, hash, integrität, no-intro, redump</string>
+    <string name="search_kw_dat_files">dat, no-intro, redump, libretro, prüfsumme, importieren</string>
+    <string name="search_kw_batch_notice">benachrichtigung, fertig, abgeschlossen, fehlgeschlagen, hinweis</string>
+    <string name="search_kw_esde_favourites">favoriten, stern, es-de, gamelist, synchronisieren, abgleichen, sync</string>
+    <string name="search_kw_frontend_check">es-de, iisu, daijisho, reparieren, diagnose, verknüpfungen, launcher</string>
+    <!-- biblioteca -->
+    <string name="filter_genre">Genre</string>
+    <string name="filter_decade">Jahrzehnt</string>
+    <string name="genre_action">Action</string>
+    <string name="genre_adventure">Abenteuer</string>
+    <string name="genre_platform">Plattformer</string>
+    <string name="genre_rpg">Rollenspiel</string>
+    <string name="genre_rpg_short">RPG</string>
+    <string name="genre_shooter">Shooter</string>
+    <string name="genre_fighting">Kampfspiel</string>
+    <string name="genre_racing">Rennspiel</string>
+    <string name="genre_sports">Sport</string>
+    <string name="genre_puzzle">Puzzle &amp; Quiz</string>
+    <string name="genre_puzzle_short">Puzzle</string>
+    <string name="genre_strategy">Strategie</string>
+    <string name="genre_simulation">Simulation</string>
+    <string name="genre_board">Brett- &amp; Kartenspiel</string>
+    <string name="genre_board_short">Brettspiel</string>
+    <string name="genre_music">Musik &amp; Rhythmus</string>
+    <string name="genre_music_short">Musik</string>
+    <string name="genre_other">Andere</string>
+    <string name="decade_long">%1$der</string>
+    <string name="decade_short">%1$ser</string>
+    <string name="traits_loading">Genres und Jahre werden gesucht…</string>
+    <string name="pad_letter">Buchstabe</string>
+    <string name="rec_for_you">Für dich</string>
+    <string name="rec_series">Vervollständige die Reihe</string>
+    <string name="rec_more_from">Mehr für %1$s</string>
+    <string name="rec_popular">Beliebt auf deinen Plattformen</string>
+    <string name="rec_highlights">Highlights für %1$s</string>
+    <string name="rec_all_games">Alle Spiele</string>
+    <string name="rec_loading">Spiele für dich werden ausgewählt…</string>
+    <string name="rec_empty_title">Deine Bibliothek ist leer</string>
+    <string name="rec_empty_body">Füge eine Quelle mit Spielen hinzu, dann erscheinen sie hier.</string>
+    <string name="rec_go_sources">Zu den Quellen</string>
+    <string name="rec_none">Noch keine Vorschläge. Markiere ein paar Spiele als Favorit oder lade sie herunter, dann kommen Vorschläge.</string>
+    <!-- romm-catalogo -->
+    <string name="romm_in_server">Auf dem RomM-Server</string>
+    <string name="romm_section">RomM</string>
+    <string name="romm_rating">%1$d/100</string>
+    <string name="romm_status">Status in RomM</string>
+    <string name="romm_loading">Wird geladen…</string>
+    <string name="romm_unreachable">Server nicht erreichbar</string>
+    <string name="romm_state_none">Kein Status</string>
+    <string name="romm_state_backlog">Vorgemerkt</string>
+    <string name="romm_state_playing">Am Spielen</string>
+    <string name="romm_state_incomplete">Nicht beendet</string>
+    <string name="romm_state_finished">Durchgespielt</string>
+    <string name="romm_state_completed" formatted="false">100 % komplett</string>
+    <string name="romm_state_retired">Aufgegeben</string>
+    <string name="romm_state_never">Kein Interesse</string>
+    <string name="romm_status_failed">RomM: Der Status konnte nicht gespeichert werden</string>
+    <string name="romm_collections">Sammlungen</string>
+    <string name="romm_collections_none">In keiner</string>
+    <string name="romm_collections_title">RomM-Sammlungen</string>
+    <string name="romm_collection_failed">RomM: Die Sammlung konnte nicht geändert werden</string>
+    <string name="romm_catalog">Serverkatalog</string>
+    <string name="romm_catalog_hint">%1$d Spiele · gelesen um %2$s</string>
+    <string name="romm_catalog_never">Noch nicht gelesen</string>
+    <string name="romm_catalog_refreshing">Server wird gelesen…</string>
+    <string name="romm_catalog_error">Konnte nicht gelesen werden: %1$s</string>
+    <string name="romm_catalog_unconfigured">Braucht die URL, das Token und eine zugeordnete Konsole</string>
+    <string name="romm_refresh">Aktualisieren</string>
+    <string name="romm_missing">Fehlendes hochladen</string>
+    <string name="romm_missing_hint">Lokale Spiele, die der Server nicht hat</string>
+    <string name="romm_missing_check">Prüfen</string>
+    <string name="romm_missing_checking">Abgleich mit dem Server…</string>
+    <string name="romm_missing_none">Jedes lokale Spiel ist bereits auf dem Server.</string>
+    <string name="romm_missing_failed">Abgleich nicht möglich: %1$s</string>
+    <plurals name="romm_missing_found">
+        <item quantity="one">%d lokales Spiel ist nicht auf dem Server:</item>
+        <item quantity="other">%d lokale Spiele sind nicht auf dem Server:</item>
+    </plurals>
+    <string name="romm_missing_upload">Hochladen</string>
+    <string name="romm_uploading">Lade %1$d von %2$d hoch…</string>
+    <string name="romm_uploaded_summary">Hochgeladen %1$d · fehlgeschlagen %2$d</string>
+    <string name="romm_fav_sync">Favoriten mit RomM abgleichen</string>
+    <string name="romm_fav_sync_hint">★ hier und Favoriten in RomM, in beide Richtungen</string>
+    <string name="romm_fav_sync_running">Wird abgeglichen…</string>
+    <string name="romm_fav_sync_done">Abgeglichen um %1$s · ★ +%2$d −%3$d · RomM +%4$d −%5$d</string>
+    <string name="romm_fav_sync_error">Letzter Abgleich fehlgeschlagen: %1$s</string>
+    <string name="romm_covers_esde">RomM-Cover für ES-DE</string>
+    <string name="romm_covers_esde_hint">Für deine lokalen Spiele, in den Medienordner von ES-DE</string>
+    <string name="romm_covers_write">Schreiben</string>
+    <string name="romm_covers_progress">Schreibe %1$d von %2$d…</string>
+    <string name="romm_covers_dialog_body">Schreibt das RomM-Cover jedes lokalen Spiels in downloaded_media von ES-DE. Schließe ES-DE vorher: Es liest die Cover beim Start.</string>
+    <string name="romm_covers_replace">Vorhandene Cover in ES-DE ersetzen</string>
+    <string name="romm_covers_result">%1$d geschrieben · %2$d hatten schon eins · %3$d fehlgeschlagen</string>
+    <string name="romm_covers_none">Kein lokales Spiel hat ein RomM-Cover zum Schreiben.</string>
+    <string name="romm_covers_failed">Cover: %1$s</string>
+    <!-- coleccion-analisis -->
+    <string name="nav_collection">Sammlung</string>
+    <string name="collection_tool_summary">Übersicht</string>
+    <string name="collection_tool_health">Zustand</string>
+    <string name="collection_tool_duplicates">Duplikate</string>
+    <string name="collection_tool_repair">Reparieren</string>
+    <string name="collection_tool_free_space">Platz schaffen</string>
+    <string name="collection_tool_smart_storage">SD-Speicher</string>
+    <string name="collection_tool_library_move">Verschieben</string>
+    <string name="collection_tool_history">Verlauf</string>
+    <string name="collection_tool_collections">Sammlungen</string>
+    <string name="collection_analysed_at">Analysiert %1$s</string>
+    <string name="collection_not_analysed">Noch nicht analysiert</string>
+    <string name="collection_analyze">Analysieren</string>
+    <string name="collection_cancel_analysis">Analyse stoppen</string>
+    <string name="collection_needs_analysis">Analysiere die ROM-Ordner, um zu sehen, was auf dem Gerät liegt. Jeder Konsolenordner wird einmal gelesen; das Ergebnis bleibt, bis du erneut analysierst.</string>
+    <string name="collection_no_folder">Wähle zuerst den ROM-Ordner in den Einstellungen.</string>
+    <string name="collection_open_settings">Einstellungen öffnen</string>
+    <string name="collection_open_sources">Quellen öffnen</string>
+    <string name="collection_open_free_space">Zu „Platz schaffen“</string>
+    <plurals name="collection_scanning">
+        <item quantity="one">Analysiere… %1$d Datei</item>
+        <item quantity="other">Analysiere… %1$d Dateien</item>
+    </plurals>
+    <plurals name="collection_scanning_folder">
+        <item quantity="one">Analysiere… %1$d Datei (%2$s)</item>
+        <item quantity="other">Analysiere… %1$d Dateien (%2$s)</item>
+    </plurals>
+    <string name="collection_ago_now">gerade eben</string>
+    <plurals name="collection_ago_minutes">
+        <item quantity="one">vor %d Minute</item>
+        <item quantity="other">vor %d Minuten</item>
+    </plurals>
+    <plurals name="collection_ago_hours">
+        <item quantity="one">vor %d Stunde</item>
+        <item quantity="other">vor %d Stunden</item>
+    </plurals>
+    <plurals name="collection_ago_days">
+        <item quantity="one">vor %d Tag</item>
+        <item quantity="other">vor %d Tagen</item>
+    </plurals>
+    <string name="collection_root_folder">Stammordner</string>
+    <string name="collection_download_folder">Download-Ordner</string>
+    <string name="collection_severity_high">Schwer</string>
+    <string name="collection_severity_medium">Prüfen</string>
+    <string name="collection_severity_low">Gering</string>
+    <string name="pad_show_in_library">Bibliothek</string>
+    <string name="pad_show">Zeigen</string>
+    <string name="pad_keep">Behalten</string>
+    <string name="pad_delete_rest">Rest löschen</string>
+    <string name="pad_repair">Reparieren</string>
+    <plurals name="collection_games">
+        <item quantity="one">%d Spiel</item>
+        <item quantity="other">%d Spiele</item>
+    </plurals>
+    <plurals name="collection_games_label">
+        <item quantity="one">Spiel</item>
+        <item quantity="other">Spiele</item>
+    </plurals>
+    <plurals name="collection_files">
+        <item quantity="one">%d Datei</item>
+        <item quantity="other">%d Dateien</item>
+    </plurals>
+    <plurals name="collection_files_label">
+        <item quantity="one">Datei</item>
+        <item quantity="other">Dateien</item>
+    </plurals>
+    <plurals name="collection_discs">
+        <item quantity="one">%d Disc</item>
+        <item quantity="other">%d Discs</item>
+    </plurals>
+    <string name="collection_on_disk">belegt</string>
+    <string name="collection_coverage">%1$d der %2$d Spiele aus deinen Quellen sind lokal vorhanden (%3$d %%)</string>
+    <string name="collection_console_coverage">%1$d von %2$d aus den Quellen</string>
+    <string name="collection_favourites_line">Favoriten: %1$d · %2$d lokal</string>
+    <string name="collection_by_console">Nach Konsole</string>
+    <string name="collection_recent_downloads">Letzte Downloads</string>
+    <string name="collection_no_games">Keine Spiele in den ROM-Ordnern.</string>
+    <string name="collection_storage">Speicher</string>
+    <string name="collection_volume_library">%1$s · Bibliothek</string>
+    <string name="collection_volume_free">%1$s frei von %2$s</string>
+    <string name="collection_biggest_games">Größte Spiele</string>
+    <string name="collection_regions">Regionen</string>
+    <string name="collection_languages">Sprachen</string>
+    <string name="collection_health_all_good">Nichts zu beheben: Die Bibliothek sieht gut aus.</string>
+    <string name="collection_health_summary">%1$d schwer · %2$d zu prüfen · %3$d gering</string>
+    <plurals name="collection_health_repair_these">
+        <item quantity="one">Reparieren</item>
+        <item quantity="other">Diese %d reparieren</item>
+    </plurals>
+    <plurals name="collection_health_permission">
+        <item quantity="one">%d Ordner, den die App nicht mehr öffnen kann</item>
+        <item quantity="other">%d Ordner, die die App nicht mehr öffnen kann</item>
+    </plurals>
+    <string name="collection_health_permission_hint">Wähle ihn in den Einstellungen erneut (oder unter Quellen, wenn es ein Konsolenordner ist)</string>
+    <plurals name="collection_health_low_space">
+        <item quantity="one">%d Datenträger fast voll</item>
+        <item quantity="other">%d Datenträger fast voll</item>
+    </plurals>
+    <string name="collection_health_low_space_hint">Downloads und Entpacken brauchen Platz; sieh nach, was weg kann</string>
+    <plurals name="collection_health_zero_bytes">
+        <item quantity="one">%d leere Datei (0 Byte)</item>
+        <item quantity="other">%d leere Dateien (0 Byte)</item>
+    </plurals>
+    <string name="collection_health_zero_bytes_hint">Sie starten nicht; lösche sie und lade sie erneut herunter</string>
+    <plurals name="collection_health_broken_reference">
+        <item quantity="one">%d Playlist oder Cue-Sheet mit fehlenden Dateien</item>
+        <item quantity="other">%d Playlists oder Cue-Sheets mit fehlenden Dateien</item>
+    </plurals>
+    <string name="collection_health_broken_reference_hint">Das Spiel lädt erst, wenn die genannten Dateien wieder da sind</string>
+    <plurals name="collection_health_incomplete_set">
+        <item quantity="one">%d Multi-Disc-Spiel mit fehlenden Discs</item>
+        <item quantity="other">%d Multi-Disc-Spiele mit fehlenden Discs</item>
+    </plurals>
+    <string name="collection_health_incomplete_set_hint">A auf einem Spiel sucht es in der Bibliothek</string>
+    <plurals name="collection_health_wrong_console">
+        <item quantity="one">%d Spiel im Ordner einer anderen Konsole</item>
+        <item quantity="other">%d Spiele im Ordner einer anderen Konsole</item>
+    </plurals>
+    <string name="collection_health_wrong_console_hint">Das Frontend zeigt sie dort nicht an; Reparieren verschiebt sie</string>
+    <plurals name="collection_health_partial">
+        <item quantity="one">%d Rest eines abgebrochenen Downloads</item>
+        <item quantity="other">%d Reste abgebrochener Downloads</item>
+    </plurals>
+    <string name="collection_health_partial_hint">Unfertige Dateien, die Platz belegen</string>
+    <plurals name="collection_health_missing_playlist">
+        <item quantity="one">%d Multi-Disc-Spiel ohne Playlist</item>
+        <item quantity="other">%d Multi-Disc-Spiele ohne Playlist</item>
+    </plurals>
+    <string name="collection_health_missing_playlist_hint">Reparieren fasst die Discs in „Spiel.m3u“ zusammen, damit das Frontend ein einziges Spiel zeigt</string>
+    <plurals name="collection_health_extracted_archive">
+        <item quantity="one">%d bereits entpacktes Archiv</item>
+        <item quantity="other">%d bereits entpackte Archive</item>
+    </plurals>
+    <string name="collection_health_extracted_archive_hint">Das Spiel liegt entpackt daneben; das Archiv belegt nur Platz</string>
+    <plurals name="collection_health_empty_folder">
+        <item quantity="one">%d leerer Ordner</item>
+        <item quantity="other">%d leere Ordner</item>
+    </plurals>
+    <string name="collection_health_empty_folder_hint">In Konsolenordnern; Frontends zeigen sie womöglich als Spiele an</string>
+    <plurals name="collection_health_foreign_extension">
+        <item quantity="one">%d Datei eines Typs, den ihre Konsole nicht nutzt</item>
+        <item quantity="other">%d Dateien eines Typs, den ihre Konsole nicht nutzt</item>
+    </plurals>
+    <string name="collection_health_foreign_extension_hint">Keine Quelle der Konsole führt diesen Typ; prüfe sie von Hand</string>
+    <plurals name="collection_health_sources_days">
+        <item quantity="one">Quellen seit %d Tag nicht gescannt</item>
+        <item quantity="other">Quellen seit %d Tagen nicht gescannt</item>
+    </plurals>
+    <string name="collection_health_sources_never">Quellen noch nie gescannt</string>
+    <string name="collection_health_sources_hint">Scanne sie neu, um zu sehen, was neu ist</string>
+    <string name="collection_free_bytes">%1$s frei</string>
+    <string name="collection_missing_files">Fehlt: %1$s</string>
+    <string name="collection_missing_discs">Fehlende Discs: %1$s (von %2$d)</string>
+    <string name="collection_and_more">Und %1$d weitere</string>
+    <string name="collection_duplicates_none">Kein Spiel ist doppelt vorhanden.</string>
+    <plurals name="collection_duplicates_summary">
+        <item quantity="one">%1$d Spiel mehrfach vorhanden · %2$s einsparbar</item>
+        <item quantity="other">%1$d Spiele mehrfach vorhanden · %2$s einsparbar</item>
+    </plurals>
+    <string name="collection_duplicates_apply">Vorgeschlagene löschen</string>
+    <string name="collection_duplicate_same_file">Gleiche Dateien</string>
+    <string name="collection_duplicate_same_content">Gleicher Inhalt</string>
+    <string name="collection_duplicate_versions">Versionen</string>
+    <string name="collection_keep">Bleibt</string>
+    <string name="collection_remove">Wird gelöscht</string>
+    <string name="collection_keep_choose">Eine wählen</string>
+    <plurals name="collection_delete_copies_title">
+        <item quantity="one">%d Kopie löschen?</item>
+        <item quantity="other">%d Kopien löschen?</item>
+    </plurals>
+    <string name="collection_frees">Gibt %1$s frei</string>
+    <string name="collection_delete">Löschen</string>
+    <string name="collection_repair">Reparieren</string>
+    <string name="collection_repair_none">Nichts zu reparieren.</string>
+    <plurals name="collection_repair_summary">
+        <item quantity="one">%1$d Korrektur · %2$d markiert</item>
+        <item quantity="other">%1$d Korrekturen · %2$d markiert</item>
+    </plurals>
+    <plurals name="collection_repair_apply">
+        <item quantity="one">%d reparieren</item>
+        <item quantity="other">%d reparieren</item>
+    </plurals>
+    <plurals name="collection_repair_confirm_title">
+        <item quantity="one">%d Element reparieren?</item>
+        <item quantity="other">%d Elemente reparieren?</item>
+    </plurals>
+    <string name="collection_repair_playlist">%1$s mit %2$d Discs erstellen</string>
+    <string name="collection_repair_move">Von %1$s nach %2$s verschieben</string>
+    <string name="collection_repair_delete_empty_file">Leere Datei löschen · %1$s</string>
+    <string name="collection_repair_delete_partial">Rest löschen · %1$s · %2$s</string>
+    <string name="collection_repair_delete_archive">Archiv löschen · %1$s · %2$s</string>
+    <string name="collection_repair_delete_folder">Leeren Ordner löschen · %1$s</string>
+    <plurals name="collection_repair_count_playlist">
+        <item quantity="one">%d Playlist erstellen</item>
+        <item quantity="other">%d Playlists erstellen</item>
+    </plurals>
+    <plurals name="collection_repair_count_move">
+        <item quantity="one">%d Datei zu ihrer Konsole verschieben</item>
+        <item quantity="other">%d Dateien zu ihrer Konsole verschieben</item>
+    </plurals>
+    <plurals name="collection_repair_count_empty_file">
+        <item quantity="one">%d leere Datei löschen</item>
+        <item quantity="other">%d leere Dateien löschen</item>
+    </plurals>
+    <plurals name="collection_repair_count_partial">
+        <item quantity="one">%d Rest löschen</item>
+        <item quantity="other">%d Reste löschen</item>
+    </plurals>
+    <plurals name="collection_repair_count_archive">
+        <item quantity="one">%d entpacktes Archiv löschen</item>
+        <item quantity="other">%d entpackte Archive löschen</item>
+    </plurals>
+    <plurals name="collection_repair_count_folder">
+        <item quantity="one">%d leeren Ordner löschen</item>
+        <item quantity="other">%d leere Ordner löschen</item>
+    </plurals>
+    <string name="collection_free_space_none">Nichts freizugeben.</string>
+    <string name="collection_free_space_summary">Markiert: %1$s von %2$s</string>
+    <string name="collection_delete_ticked">Markierte löschen</string>
+    <plurals name="collection_free_space_confirm_title">
+        <item quantity="one">%d Element endgültig löschen?</item>
+        <item quantity="other">%d Elemente endgültig löschen?</item>
+    </plurals>
+    <string name="collection_free_space_permanent">Das lässt sich nicht rückgängig machen: Es landet nicht im Papierkorb, daher wird der Platz sofort frei.</string>
+    <string name="collection_reclaim_duplicate">Kopie · %1$s · %2$s bleibt</string>
+    <string name="collection_reclaim_archive">Archiv bereits entpackt · %1$s</string>
+    <string name="collection_reclaim_partial">Abgebrochener Download · %1$s</string>
+    <string name="collection_reclaim_torrent_cache">Torrent-Cache</string>
+    <string name="collection_reclaim_torrent_cache_hint">Was fertige oder gestoppte Torrents im Cache der App hinterlassen haben</string>
+    <string name="collection_reclaim_image_cache">Cover-Cache</string>
+    <string name="collection_reclaim_image_cache_hint">Cover werden beim Anzeigen erneut geladen</string>
+    <plurals name="collection_deleted">
+        <item quantity="one">%1$d gelöscht · %2$s freigegeben</item>
+        <item quantity="other">%1$d gelöscht · %2$s freigegeben</item>
+    </plurals>
+    <plurals name="collection_repaired">
+        <item quantity="one">%1$d repariert</item>
+        <item quantity="other">%1$d repariert</item>
+    </plurals>
+    <plurals name="collection_failed">
+        <item quantity="one">%1$d ließ sich nicht ausführen</item>
+        <item quantity="other">%1$d ließen sich nicht ausführen</item>
+    </plurals>
+    <!-- coleccion-gestion -->
+    <string name="details_collection">Sammlung</string>
+    <!-- History and trash -->
+    <string name="history_trash">Papierkorb</string>
+    <string name="history_trash_none">Der Papierkorb ist leer</string>
+    <plurals name="history_trash_items">
+        <item quantity="one">%1$d Element im Papierkorb · %2$s</item>
+        <item quantity="other">%1$d Elemente im Papierkorb · %2$s</item>
+    </plurals>
+    <string name="history_trash_hint">Was du löschst, wartet hier (versteckter Ordner .dogmatix-trash auf demselben Speicher), bis der Papierkorb geleert wird</string>
+    <string name="history_trash_empty">Papierkorb leeren</string>
+    <string name="history_trash_empty_title">Papierkorb leeren?</string>
+    <string name="history_trash_empty_message">%1$d Elemente (%2$s) werden endgültig gelöscht. Ihre Einträge im Verlauf lassen sich dann nicht mehr rückgängig machen.</string>
+    <string name="history_retention">Aufbewahrungsdauer</string>
+    <string name="history_retention_hint">Wie lange gelöschte Spiele im Papierkorb bleiben</string>
+    <plurals name="history_days">
+        <item quantity="one">%d Tag</item>
+        <item quantity="other">%d Tage</item>
+    </plurals>
+    <string name="history_entries">Aktionen</string>
+    <string name="history_empty">Noch nichts: Löschungen, Verschiebungen, Importe und gelöschte Sammlungen erscheinen hier und lassen sich rückgängig machen.</string>
+    <string name="history_title_format">%1$s: %2$s</string>
+    <string name="history_type_download_delete">Aus Downloads gelöscht</string>
+    <string name="history_type_library_delete">Aus der Bibliothek gelöscht</string>
+    <string name="history_type_library_move">Bibliothek verschoben</string>
+    <string name="history_type_smart_storage">Zwischen Speichern verschoben</string>
+    <string name="history_type_sources_import">Quellen importiert</string>
+    <string name="history_type_collection_delete">Sammlung gelöscht</string>
+    <string name="history_type_duplicates">Duplikate entfernt</string>
+    <string name="history_type_repair">Bibliothek repariert</string>
+    <string name="history_type_free_space">Platz geschaffen</string>
+    <plurals name="history_items">
+        <item quantity="one">%d Element</item>
+        <item quantity="other">%d Elemente</item>
+    </plurals>
+    <string name="history_state_undone">Rückgängig gemacht</string>
+    <string name="history_state_failed">Rückgängig machen fehlgeschlagen: Versuch es erneut</string>
+    <string name="history_state_undoing">Wird rückgängig gemacht…</string>
+    <string name="history_state_expired">Der Papierkorb wurde geleert: nicht mehr umkehrbar</string>
+    <string name="history_state_superseded">Durch einen neueren Import ersetzt</string>
+    <string name="history_state_final">Nicht umkehrbar</string>
+    <string name="history_state_unavailable">Derzeit nicht umkehrbar</string>
+    <string name="history_undo">Rückgängig</string>
+    <string name="history_undo_title">„%1$s“ rückgängig machen?</string>
+    <string name="history_undo_trash">Die Dateien kommen aus dem Papierkorb an ihren alten Ort zurück. Ist der Name einer Datei dort inzwischen vergeben, bleibt sie im Papierkorb.</string>
+    <string name="history_undo_move">Alles kommt an seinen alten Ort zurück und die Einstellungen ziehen mit. Downloads pausieren so lange.</string>
+    <string name="history_undo_sources">Die Quellen von vor dem Import kommen zurück und alle Konsolen werden neu gescannt.</string>
+    <string name="history_undo_collection">Die Sammlung wird mit ihren Spielen neu erstellt.</string>
+    <string name="history_undo_generic">Diese Aktion wird zurückgenommen.</string>
+    <string name="history_undo_done">Rückgängig gemacht</string>
+    <string name="history_undo_partial">Teilweise rückgängig gemacht: Einige Elemente konnten nicht zurück</string>
+    <string name="history_undo_started">Wird zurückverschoben… (Fortschritt unter „Verschieben“)</string>
+    <string name="history_undo_failed">Rückgängig machen fehlgeschlagen</string>
+    <!-- Moves (Move the library, Smart storage) -->
+    <string name="move_from">Bibliotheksordner</string>
+    <plurals name="move_own_folders">
+        <item quantity="one">%d Konsole hat einen eigenen Ordner (liegt er in der Bibliothek, zieht er mit um)</item>
+        <item quantity="other">%d Konsolen haben einen eigenen Ordner (liegen sie in der Bibliothek, ziehen sie mit um)</item>
+    </plurals>
+    <string name="move_to">Verschieben nach</string>
+    <string name="move_to_none">Kein Ordner gewählt</string>
+    <string name="move_to_free">%1$s frei</string>
+    <string name="move_choose">Wählen</string>
+    <string name="move_what">Was verschieben</string>
+    <string name="move_what_hint">Den ganzen Bibliotheksordner oder nur die unten markierten Konsolen</string>
+    <string name="move_what_whole">Ganze Bibliothek</string>
+    <string name="move_what_consoles">Gewählte Konsolen</string>
+    <string name="move_what_consoles_summary">%1$s (%2$s)</string>
+    <string name="move_start">Verschieben</string>
+    <string name="move_confirm_title">Bibliothek verschieben?</string>
+    <string name="move_confirm_message">%1$s kommt nach %2$s. Jede Datei wird kopiert und geprüft, bevor das Original gelöscht wird; Downloads pausieren so lange, und du kannst abbrechen und fortsetzen. Über den Verlauf lässt sich alles zurückverschieben.</string>
+    <string name="move_nothing_to_move">Dort gibt es nichts zu verschieben (kein Ordner vorhanden, schon dort, oder der Ordner liegt in der Bibliothek)</string>
+    <string name="move_preparing">Wird vorbereitet…</string>
+    <string name="move_progress">%1$d / %2$d Dateien · %3$s / %4$s</string>
+    <string name="move_finishing">Einstellungen und Bibliothek werden aktualisiert…</string>
+    <string name="move_done">Fertig: %1$d Dateien, %2$s</string>
+    <string name="move_interrupted">Unterbrochen: Setze fort, um dort weiterzumachen, wo es aufgehört hat</string>
+    <string name="move_no_room">Nicht genug Platz: Benötigt werden %1$s, frei sind %2$s</string>
+    <string name="move_overlap">Ein Ordner kann nicht in sich selbst verschoben werden</string>
+    <string name="move_busy">Es läuft bereits eine andere Verschiebung</string>
+    <string name="move_failed">Das Verschieben wurde gestoppt (ein Ordner konnte nicht geöffnet oder beschrieben werden). Setze fort, um es erneut zu versuchen.</string>
+    <plurals name="move_left_behind">
+        <item quantity="one">%d Datei blieb, wo sie war (gleicher Name mit anderer Größe am Ziel, oder sie ließ sich nicht kopieren)</item>
+        <item quantity="other">%d Dateien blieben, wo sie waren (gleicher Name mit anderer Größe am Ziel, oder sie ließen sich nicht kopieren)</item>
+    </plurals>
+    <string name="move_downloads_paused">Downloads sind pausiert, bis es fertig ist</string>
+    <string name="move_title_back">%1$s, zurück: %2$s</string>
+    <string name="move_resume">Fortsetzen</string>
+    <string name="move_abandon">So lassen</string>
+    <string name="move_abandon_title">Verschiebung so lassen, wie sie ist?</string>
+    <string name="move_abandon_message">Bereits Verschobenes bleibt am neuen Ort und die Einstellungen ändern sich nicht. Diese Spiele werden daher erst gefunden, wenn die Verschiebung erneut ausgeführt wird.</string>
+    <!-- Smart storage -->
+    <string name="storage_volumes">Speicher</string>
+    <string name="storage_intro">Wähle einen Ordner auf der SD-Karte als zweite Bibliothek. Jede Konsole hat ihren Ordner auf einem der beiden Speicher; große Konsolen können auf die SD-Karte, und ein Download, der nicht passt, landet auf dem anderen.</string>
+    <string name="storage_pick_second">Ordner auf der SD-Karte wählen</string>
+    <string name="storage_main_root">Bibliothek</string>
+    <string name="storage_second_root">Zweite Bibliothek</string>
+    <string name="storage_internal">Interner Speicher</string>
+    <string name="storage_sd">SD-Karte</string>
+    <string name="storage_free_of">%1$s frei von %2$s</string>
+    <string name="storage_change">Ändern</string>
+    <string name="storage_frontends">Frontends</string>
+    <string name="storage_frontends_warning">Das Verschieben von Konsolenordnern ändert die Pfade, die die Frontends (ES-DE, iiSU, Daijishō…) lesen. Richte sie danach erneut ein.</string>
+    <string name="storage_frontends_reconfigure">Frontends neu einrichten</string>
+    <string name="storage_frontends_shortcuts">Verknüpfungen geschrieben: %1$d</string>
+    <string name="storage_frontends_esde_failed">ES-DE konnte nicht neu eingerichtet werden (Einstellungen → ES-DE einrichten)</string>
+    <string name="storage_frontends_iisu_failed">iiSU konnte nicht neu eingerichtet werden (Einstellungen → iiSU einrichten)</string>
+    <string name="storage_consoles">Konsolen</string>
+    <string name="storage_measuring">Konsolenordner werden gemessen…</string>
+    <string name="storage_measuring_progress">Konsolenordner werden gemessen… %1$d / %2$d</string>
+    <string name="storage_suggestion_summary">Der interne Speicher wird knapp: %1$s auf die SD-Karte zu verschieben gibt %2$s frei</string>
+    <string name="storage_suggestions_title">Vorgeschlagene Konsolen verschieben?</string>
+    <string name="storage_apply_suggestions">Vorgeschlagene verschieben</string>
+    <string name="storage_no_suggestions">Genug Platz: keine Vorschläge</string>
+    <string name="storage_suggested">→ %1$s</string>
+    <string name="storage_stray">%1$s auf %2$s (Downloads, die nicht passten)</string>
+    <string name="storage_refresh">Neu messen</string>
+    <string name="storage_pad_move">Verschieben</string>
+    <string name="storage_move">Verschieben</string>
+    <string name="storage_move_section">Verschiebung</string>
+    <string name="storage_move_title">%1$s nach %2$s verschieben?</string>
+    <string name="storage_move_message">Ihr Ordner (%1$s) wird kopiert und geprüft, bevor das Original gelöscht wird; Downloads pausieren so lange. Die Frontends müssen danach neu eingerichtet werden, und über den Verlauf lässt sich alles zurückverschieben.</string>
+    <string name="storage_move_not_started">Die Verschiebung hat nicht begonnen (kein Ordner zum Verschieben, oder es läuft bereits eine andere)</string>
+    <string name="storage_second_overlaps">Dieser Ordner ist der Bibliotheksordner, liegt darin oder enthält ihn: Wähle einen anderen, auf der SD-Karte</string>
+    <!-- Collections -->
+    <string name="collections_mine">Deine Sammlungen</string>
+    <string name="collections_empty">Noch keine Sammlungen. Erstelle hier eine oder füge ein Spiel über seine Details einer Sammlung hinzu (X → Sammlung).</string>
+    <string name="collections_new">Neue Sammlung</string>
+    <string name="collections_new_ellipsis">Neue Sammlung…</string>
+    <string name="collections_new_smart">Neue Sammlung mit Regeln</string>
+    <string name="collections_name">Name</string>
+    <string name="collections_create">Erstellen</string>
+    <string name="collections_save">Speichern</string>
+    <string name="collections_rename">Umbenennen</string>
+    <string name="collections_edit_rules">Regeln bearbeiten</string>
+    <string name="collections_open">In der Bibliothek zeigen</string>
+    <string name="collections_delete">Löschen</string>
+    <string name="collections_delete_title">„%1$s“ löschen?</string>
+    <string name="collections_delete_message">Nur die Sammlung wird gelöscht: Ihre Spiele bleiben in der Bibliothek und auf dem Gerät. Lässt sich im Verlauf rückgängig machen.</string>
+    <string name="collections_manual">Manuell</string>
+    <string name="collections_smart">Mit Regeln</string>
+    <plurals name="collections_games">
+        <item quantity="one">%d Spiel</item>
+        <item quantity="other">%d Spiele</item>
+    </plurals>
+    <string name="collections_add_title">Sammlungen für %1$s</string>
+    <string name="collections_in">In dieser Sammlung</string>
+    <string name="collections_filter">Sammlung: %1$s</string>
+    <string name="rules_any">Beliebig</string>
+    <string name="rules_on_disk">Lokal</string>
+    <string name="rules_on_disk_owned">Lokal vorhanden</string>
+    <string name="rules_on_disk_missing">Nicht vorhanden</string>
+    <string name="rules_min_size">Mindestens</string>
+    <string name="rules_max_size">Höchstens</string>
+    <string name="rules_min_summary">≥ %1$s</string>
+    <string name="rules_max_summary">≤ %1$s</string>
+    <string name="rules_name_contains">Name enthält</string>
+    <string name="rules_name_contains_label">Wörter</string>
+    <string name="rules_text_summary">„%1$s“</string>
+    <string name="rules_name_missing">Wähle einen Namen</string>
+    <string name="rules_empty">Füge mindestens eine Regel hinzu: Eine Sammlung ohne Regeln enthielte die ganze Bibliothek.</string>
+    <string name="rules_extras">Außerdem: %1$s</string>
+    <string name="rules_done">Fertig</string>
+    <string name="rules_clear">Zurücksetzen</string>
+    <string name="rules_no_choices">In der Bibliothek gibt es noch nichts zur Auswahl.</string>
+    <!-- search keywords of the Collection tools -->
+    <string name="search_kw_tool_summary">übersicht, bibliothek, lokale spiele, abdeckung, statistik, speicher, platz, größe, datenträger, sd-karte, regionen, sprachen</string>
+    <string name="search_kw_tool_health">zustand, probleme, warnungen, defekt, kaputt, prüfen, fehlende discs</string>
+    <string name="search_kw_tool_duplicates">duplikate, doppelt, kopien, gleiches spiel, versionen</string>
+    <string name="search_kw_tool_repair">reparieren, beheben, defekt, playlist, m3u, falscher ordner</string>
+    <string name="search_kw_tool_free_space">aufräumen, cache, löschen, platz, speicher, freigeben</string>
+    <string name="search_kw_tool_smart_storage">sd-karte, zweiter speicher, intern, voll, konsolen verschieben</string>
+    <string name="search_kw_tool_library_move">verschieben, umziehen, ordner, bibliothek, sd-karte, rom-ordner</string>
+    <string name="search_kw_tool_history">rückgängig, papierkorb, gelöscht, wiederherstellen, verlauf</string>
+    <string name="search_kw_tool_collections">listen, playlists, sammlungen, regeln, intelligente sammlung, gruppen</string>
+    <!-- integration: RomM collections and genre / decade rules in the Collections tool -->
+    <string name="collections_source_romm">RomM-Server</string>
+    <!-- verification v3 (RomM) -->
+    <string name="romm_catalog_cert_error">dem Zertifikat des Servers wird nicht vertraut; prüfe es mit „Verbindung testen“</string>
+    <!-- search bar: sort and clear -->
+    <string name="search_clear">Suche löschen</string>
+    <string name="pad_sort">Sortieren</string>
+    <!-- sort by console and decade -->
+    <string name="sort_console">Konsole</string>
+    <string name="sort_decade_asc">Jahrzehnt: alt → neu</string>
+    <string name="sort_decade_asc_short">Jahrzehnt ↑</string>
+    <string name="sort_decade_desc">Jahrzehnt: neu → alt</string>
+    <string name="sort_decade_desc_short">Jahrzehnt ↓</string>
+</resources>

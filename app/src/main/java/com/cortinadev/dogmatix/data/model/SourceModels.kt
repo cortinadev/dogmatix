@@ -13,5 +13,7 @@ data class Console(
     /** Configured chip label; empty = built-in default. */
     val shortName: String = "",
     /** Configured download-folder aliases; empty = built-in defaults. */
-    val folderAliases: List<String> = emptyList()
+    val folderAliases: List<String> = emptyList(),
+    /** Configured chip colour (`#RRGGBB`); empty = the default of its family. */
+    val color: String = ""
 )

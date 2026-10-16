@@ -59,9 +59,9 @@ class FrontendShortcutService @Inject constructor(
             // With "separate by console" off every console shares the root folder, so the
             // file name has to carry the console; otherwise the plain name reads best in lists.
             val fileName = if (path.source == ResolvedDownloadPath.Source.ROOT) {
-                "★ Search for more ${ConsoleFormatter.getConsoleShortName(console.id)} games....${DgmtxFile.EXTENSION}"
+                DgmtxFile.rootShortcutFile(ConsoleFormatter.getConsoleShortName(console.id))
             } else {
-                "${DgmtxFile.SHORTCUT_NAME}.${DgmtxFile.EXTENSION}"
+                DgmtxFile.SHORTCUT_FILE
             }
             val ok = runCatching {
                 val doc = StorageHelper.createFile(

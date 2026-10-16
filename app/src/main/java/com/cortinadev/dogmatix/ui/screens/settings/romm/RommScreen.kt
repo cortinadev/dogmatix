@@ -20,6 +20,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -42,6 +43,8 @@ import com.cortinadev.dogmatix.ui.screens.settings.SettingRow
 import com.cortinadev.dogmatix.ui.screens.settings.ThemedSwitch
 import com.cortinadev.dogmatix.ui.screens.settings.components.ApiKeyDialog
 import com.cortinadev.dogmatix.ui.screens.settings.components.maskedSecret
+import com.cortinadev.dogmatix.ui.screens.sources.components.ConfirmDialog
+import com.cortinadev.dogmatix.util.CertPin
 import com.cortinadev.dogmatix.util.ConsoleFormatter
 
 /**
@@ -54,6 +57,8 @@ fun RommScreen(viewModel: RommViewModel = hiltViewModel()) {
     val ui by viewModel.uiState.collectAsState()
     val platforms by viewModel.platforms.collectAsState()
     val loading by viewModel.loading.collectAsState()
+    val trusted by viewModel.trustedCertificate.collectAsState()
+    val certificatePrompt by viewModel.certificatePrompt.collectAsState()
     val context = LocalContext.current
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -83,7 +88,34 @@ fun RommScreen(viewModel: RommViewModel = hiltViewModel()) {
         )
     }
 
+    // romm-transporte: "trust this certificate?" after a test that hit it, and forgetting it.
+    certificatePrompt?.let { prompt ->
+        CertificateDialog(
+            certificate = prompt.certificate,
+            changed = prompt.changed,
+            onTrust = { viewModel.trustCertificate(context) },
+            onDismiss = viewModel::dismissCertificate
+        )
+    }
+    var confirmForget by remember { mutableStateOf(false) }
+    // Forgetting removes the certificate row, focus included: it goes to "Test connection" instead.
+    var refocusTest by remember { mutableStateOf(false) }
+    val forgetting = trusted
+    if (confirmForget && forgetting != null) {
+        ConfirmDialog(
+            title = stringResource(R.string.romm_cert_forget_title),
+            message = stringResource(R.string.romm_cert_forget_message, CertPin.hostOf(forgetting.origin)),
+            confirmText = stringResource(R.string.romm_cert_forget),
+            onConfirm = { refocusTest = true; viewModel.forgetCertificate(context) },
+            onDismiss = { confirmForget = false }
+        )
+    }
+
     val notMapped = stringResource(R.string.romm_not_mapped)
+    // romm-catalogo: catalogue, upload what's missing, favourites sync, covers to ES-DE.
+    val catalogRows = rememberRommCatalogRows()
+    // Grid index of the full-width "Console → platform" header, set while building the rows.
+    var headerIndex = 0
     val rows: List<@Composable () -> Unit> = buildList {
         add {
             SettingRow(title = stringResource(R.string.romm_server_url), hint = ui.url.ifBlank { stringResource(R.string.settings_not_set) }, onClick = { showUrlDialog = true }) {
@@ -114,6 +146,19 @@ fun RommScreen(viewModel: RommViewModel = hiltViewModel()) {
                 ThemedSwitch(ui.autoUpload) { viewModel.setAutoUpload(context, it) }
             }
         }
+        trusted?.let { pin ->
+            add {
+                SettingRow(
+                    title = stringResource(R.string.romm_cert_row),
+                    hint = stringResource(R.string.romm_cert_row_hint, CertPin.hostOf(pin.origin), CertPin.short(pin.fingerprint)),
+                    onClick = { confirmForget = true }
+                ) {
+                    PillButton(stringResource(R.string.romm_cert_forget)) { confirmForget = true }
+                }
+            }
+        }
+        addAll(catalogRows)
+        headerIndex = size
         add {
             SettingRow(
                 title = stringResource(R.string.romm_platforms_header),
@@ -159,9 +204,9 @@ fun RommScreen(viewModel: RommViewModel = hiltViewModel()) {
     val rowFocus = remember(rows.size) { List(rows.size) { FocusRequester() } }
     var focusedIndex by remember { mutableStateOf(-1) }
     fun columnOf(index: Int) = when {
-        index < HEADER_INDEX -> index % 2
-        index == HEADER_INDEX -> -1
-        else -> (index - HEADER_INDEX - 1) % 2
+        index < headerIndex -> index % 2
+        index == headerIndex -> -1
+        else -> (index - headerIndex - 1) % 2
     }
     LaunchedEffect(isLandscape, rows.size) {
         if (!isLandscape) return@LaunchedEffect
@@ -169,7 +214,7 @@ fun RommScreen(viewModel: RommViewModel = hiltViewModel()) {
             if (button != GamepadButton.PREV_PANEL && button != GamepadButton.NEXT_PANEL) return@collect
             val current = focusedIndex
             val target = when (columnOf(current)) {
-                0 -> current + 1                // left column → right
+                0 -> (current + 1).takeIf { it != headerIndex } ?: current   // left column → right
                 1 -> current - 1                // right column → left
                 else -> if (current < 0) 0 else current   // nothing / header: stay
             }.coerceIn(0, rows.lastIndex)
@@ -178,6 +223,15 @@ fun RommScreen(viewModel: RommViewModel = hiltViewModel()) {
     }
     // Land on the first row so the screen is usable from the D-pad without a "wake-up" press.
     LaunchedEffect(rows.size) { if (focusedIndex < 0 && rows.isNotEmpty()) runCatching { rowFocus[0].requestFocus() } }
+    LaunchedEffect(refocusTest, trusted) {
+        if (!refocusTest || trusted != null) return@LaunchedEffect
+        // The rows change in this same frame: the requester may attach a frame or two later.
+        for (attempt in 1..5) {
+            withFrameNanos { }
+            if (runCatching { rowFocus[TEST_ROW].requestFocus() }.isSuccess) break
+        }
+        refocusTest = false
+    }
     if (isLandscape) {
         val base = legendFor(NavRoutes.Romm.route)
         val column = LegendEntry("LB · RB", stringResource(R.string.pad_column))
@@ -201,7 +255,7 @@ fun RommScreen(viewModel: RommViewModel = hiltViewModel()) {
             contentPadding = PaddingValues(bottom = 12.dp),
             modifier = Modifier.fillMaxSize()
         ) {
-            items(rows.size, span = { index -> GridItemSpan(if (index == HEADER_INDEX) columns else 1) }) { index ->
+            items(rows.size, span = { index -> GridItemSpan(if (index == headerIndex) columns else 1) }) { index ->
                 Box(
                     modifier = Modifier
                         .focusRequester(rowFocus[index])
@@ -212,5 +266,5 @@ fun RommScreen(viewModel: RommViewModel = hiltViewModel()) {
     }
 }
 
-/** Grid index of the full-width "Console → platform" header (after URL, token, test, upload). */
-private const val HEADER_INDEX = 4
+/** Grid index of the "Test connection" row (after URL and token). */
+private const val TEST_ROW = 2

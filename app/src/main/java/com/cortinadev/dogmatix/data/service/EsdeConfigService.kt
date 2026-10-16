@@ -24,7 +24,8 @@ import javax.inject.Singleton
 @Singleton
 class EsdeConfigService @Inject constructor(
     @param:ApplicationContext private val context: Context,
-    private val shortcuts: FrontendShortcutService
+    private val shortcuts: FrontendShortcutService,
+    private val favouriteSync: EsdeFavouriteSyncService
 ) {
 
     data class Result(
@@ -71,6 +72,9 @@ class EsdeConfigService @Inject constructor(
             copyBannerIfMissing(esdeDir, esdeDirUri, "downloaded_media/$system/covers")
         }
 
+        // 4. Favourites both ways, now that the systems exist (best effort: the setup itself is done).
+        runCatching { favouriteSync.sync() }
+
         Result(
             shortcutsWritten = deployed.written,
             shortcutsFailed = deployed.failed,
@@ -111,7 +115,8 @@ class EsdeConfigService @Inject constructor(
     companion object {
         /** Must stay listed in the manifest `<queries>` or the bundled systems read nothing. */
         const val ESDE_PACKAGE = "org.es_de.frontend"
-        private const val BUNDLED_SYSTEMS_ENTRY = "assets/systems/android/es_systems.xml"
+        /** ES-DE's own system definitions inside its APK (also read by the frontend check). */
+        const val BUNDLED_SYSTEMS_ENTRY = "assets/systems/android/es_systems.xml"
         private const val BANNER_ASSET = "frontend/banner.png"
     }
 }

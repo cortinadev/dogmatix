@@ -5,6 +5,7 @@ import com.cortinadev.dogmatix.data.local.dao.DownloadHistoryDao
 import com.cortinadev.dogmatix.data.model.DownloadItemModel
 import com.cortinadev.dogmatix.data.model.DownloadStatus
 import com.cortinadev.dogmatix.util.Constants
+import com.cortinadev.dogmatix.util.DownloadFailure
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -35,6 +36,7 @@ class DownloadProgressTracker @Inject constructor(
     }
 
     fun updateDownloadStatus(fileName: String, status: DownloadStatus) {
+        if (status != DownloadStatus.FAILED) clearFailure(fileName)
         var changed: DownloadItemModel? = null
         _downloads.update { list ->
             list.map { item ->
@@ -90,6 +92,7 @@ class DownloadProgressTracker @Inject constructor(
     fun removeDownload(fileName: String) {
         _downloads.update { list -> list.filter { it.fileName != fileName } }
         lastUpdateTimes.remove(fileName)
+        _failures.update { it - fileName }
     }
 
     fun getDownloads(): List<DownloadItemModel> {
@@ -97,6 +100,7 @@ class DownloadProgressTracker @Inject constructor(
     }
 
     fun resetDownloadForRetry(fileName: String) {
+        clearFailure(fileName)
         _downloads.update { list ->
             list.map { item ->
                 if (item.fileName == fileName) {
@@ -128,17 +132,44 @@ class DownloadProgressTracker @Inject constructor(
     fun isActive(fileName: String): Boolean =
         _downloads.value.any { it.fileName == fileName && !it.isFinished }
 
-    fun hasActiveDownloads(): Boolean {
+    /** [ignoring]: rows that do not count (held in the download queue). */
+    fun hasActiveDownloads(ignoring: Set<String> = emptySet()): Boolean {
         return _downloads.value.any {
-            it.status == DownloadStatus.QUEUED ||
+            (it.status == DownloadStatus.QUEUED ||
             it.status == DownloadStatus.DOWNLOADING ||
             it.status == DownloadStatus.COPYING ||
-            it.status == DownloadStatus.UNZIPPING
+            it.status == DownloadStatus.UNZIPPING) && it.fileName !in ignoring
         }
     }
 
     fun shouldUpdateProgress(progress: Float, lastUpdateTime: Long, currentTime: Long): Boolean {
         return progress >= Constants.PROGRESS_COMPLETE ||
                (currentTime - lastUpdateTime) > Constants.PROGRESS_UPDATE_INTERVAL_MS
+    }
+
+    // Why each failed row failed, kept next to its status in the history.
+    private val _failures = MutableStateFlow<Map<String, DownloadFailure>>(emptyMap())
+    val failures: StateFlow<Map<String, DownloadFailure>> = _failures
+
+    /** Call before marking the row FAILED, so whoever reacts to FAILED already sees the reason. */
+    fun recordFailure(fileName: String, failure: DownloadFailure) {
+        _failures.update { it + (fileName to failure) }
+        persistScope.launch {
+            runCatching { historyDao.setFailure(fileName, failure.name) }
+                .onFailure { Log.e("DownloadProgressTracker", "Could not persist failure for $fileName: ${it.message}") }
+        }
+    }
+
+    /** Reasons read back from the history at startup (see [DownloadService]). */
+    fun restoreFailures(failures: Map<String, DownloadFailure>) {
+        _failures.update { failures + it }
+    }
+
+    fun statusOf(fileName: String): DownloadStatus? = _downloads.value.firstOrNull { it.fileName == fileName }?.status
+
+    private fun clearFailure(fileName: String) {
+        if (fileName !in _failures.value) return
+        _failures.update { it - fileName }
+        persistScope.launch { runCatching { historyDao.setFailure(fileName, null) } }
     }
 }

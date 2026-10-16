@@ -11,8 +11,10 @@ import com.cortinadev.dogmatix.data.model.ContentType
 import com.cortinadev.dogmatix.data.model.Manufacturer
 import com.cortinadev.dogmatix.data.model.UrlEntry
 import com.cortinadev.dogmatix.data.service.DatabaseScrapingService
+import com.cortinadev.dogmatix.data.service.SourcesImportUndo
 import com.cortinadev.dogmatix.data.service.TorrentHandleRegistry
 import com.cortinadev.dogmatix.util.ConsoleAliasInfo
+import com.cortinadev.dogmatix.util.ColorMath
 import com.cortinadev.dogmatix.util.ConsoleAliasRegistry
 import com.cortinadev.dogmatix.util.ConsoleFolderAliases
 import com.cortinadev.dogmatix.util.ConsoleFormatter
@@ -42,7 +44,11 @@ class SourcesRepository @Inject constructor(
     private val manufacturerDao: ManufacturerDao,
     private val consoleDao: ConsoleDao,
     private val torrentHandleRegistry: TorrentHandleRegistry,
-    private val databaseScrapingService: DatabaseScrapingService
+    private val databaseScrapingService: DatabaseScrapingService,
+    // frontends: stars travel in the export and come back (added) on import
+    private val favouritesRepository: FavouritesRepository,
+    // coleccion-gestion
+    private val importUndo: javax.inject.Provider<SourcesImportUndo>
 ) {
 
     /** Manufacturers with their consoles and parsed URL entries; consoles without a manufacturer are dropped. */
@@ -64,6 +70,11 @@ class SourcesRepository @Inject constructor(
             .associate { it.id to ConsoleAliasInfo(it.shortName, ConsoleAliasRegistry.parseAliases(it.folderAliases)) }
     }
 
+    /** Colours picked per console (console id → ARGB); consoles without one are left out. */
+    val consoleColors: Flow<Map<String, Int>> = consoleDao.getAllConsoles().map { consoles ->
+        consoles.mapNotNull { c -> ColorMath.parseHex(c.color)?.let { c.id to it } }.toMap()
+    }
+
     suspend fun isEmpty(): Boolean = consoleDao.getAllConsoles().first().isEmpty()
 
     suspend fun getConsole(consoleId: String): Console? = consoleDao.getConsoleById(consoleId)?.toModel()
@@ -80,12 +91,13 @@ class SourcesRepository @Inject constructor(
         return id
     }
 
-    suspend fun addConsole(manufacturerId: String, name: String, shortName: String = "", folderAliases: List<String> = emptyList()): String {
+    suspend fun addConsole(manufacturerId: String, name: String, shortName: String = "", folderAliases: List<String> = emptyList(), color: String = ""): String {
         val id = "${manufacturerId}_${SourcesJson.slug(name)}"
         if (consoleDao.getConsoleById(id) == null) {
             consoleDao.insertConsole(ConsoleEntity(
                 id = id, name = name.trim(), manufacturerId = manufacturerId, urls = "[]",
-                shortName = shortName.trim(), folderAliases = ConsoleAliasRegistry.serializeAliases(folderAliases)
+                shortName = shortName.trim(), folderAliases = ConsoleAliasRegistry.serializeAliases(folderAliases),
+                color = normalizeColor(color)
             ))
         }
         return id
@@ -96,13 +108,14 @@ class SourcesRepository @Inject constructor(
         manufacturerDao.updateManufacturer(m.copy(name = name.trim()))
     }
 
-    /** Updates the display name, chip label and folder aliases (empty values mean "use the built-in default"). */
-    suspend fun updateConsole(consoleId: String, name: String, shortName: String, folderAliases: List<String>) {
+    /** Updates the display name, chip label, folder aliases and colour (empty values mean "use the built-in default"). */
+    suspend fun updateConsole(consoleId: String, name: String, shortName: String, folderAliases: List<String>, color: String) {
         val c = consoleDao.getConsoleById(consoleId) ?: return
         consoleDao.updateConsole(c.copy(
             name = name.trim(),
             shortName = shortName.trim(),
-            folderAliases = ConsoleAliasRegistry.serializeAliases(folderAliases)
+            folderAliases = ConsoleAliasRegistry.serializeAliases(folderAliases),
+            color = normalizeColor(color)
         ))
     }
 
@@ -125,22 +138,22 @@ class SourcesRepository @Inject constructor(
      * Appends a source. `content://` URIs (a picked .torrent) are copied into internal storage;
      * magnets are trimmed to the tracker limit. Returns false if the entry could not be stored.
      */
-    suspend fun addUrl(consoleId: String, url: String, contentType: ContentType, folders: List<String> = emptyList()): Boolean {
+    suspend fun addUrl(consoleId: String, url: String, contentType: ContentType, folders: List<String> = emptyList(), mirrors: List<String> = emptyList()): Boolean {
         val console = consoleDao.getConsoleById(consoleId) ?: return false
         val stored = normalizeUrl(url) ?: return false
-        val urls = SourcesJson.parseUrlEntries(console.urls) + UrlEntry(stored, contentType, folders)
+        val urls = SourcesJson.parseUrlEntries(console.urls) + UrlEntry(stored, contentType, folders, mirrors = mirrors)
         consoleDao.updateConsole(console.copy(urls = SourcesJson.serializeUrlEntries(urls)))
         return true
     }
 
     /** Replaces the entry at [index]; a changed torrent source releases the old handle. */
-    suspend fun updateUrl(consoleId: String, index: Int, url: String, contentType: ContentType): Boolean {
+    suspend fun updateUrl(consoleId: String, index: Int, url: String, contentType: ContentType, mirrors: List<String> = emptyList()): Boolean {
         val console = consoleDao.getConsoleById(consoleId) ?: return false
         val urls = SourcesJson.parseUrlEntries(console.urls).toMutableList()
         val old = urls.getOrNull(index) ?: return false
         val stored = if (url.trim() == old.url) old.url else normalizeUrl(url) ?: return false
         if (stored != old.url) releaseSource(old.url)
-        urls[index] = old.copy(url = stored, contentType = contentType)
+        urls[index] = old.copy(url = stored, contentType = contentType, mirrors = mirrors)
         consoleDao.updateConsole(console.copy(urls = SourcesJson.serializeUrlEntries(urls)))
         return true
     }
@@ -171,6 +184,7 @@ class SourcesRepository @Inject constructor(
      * Local `.torrent` copies are not portable and are left out.
      */
     suspend fun exportToFile(): File = withContext(Dispatchers.IO) {
+        val starred = favouritesRepository.all().groupBy({ it.consoleId }, { it.fileName })
         val doc = manufacturers.first().map { m ->
             SourceManufacturer(
                 id = m.id, name = m.name,
@@ -180,7 +194,10 @@ class SourcesRepository @Inject constructor(
                         id = c.id, name = c.name,
                         urls = c.urls.filterNot { it.url.startsWith("/") },
                         shortName = ConsoleFormatter.getConsoleShortName(c.id),
-                        folderAliases = c.folderAliases.ifEmpty { ConsoleFolderAliases.defaultAliasesFor(c.id) }
+                        folderAliases = c.folderAliases.ifEmpty { ConsoleFolderAliases.defaultAliasesFor(c.id) },
+                        // Only a picked colour: the family default follows the app, not the file.
+                        color = c.color.ifBlank { null },
+                        favourites = starred[c.id].orEmpty().sorted()
                     )
                 }
             )
@@ -192,13 +209,26 @@ class SourcesRepository @Inject constructor(
     /**
      * Replaces every source with the contents of the document at [uri] (either the bundled
      * `consoles.json` layout or an export). Indexed files are cleared: the caller rescans.
-     * Returns the number of consoles imported.
+     * Favourites in the document are added to the current ones (never replace them; a document
+     * without favourites leaves them alone). Returns the number of consoles imported.
      */
     suspend fun importFromUri(uri: String): Int = withContext(Dispatchers.IO) {
         val text = context.contentResolver.openInputStream(uri.toUri())?.bufferedReader()?.use { it.readText() }
             ?: throw IllegalStateException("Cannot open $uri")
+        // coleccion-gestion: what is replaced is kept so the history can put it back.
+        val previous = runCatching { importUndo.get().snapshot(snapshotDocument()) }.getOrNull()
+        val count = importFromText(text)
+        runCatching { importUndo.get().recordImport(uri, count, previous) }
+        count
+    }
+
+    /**
+     * coleccion-gestion: [importFromUri] without the file — replaces every source with [text]
+     * (also how undoing an import restores the previous ones). Indexed files are cleared.
+     */
+    suspend fun importFromText(text: String, allowEmpty: Boolean = false): Int = withContext(Dispatchers.IO) {
         val doc = SourcesJson.parseDocument(text)
-        require(doc.isNotEmpty()) { "No sources found in file" }
+        require(allowEmpty || doc.isNotEmpty()) { "No sources found in file" }
 
         // Release the torrents of everything we are about to drop.
         consoleDao.getAllConsoles().first().forEach { releaseSources(SourcesJson.parseUrlEntries(it.urls)) }
@@ -219,20 +249,41 @@ class SourcesRepository @Inject constructor(
                 }
                 ConsoleEntity(
                     id = c.id, name = c.name, manufacturerId = m.id, urls = SourcesJson.serializeUrlEntries(urls),
-                    shortName = c.shortName.orEmpty(), folderAliases = ConsoleAliasRegistry.serializeAliases(c.folderAliases)
+                    shortName = c.shortName.orEmpty(), folderAliases = ConsoleAliasRegistry.serializeAliases(c.folderAliases),
+                    color = c.color.orEmpty()
                 )
             }
         }
         consoleDao.insertConsoles(consoles)
+        favouritesRepository.addAll(doc.flatMap { m -> m.consoles.flatMap { c -> c.favourites.map { c.id to it } } })
         consoles.size
+    }
+
+    /**
+     * coleccion-gestion: the sources exactly as stored (configured short names, aliases and
+     * colours, local `.torrent` paths included), for the undo of an import.
+     */
+    suspend fun snapshotDocument(): List<SourceManufacturer> = manufacturers.first().map { m ->
+        SourceManufacturer(
+            id = m.id, name = m.name,
+            consoles = m.consoles.map { c ->
+                SourceConsole(
+                    id = c.id, name = c.name, urls = c.urls,
+                    shortName = c.shortName.ifBlank { null }, folderAliases = c.folderAliases, color = c.color.ifBlank { null }
+                )
+            }
+        )
     }
 
     // ---- Helpers ------------------------------------------------------------------------------
 
     private fun ConsoleEntity.toModel() = Console(
         id = id, name = name, urls = SourcesJson.parseUrlEntries(urls),
-        shortName = shortName, folderAliases = ConsoleAliasRegistry.parseAliases(folderAliases)
+        shortName = shortName, folderAliases = ConsoleAliasRegistry.parseAliases(folderAliases), color = color
     )
+
+    /** `#RRGGBB`, or empty for anything that is not a colour (= family default). */
+    private fun normalizeColor(color: String): String = ColorMath.parseHex(color)?.let(ColorMath::toHex).orEmpty()
 
     private suspend fun normalizeUrl(url: String): String? {
         val trimmed = url.trim()

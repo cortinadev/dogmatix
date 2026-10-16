@@ -1,14 +1,16 @@
 package com.cortinadev.dogmatix.data.service
 
+import android.content.Context
 import android.util.Log
-import com.cortinadev.dogmatix.data.local.dao.DownloadableFileDao
+import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
-import com.cortinadev.dogmatix.data.local.entity.FileTagEntity
 import com.cortinadev.dogmatix.data.model.Console
 import com.cortinadev.dogmatix.data.model.UrlEntry
 import com.cortinadev.dogmatix.data.state.RescanStateHolder
 import com.cortinadev.dogmatix.util.FileParsingUtils
 import com.cortinadev.dogmatix.util.RommSource
+import com.cortinadev.dogmatix.util.ScanProgressMath
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -22,24 +24,23 @@ private const val TAG = "RommScrapingService"
  */
 @Singleton
 class RommScrapingService @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val rommClient: RommClient,
-    private val downloadableFileDao: DownloadableFileDao,
     private val rescanStateHolder: RescanStateHolder
 ) {
-    suspend fun scrapeAndInsert(urlEntry: UrlEntry, console: Console): Pair<Int, Int> = withContext(Dispatchers.IO) {
-        val slug = RommSource.slugOf(urlEntry.url) ?: throw Exception("Invalid RomM source '${urlEntry.url}' (expected romm://<platform>)")
-        val base = rommClient.configuredBaseUrl().ifEmpty { throw Exception("RomM server not configured (Settings → RomM)") }
-        rescanStateHolder.setTorrentFetchProgress("Listing $slug on RomM…")
+    /** Lists the platform's ROMs and hands them to [sink], which writes them only if they changed. */
+    suspend fun scrapeAndInsert(urlEntry: UrlEntry, console: Console, sink: SourceRowsSink): SourceWrite = withContext(Dispatchers.IO) {
+        val slug = RommSource.slugOf(urlEntry.url) ?: throw Exception(context.getString(R.string.scrape_romm_invalid_source, urlEntry.url))
+        val base = rommClient.configuredBaseUrl().ifEmpty { throw Exception(context.getString(R.string.scrape_romm_not_configured)) }
+        rescanStateHolder.setTorrentFetchProgress(context.getString(R.string.scrape_listing_romm, slug))
         try {
             val platform = rommClient.platforms().firstOrNull { it.slug.equals(slug, true) || it.fsSlug.equals(slug, true) || it.id.toString() == slug }
-                ?: throw Exception("RomM has no platform '$slug'")
+                ?: throw Exception(context.getString(R.string.scrape_romm_no_platform, slug))
             val roms = rommClient.roms(platform.id)
-            if (roms.isEmpty()) {
-                Log.i(TAG, "No ROMs on RomM for $slug")
-                return@withContext Pair(0, 0)
-            }
+            if (roms.isEmpty()) Log.i(TAG, "No ROMs on RomM for $slug")
+            rescanStateHolder.sourceProgress(RescanStateHolder.sourceKey(console.id, urlEntry.url), ScanProgressMath.PHASE_FETCHED)
             val files = ArrayList<DownloadableFileEntity>(roms.size)
-            val tags = ArrayList<List<FileTagEntity>>(roms.size)
+            val tags = ArrayList<List<String>>(roms.size)
             val contentTypeTag = FileParsingUtils.normalizeTag(urlEntry.contentType.name)
             roms.forEach { rom ->
                 val (cleanName, tagStrings) = FileParsingUtils.extractNameAndTags(rom.fsName.substringBeforeLast('.', rom.fsName))
@@ -51,13 +52,11 @@ class RommScrapingService @Inject constructor(
                     fileSize = rom.fsSizeBytes,
                     fileExtension = rom.fsName.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
                 )
-                tags += (tagStrings + contentTypeTag).distinct().map { FileTagEntity(fileId = 0L, tag = it) }
+                tags += (tagStrings + contentTypeTag).distinct()
             }
-            val ids = downloadableFileDao.insertAll(files)
-            val tagRows = ids.zip(tags).flatMap { (id, list) -> list.map { it.copy(fileId = id) } }
-            downloadableFileDao.insertTags(tagRows)
-            Log.i(TAG, "Indexed ${files.size} ROM(s) from RomM platform $slug")
-            Pair(files.size, tagRows.size)
+            val write = sink(files, tags)
+            Log.i(TAG, "Indexed ${files.size} ROM(s) from RomM platform $slug" + if (write.unchanged) " (unchanged)" else "")
+            write
         } finally {
             rescanStateHolder.setTorrentFetchProgress("")
         }

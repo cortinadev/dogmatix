@@ -18,6 +18,7 @@ import androidx.compose.foundation.focusable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.displayCutout
@@ -41,6 +42,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.res.stringResource
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -72,6 +74,9 @@ import com.cortinadev.dogmatix.ui.components.PortraitHeader
 import com.cortinadev.dogmatix.ui.components.TopTabs
 import com.cortinadev.dogmatix.ui.components.legendFor
 import com.cortinadev.dogmatix.ui.navigation.NavRoutes
+import com.cortinadev.dogmatix.ui.navigation.rememberPendingNavigation
+import com.cortinadev.dogmatix.ui.navigation.route
+import com.cortinadev.dogmatix.ui.screens.collection.CollectionScreen
 import com.cortinadev.dogmatix.ui.screens.contact.ContactScreen
 import com.cortinadev.dogmatix.ui.screens.download.DownloadScreen
 import com.cortinadev.dogmatix.ui.screens.download.DownloadViewModel
@@ -83,6 +88,9 @@ import com.cortinadev.dogmatix.ui.screens.settings.romm.RommScreen
 import com.cortinadev.dogmatix.ui.screens.sources.SourcesScreen
 import com.cortinadev.dogmatix.ui.screens.sources.SourcesViewModel
 import com.cortinadev.dogmatix.ui.theme.DogmatixTheme
+import com.cortinadev.dogmatix.data.repository.SourcesRepository
+import com.cortinadev.dogmatix.ui.components.LocalTagPalette
+import com.cortinadev.dogmatix.ui.components.rememberTagPalette
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
@@ -91,6 +99,9 @@ import javax.inject.Inject
 class MainActivity : AppCompatActivity() {
 
     @Inject lateinit var pendingFilters: PendingLibraryFilters
+    @Inject lateinit var sourcesRepository: SourcesRepository
+    @Inject lateinit var downloadService: com.cortinadev.dogmatix.data.service.DownloadService
+    @Inject lateinit var pendingDownloads: com.cortinadev.dogmatix.data.state.PendingDownloadsView
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -98,20 +109,28 @@ class MainActivity : AppCompatActivity() {
         hideSystemBars()
         Gamepad.startWatching(this)
         handleDeepLink(intent)
+        // Not again on a rotation: the chip from the notification was applied already.
+        if (savedInstanceState == null) handleDownloadsIntent(intent)
+        // The download queue survives a restart: what was running when the process died starts again.
+        downloadService.resumeInterrupted()
         setContent {
             val settingsViewModel: SettingsViewModel = hiltViewModel()
             val settings by settingsViewModel.uiState.collectAsState()
             val onboardingDone by settingsViewModel.onboardingDone.collectAsState()
+            val consoleColors by sourcesRepository.consoleColors.collectAsState(initial = emptyMap())
             // Key handling runs outside the composition, so the pad settings are mirrored there.
             LaunchedEffect(settings.gamepadLayout, settings.swapFaceButtons) {
                 Gamepad.layout.value = settings.gamepadLayout
                 Gamepad.swapFaceButtons.value = settings.swapFaceButtons
             }
             DogmatixTheme(themeMode = settings.themeMode, accent = settings.accent) {
-                when (onboardingDone) {
-                    null -> Unit                      // DataStore not read yet: avoid flashing the wrong screen
-                    false -> OnboardingHost()
-                    true -> DogmatixApp(pendingFilters)
+                // Chip colours: per console from Sources, per tag group from Settings.
+                CompositionLocalProvider(LocalTagPalette provides rememberTagPalette(consoleColors, settings.tagColors)) {
+                    when (onboardingDone) {
+                        null -> Unit                      // DataStore not read yet: avoid flashing the wrong screen
+                        false -> OnboardingHost()
+                        true -> DogmatixApp(pendingFilters)
+                    }
                 }
             }
         }
@@ -122,6 +141,13 @@ class MainActivity : AppCompatActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         handleDeepLink(intent)
+        handleDownloadsIntent(intent)
+    }
+
+    /** A tapped download notification opens the Downloads list on a chip (failed ones after a batch with failures). */
+    private fun handleDownloadsIntent(intent: Intent?) {
+        val name = intent?.getStringExtra(com.cortinadev.dogmatix.data.state.PendingDownloadsView.EXTRA_DOWNLOADS_FILTER) ?: return
+        com.cortinadev.dogmatix.util.DownloadFilter.entries.firstOrNull { it.name == name }?.let(pendingDownloads::submit)
     }
 
     private fun handleDeepLink(intent: Intent?) {
@@ -225,7 +251,8 @@ private fun DogmatixApp(pendingFilters: PendingLibraryFilters) {
     val sourcesViewModel: SourcesViewModel = hiltViewModel()
     val downloadViewModel: DownloadViewModel = hiltViewModel()
     val rescanErrorMessage by sourcesViewModel.rescanErrorMessage.collectAsState()
-    val downloads by downloadViewModel.downloads.collectAsState()
+    val activeDownloads by downloadViewModel.activeCount.collectAsState()
+    val pendingDownloadsFilter by downloadViewModel.pendingFilter.collectAsState()
     val gamepadConnected by Gamepad.connected.collectAsState()
     val legendOverride by Gamepad.legendOverride.collectAsState()
     val storageViewModel: StorageStatusViewModel = hiltViewModel()
@@ -239,10 +266,10 @@ private fun DogmatixApp(pendingFilters: PendingLibraryFilters) {
     if (rescanErrorMessage != null) {
         AlertDialog(
             onDismissRequest = { sourcesViewModel.clearRescanError() },
-            title = { Text("Scraping Error") },
+            title = { Text(stringResource(R.string.scrape_error_title)) },
             text = { Text(rescanErrorMessage ?: "") },
             confirmButton = {
-                TextButton(onClick = { sourcesViewModel.clearRescanError() }) { Text("OK") }
+                TextButton(onClick = { sourcesViewModel.clearRescanError() }) { Text(stringResource(android.R.string.ok)) }
             }
         )
     }
@@ -257,6 +284,23 @@ private fun DogmatixApp(pendingFilters: PendingLibraryFilters) {
     LaunchedEffect(pendingVersion) {
         if (pendingVersion > 0 && navController.currentBackStackEntry?.destination?.route != NavRoutes.Home.route) {
             navController.switchTo(NavRoutes.Home)
+        }
+    }
+    // A tapped download notification lands on Downloads; the screen applies the chip.
+    LaunchedEffect(pendingDownloadsFilter) {
+        if (pendingDownloadsFilter != null && navController.currentBackStackEntry?.destination?.route != NavRoutes.Downloads.route) {
+            navController.switchTo(NavRoutes.Downloads)
+        }
+    }
+    com.cortinadev.dogmatix.ui.screens.download.NotificationPermissionPrompt(downloadViewModel)
+
+    // busqueda: a library search result in another section switches to it; that screen focuses the element.
+    val pendingNavigation = rememberPendingNavigation()
+    val navigationVersion by pendingNavigation.version.collectAsState()
+    LaunchedEffect(navigationVersion) {
+        val route = pendingNavigation.target.value?.route ?: return@LaunchedEffect
+        if (navController.currentBackStackEntry?.destination?.route != route) {
+            NavRoutes.allRoutes.firstOrNull { it.route == route }?.let { navController.switchTo(it) }
         }
     }
     // After a gamepad section switch the focus ring goes away: focus is parked on an invisible
@@ -306,6 +350,9 @@ private fun DogmatixApp(pendingFilters: PendingLibraryFilters) {
             modifier = Modifier
                 .size(1.dp)
                 .focusRequester(focusSink)
+                // Something else took the focus (LB / RB, Y and B on the search, a screen landing on
+                // an element): the ring is visible again, so the next D-pad / A press must act on it.
+                .onFocusChanged { if (!it.isFocused) Gamepad.pointerHidden.value = false }
                 .focusable()
         )
         Column(
@@ -327,6 +374,7 @@ private fun DogmatixApp(pendingFilters: PendingLibraryFilters) {
                 ) {
                     composable(NavRoutes.Home.route) { HomeScreen(navController) }
                     composable(NavRoutes.Downloads.route) { DownloadScreen(navController) }
+                    composable(NavRoutes.Collection.route) { CollectionScreen(navController) }
                     composable(NavRoutes.Sources.route) { SourcesScreen() }
                     composable(NavRoutes.Settings.route) { SettingsScreen(navController) }
                     composable(NavRoutes.Contact.route) { ContactScreen(navController) }
@@ -343,7 +391,7 @@ private fun DogmatixApp(pendingFilters: PendingLibraryFilters) {
             if (!isLandscape) {
                 BottomTabs(
                     currentRoute = currentRoute,
-                    activeDownloads = downloads.count { it.status == DownloadStatus.DOWNLOADING || it.status == DownloadStatus.QUEUED },
+                    activeDownloads = activeDownloads,
                     onSelect = navController::switchTo
                 )
             }

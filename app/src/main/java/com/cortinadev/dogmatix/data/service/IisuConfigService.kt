@@ -99,8 +99,9 @@ class IisuConfigService @Inject constructor(
         /** iiSU's data folder inside `Android/media/com.iisulauncher/` — what the user picks. */
         const val DATA_DIR_NAME = "iiSULauncher"
 
-        private const val EMULATORS_DIR = "Emuladores"
-        private const val EMULATORS_FILE = "emuladores.json"
+        // Also read by the frontend check.
+        const val EMULATORS_DIR = "Emuladores"
+        const val EMULATORS_FILE = "emuladores.json"
         private const val BUNDLED_EMULATORS_ENTRY = "assets/emuladores_default.json"
     }
 }

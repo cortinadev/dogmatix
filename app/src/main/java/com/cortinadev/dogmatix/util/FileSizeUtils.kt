@@ -1,16 +1,21 @@
 package com.cortinadev.dogmatix.util
 
 object FileSizeUtils {
-    
+
+    /** Compiled once: every row of a directory listing goes through [parseFileSize]. */
+    private val sizePattern = """(\d+(?:\.\d+)?)\s*([KMGTPE]?i?B)""".toRegex(RegexOption.IGNORE_CASE)
+
+    /** Apache index sizes: a bare unit letter in powers of 1024 (`66M`, `1.5K`), or plain bytes (`512`). */
+    private val shortSizePattern = """(\d+(?:\.\d+)?)\s*([KMGTPE])?""".toRegex(RegexOption.IGNORE_CASE)
+
     fun parseFileSize(sizeString: String): Long {
         if (sizeString.isBlank() || sizeString == "0") return 0L
-        
+
         val cleanString = sizeString.trim().replace(",", "")
-        val regex = """(\d+(?:\.\d+)?)\s*([KMGTPE]?i?B)""".toRegex(RegexOption.IGNORE_CASE)
-        val match = regex.find(cleanString)
-        
-        if (match == null) return 0L
-        
+        val match = sizePattern.find(cleanString)
+
+        if (match == null) return parseShortSize(cleanString)
+
         val (numberStr, unitStr) = match.destructured
         val number = numberStr.toDoubleOrNull() ?: return 0L
         
@@ -31,7 +36,14 @@ object FileSizeUtils {
             else -> 0L
         }
     }
-    
+
+    private fun parseShortSize(text: String): Long {
+        val (numberStr, unit) = shortSizePattern.matchEntire(text)?.destructured ?: return 0L
+        val number = numberStr.toDoubleOrNull() ?: return 0L
+        if (unit.isEmpty()) return number.toLong()
+        return (number * Math.pow(1024.0, "KMGTPE".indexOf(unit.uppercase()) + 1.0)).toLong()
+    }
+
     fun bytesToMB(bytes: Long): Float {
         return bytes / Constants.MEBIBYTE.toFloat()
     }

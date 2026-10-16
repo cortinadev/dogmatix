@@ -1,13 +1,15 @@
 package com.cortinadev.dogmatix.data.service
 
+import android.content.Context
 import android.util.Log
-import com.cortinadev.dogmatix.data.local.dao.DownloadableFileDao
+import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
-import com.cortinadev.dogmatix.data.local.entity.FileTagEntity
 import com.cortinadev.dogmatix.data.model.Console
 import com.cortinadev.dogmatix.data.model.UrlEntry
 import com.cortinadev.dogmatix.data.state.RescanStateHolder
 import com.cortinadev.dogmatix.util.FileParsingUtils
+import com.cortinadev.dogmatix.util.ScanProgressMath
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -25,37 +27,40 @@ import javax.inject.Singleton
  */
 @Singleton
 class TorrentScrapingService @Inject constructor(
+    @param:ApplicationContext private val context: Context,
     private val metadataFetcher: TorrentMetadataFetcher,
     private val fileIndexer: TorrentFileIndexer,
-    private val downloadableFileDao: DownloadableFileDao,
     private val rescanStateHolder: RescanStateHolder,
     private val registry: TorrentHandleRegistry
 ) {
 
-    suspend fun scrapeAndInsert(urlEntry: UrlEntry, console: Console): Pair<Int, Int> =
+    /**
+     * Indexes the torrent's files and hands them to [sink], which writes them only if they
+     * changed. The file list comes from a session handle, the metadata cache on disk or the
+     * swarm (see [TorrentMetadataFetcher.withInfo]).
+     */
+    suspend fun scrapeAndInsert(urlEntry: UrlEntry, console: Console, sink: SourceRowsSink): SourceWrite =
         withContext(Dispatchers.IO) {
             val magnet = urlEntry.url
+            val key = RescanStateHolder.sourceKey(console.id, magnet)
 
-            rescanStateHolder.setTorrentFetchProgress("Fetching torrent metadata for ${console.name}…")
+            rescanStateHolder.setTorrentFetchProgress(context.getString(R.string.scrape_fetching_torrent, console.name))
 
-            val info = try {
-                metadataFetcher.fetch(magnet)
+            val entries = try {
+                metadataFetcher.withInfo(magnet) { info ->
+                    rescanStateHolder.sourceProgress(key, ScanProgressMath.PHASE_TORRENT_METADATA)
+                    rescanStateHolder.setTorrentFetchProgress(context.getString(R.string.scrape_indexing_torrent, console.name))
+                    fileIndexer.index(info, magnet, urlEntry.folders)
+                }
             } catch (e: Exception) {
                 rescanStateHolder.setTorrentFetchProgress("")
                 throw e
             }
+            if (entries.isEmpty()) Log.w(TAG, "No files found in torrent")
 
-            rescanStateHolder.setTorrentFetchProgress("Indexing files for ${console.name}…")
-
-            val entries = fileIndexer.index(info, magnet, urlEntry.folders)
-            if (entries.isEmpty()) {
-                Log.w(TAG, "No files found in torrent")
-                rescanStateHolder.setTorrentFetchProgress("")
-                return@withContext Pair(0, 0)
-            }
-
-            val allFiles = mutableListOf<DownloadableFileEntity>()
-            val allTagPairs = mutableListOf<Pair<DownloadableFileEntity, List<FileTagEntity>>>()
+            val allFiles = ArrayList<DownloadableFileEntity>(entries.size)
+            val allTags = ArrayList<List<String>>(entries.size)
+            val contentTypeTag = FileParsingUtils.normalizeTag(urlEntry.contentType.name)
 
             entries.forEach { entry ->
                 val (cleanName, tagStrings) = FileParsingUtils.extractNameAndTags(entry.fileName)
@@ -70,31 +75,22 @@ class TorrentScrapingService @Inject constructor(
                     torrentFileIndex = entry.fileIndex,
                     torrentMagnet = magnet
                 )
-                val tagEntities = tagStrings.map { FileTagEntity(fileId = 0, tag = it) }
-                val contentTypeTag = FileTagEntity(
-                    fileId = 0,
-                    tag = FileParsingUtils.normalizeTag(urlEntry.contentType.name)
-                )
                 allFiles.add(entity)
-                allTagPairs.add(entity to (tagEntities + contentTypeTag))
+                allTags.add(tagStrings + contentTypeTag)
             }
+            rescanStateHolder.sourceProgress(key, ScanProgressMath.PHASE_PARSED)
 
-            val insertedIds = downloadableFileDao.insertAll(allFiles)
-            val fileIdMap = allFiles.zip(insertedIds).associate { (f, id) -> f.fileName to id }
-
-            val updatedTags = allTagPairs.flatMap { (file, tags) ->
-                val id = fileIdMap[file.fileName] ?: 0L
-                tags.map { it.copy(fileId = id) }
-            }
-            downloadableFileDao.insertTags(updatedTags)
+            // By position, not by file name: two files with the same name in different folders
+            // of the torrent used to share one id, so one got both sets of tags and the other none.
+            val write = sink(allFiles, allTags)
             rescanStateHolder.setTorrentFetchProgress("")
 
-            Log.i(TAG, "Inserted ${allFiles.size} files, ${updatedTags.size} tags for ${console.name}")
+            Log.i(TAG, "${allFiles.size} files, ${write.tags} tags for ${console.name}" + if (write.unchanged) " (unchanged)" else "")
             
             // NOTE: We no longer release the handle here.
             // Keeping it in the session allows immediate starting of downloads.
 
-            Pair(allFiles.size, updatedTags.size)
+            write
         }
 
     companion object { private const val TAG = "TorrentScrapingService" }

@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.cortinadev.dogmatix.R
+import com.cortinadev.dogmatix.data.local.defaultFavoriteLanguages
+import com.cortinadev.dogmatix.data.model.PreferredRegion
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.data.service.EsdeConfigService
 import com.cortinadev.dogmatix.data.service.FrontendSetupException
@@ -31,6 +33,21 @@ class OnboardingViewModel @Inject constructor(
 
     private val _esdeBusy = MutableStateFlow(false)
     val esdeBusy: StateFlow<Boolean> = _esdeBusy.asStateFlow()
+
+    /** Which version of a game the library picks; editable later in Settings. */
+    val preferredRegion: StateFlow<PreferredRegion> = settings.preferredRegion
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), PreferredRegion.forLocale())
+    val favoriteLanguages: StateFlow<Set<String>> = settings.favoriteLanguages
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(), defaultFavoriteLanguages())
+
+    fun setPreferredRegion(region: PreferredRegion) {
+        viewModelScope.launch { settings.setPreferredRegion(region) }
+    }
+
+    fun toggleLanguage(tag: String) {
+        val current = favoriteLanguages.value
+        viewModelScope.launch { settings.setFavoriteLanguages(if (tag in current) current - tag else current + tag) }
+    }
 
     fun updateDownloadDirectory(uri: String) {
         viewModelScope.launch { settings.updateDownloadDirectory(uri) }

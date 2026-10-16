@@ -25,9 +25,17 @@ object EsdeXml {
      * `custom_systems/es_find_rules.xml` content with the DOGMATIX emulator registered for
      * [packageEntry] (`package/activity`), or null when [existing] already has it or cannot
      * be merged. Custom find rules complement the bundled ones, so other emulators are safe.
+     *
+     * A DOGMATIX emulator registered for another build (release ⇄ debug) gains this build's
+     * entry after its own: ES-DE launches the first installed one, so the order already there
+     * (which build wins when both are installed) is kept.
      */
     fun findRulesWithDogmatix(existing: String?, packageEntry: String): String? {
-        if (existing != null && existing.contains("\"$EMULATOR_NAME\"")) return null
+        val emulator = existing?.let { dogmatixEmulator.find(it) }
+        if (emulator != null) {
+            if (packageEntry in findRuleEntries(existing).orEmpty()) return null
+            return existing.replaceRange(emulator.range, withEntry(emulator.value, packageEntry))
+        }
         val block = "    <emulator name=\"$EMULATOR_NAME\">\n" +
             "        <rule type=\"androidpackage\">\n" +
             "            <entry>$packageEntry</entry>\n" +
@@ -148,7 +156,45 @@ object EsdeXml {
         return out
     }
 
-    private fun tagText(block: String, tag: String): String? {
+    /**
+     * The `<entry>` values (`package/activity`) of the DOGMATIX emulator's Android package rule
+     * in a find rules file; null when the file has no DOGMATIX emulator.
+     */
+    fun findRuleEntries(xml: String): List<String>? {
+        val emulator = dogmatixEmulator.find(xml)?.value ?: return null
+        val rule = androidPackageRule.find(emulator)?.value ?: return emptyList()
+        return Regex("<entry>(.*?)</entry>", RegexOption.DOT_MATCHES_ALL).findAll(rule)
+            .map { it.groupValues[1].trim() }.filter { it.isNotEmpty() }.toList()
+    }
+
+    private val dogmatixEmulator =
+        Regex("""<emulator\s[^>]*\bname\s*=\s*"$EMULATOR_NAME"[^>]*>.*?</emulator>""", RegexOption.DOT_MATCHES_ALL)
+    private val androidPackageRule =
+        Regex("""<rule\s[^>]*\btype\s*=\s*"androidpackage"[^>]*>.*?</rule>""", RegexOption.DOT_MATCHES_ALL)
+
+    /** [emulator] (a DOGMATIX `<emulator>` block) with [packageEntry] as its last Android package entry. */
+    private fun withEntry(emulator: String, packageEntry: String): String {
+        val rule = androidPackageRule.find(emulator)
+            ?: return emulator.replaceFirst(
+                "</emulator>",
+                "    <rule type=\"androidpackage\">\n            <entry>$packageEntry</entry>\n        </rule>\n    </emulator>"
+            )
+        val r = rule.value
+        val lastEntry = r.lastIndexOf("</entry>")
+        val patched = if (lastEntry >= 0) {
+            // A new line under the last entry, indented the same.
+            val cut = lastEntry + "</entry>".length
+            val entryStart = r.lastIndexOf("<entry>", lastEntry)
+            val indent = r.substring(r.lastIndexOf('\n', entryStart) + 1, entryStart).takeIf { it.isBlank() } ?: ""
+            r.substring(0, cut) + "\n" + indent + "<entry>$packageEntry</entry>" + r.substring(cut)
+        } else {
+            r.replace("</rule>", "<entry>$packageEntry</entry></rule>")
+        }
+        return emulator.replaceRange(rule.range, patched)
+    }
+
+    /** Trimmed text of the first `<tag>` in [block]; null when there is none. */
+    fun tagText(block: String, tag: String): String? {
         val start = block.indexOf("<$tag>")
         if (start < 0) return null
         val end = block.indexOf("</$tag>", start)

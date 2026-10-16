@@ -16,12 +16,21 @@ import com.cortinadev.dogmatix.util.ArchiveExtractionUtils
 import com.cortinadev.dogmatix.util.Constants
 import com.cortinadev.dogmatix.util.RommSource
 import com.cortinadev.dogmatix.util.DebridMatcher
+import com.cortinadev.dogmatix.util.DownloadFailure
+import com.cortinadev.dogmatix.util.DownloadFailures
+import com.cortinadev.dogmatix.util.DownloadOrigins
+import com.cortinadev.dogmatix.util.FileParsingUtils
+import com.cortinadev.dogmatix.util.HttpResume
+import com.cortinadev.dogmatix.util.UnexpectedContentException
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,13 +39,14 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import java.io.BufferedOutputStream
+import java.io.EOFException
 import java.io.File
 import java.io.InputStream
 import java.io.OutputStream
+import java.net.HttpURLConnection
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -55,10 +65,16 @@ class DownloadService @Inject constructor(
     private val downloadFileManager: DownloadFileManager,
     private val torrentDownloadService: TorrentDownloadService,
     private val torrentHandleRegistry: TorrentHandleRegistry,
+    private val seedingManager: SeedingManager,
     private val historyDao: DownloadHistoryDao,
     private val torBoxClient: TorBoxClient,
     private val realDebridClient: RealDebridClient,
-    private val rommClient: RommClient
+    private val rommClient: RommClient,
+    private val sourceMirrors: SourceMirrors,
+    /** Who starts next: replaces the plain semaphore + per-server limiter (order is explicit). */
+    private val downloadQueue: DownloadQueueService,
+    private val sourceStats: SourceStatsService,
+    private val resumeStore: ResumeStore
 ) {
     val downloads: StateFlow<List<DownloadItemModel>> = downloadProgressTracker.downloads
 
@@ -70,8 +86,16 @@ class DownloadService @Inject constructor(
     private val _finished = MutableSharedFlow<String>(extraBufferCapacity = 32)
     val finished: SharedFlow<String> = _finished.asSharedFlow()
 
+    /** File names whose job ended FAILED (the job is over, unlike a failed attempt that is retried in place). */
+    private val _failed = MutableSharedFlow<String>(extraBufferCapacity = 32)
+    val failed: SharedFlow<String> = _failed.asSharedFlow()
+
+    /** Rows still running when the process died, resumed by [resumeInterrupted] once restored. */
+    private var interrupted: List<String> = emptyList()
+    private val historyRestored = CompletableDeferred<Unit>()
+    private val resumeRequested = AtomicBoolean(false)
+
     private val downloadJobs = ConcurrentHashMap<String, Job>()
-    private var downloadSemaphore = Semaphore(3)
     private var foregroundServiceStarted = false
     private val downloadEntities = ConcurrentHashMap<String, DownloadableFileEntity>()
     private val extractedFilesMap = ConcurrentHashMap<String, List<String>>()
@@ -85,12 +109,12 @@ class DownloadService @Inject constructor(
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     init {
-        serviceScope.launch {
-            settingsRepository.concurrentDownloads.collect { max ->
-                downloadSemaphore = Semaphore(max)
-            }
-        }
         serviceScope.launch { restoreHistory() }
+        // Seeding keeps the foreground service alive after the last download; stop it when the
+        // last seed is released (goal met, or the setting switched off).
+        serviceScope.launch {
+            seedingManager.active.collect { count -> if (count == 0) checkServiceLifecycle() }
+        }
     }
 
     /**
@@ -100,9 +124,14 @@ class DownloadService @Inject constructor(
     private suspend fun restoreHistory() {
         try {
             val rows = historyDao.getAll()
+            downloadQueue.restore(rows)
             rows.forEach { row -> downloadEntities.putIfAbsent(row.fileName, row.toEntity()) }
             val items = rows.map { it.toItem() }
             downloadProgressTracker.restore(items)
+            interrupted = rows.filter { it.wasInFlight }.map { it.fileName }
+            downloadProgressTracker.restoreFailures(
+                rows.mapNotNull { row -> DownloadFailures.fromName(row.failureReason)?.let { row.fileName to it } }.toMap()
+            )
             items.filter { it.status == DownloadStatus.STOPPED }.forEach { item ->
                 val row = rows.first { it.fileName == item.fileName }
                 if (row.status != item.status.name || row.finishedAt != item.finishedAt) {
@@ -112,7 +141,35 @@ class DownloadService @Inject constructor(
             Log.d(TAG, "Restored ${rows.size} download(s) from history")
         } catch (e: Exception) {
             Log.e(TAG, "Could not restore download history: ${e.message}")
+        } finally {
+            historyRestored.complete(Unit)
         }
+    }
+
+    /**
+     * Starts again what was downloading when the process died (the queue survives a restart).
+     * Called by the activity, not at process start: a download needs the foreground service,
+     * which Android only lets a visible app start. Runs once per process.
+     */
+    fun resumeInterrupted() {
+        if (!resumeRequested.compareAndSet(false, true)) return
+        serviceScope.launch {
+            historyRestored.await()
+            // Back in their places (and holds) in line, starting by queue order, not list order.
+            downloadQueue.batch { interrupted.forEach { relaunch(it, keepPlace = true) } }
+            interrupted = emptyList()
+        }
+    }
+
+    /** Marks [file] FAILED with the reason worked out from [error] (recorded first, see [DownloadProgressTracker.recordFailure]). */
+    private fun markFailed(fileName: String, error: Throwable) {
+        downloadProgressTracker.recordFailure(fileName, DownloadFailures.classify(error))
+        downloadProgressTracker.updateDownloadStatus(fileName, DownloadStatus.FAILED)
+    }
+
+    /** Lets auto-retry know a job ended FAILED (a torrent may fail without throwing). */
+    private fun reportIfFailed(fileName: String) {
+        if (downloadProgressTracker.statusOf(fileName) == DownloadStatus.FAILED) _failed.tryEmit(fileName)
     }
 
     fun startDownload(file: DownloadableFileEntity) {
@@ -121,12 +178,14 @@ class DownloadService @Inject constructor(
         val item = downloadFileManager.createDownloadItem(file)
         downloadProgressTracker.addDownload(item)
         downloadEntities[file.fileName] = file
-        serviceScope.launch { historyDao.upsert(DownloadHistoryEntity.from(file, item)) }
+        // Its place in line is taken now, so downloads started together start in that order.
+        val ticket = downloadQueue.enqueue(file)
+        serviceScope.launch { historyDao.upsert(DownloadHistoryEntity.from(file, item).copy(queueOrder = ticket.order)) }
         startForegroundService()
 
         val job = serviceScope.launch {
             try {
-                downloadSemaphore.withPermit {
+                downloadQueue.withSlot(ticket) {
                     // Brief delay to allow the foreground service and initial UI state to settle
                     // before network/torrent activity begins.
                     delay(1000L)
@@ -137,9 +196,12 @@ class DownloadService @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Download failed for ${file.fileName}: ${e.message}")
-                updateStatus(file.fileName, DownloadStatus.FAILED)
+                markFailed(file.fileName, e)
             } finally {
                 downloadJobs.remove(file.fileName)
+                reportIfFailed(file.fileName)
+                // A stopped or failed last download must take the notification away too.
+                checkServiceLifecycle()
             }
         }
         downloadJobs[file.fileName] = job
@@ -151,8 +213,9 @@ class DownloadService @Inject constructor(
         when {
             debrid != null -> performDebridDownload(file, debrid)
             file.isTorrent -> performTorrentDownload(file)
-            // Plain HTTP / RomM keep their partial and continue with a Range request on retry.
-            else -> performHttpDownload(file, resumable = true)
+            // Plain HTTP / RomM keep their partial and continue with a Range request on retry;
+            // a web source's reserve addresses take over when its own one fails.
+            else -> performHttpDownload(file, resumable = true, mirrorUrls = sourceMirrors.alternativesFor(file))
         }
     }
 
@@ -179,31 +242,47 @@ class DownloadService @Inject constructor(
         }
     }
 
-    /** Parks a torrent download: cache and handle survive, so retry resumes from disk. */
+    /**
+     * Parks a download. A torrent keeps its cache and handle, so retry resumes from disk; a web
+     * or debrid transfer keeps its partial file, and retry continues it with a `Range` request.
+     */
     fun pauseDownload(fileName: String) {
         val entity = downloadEntities[fileName] ?: return
-        if (!entity.isTorrent || !downloadProgressTracker.isActive(fileName)) return
+        if (!downloadProgressTracker.isActive(fileName)) return
+        val torrentSession = entity.isTorrent && !debridTorrents.containsKey(fileName)
         pausingFiles.add(fileName)
-        downloadJobs.remove(fileName)?.cancel()
+        val job = downloadJobs.remove(fileName)
+        job?.cancel()
         serviceScope.launch {
-            torrentDownloadService.pauseDownload(entity)
-            updateStatus(fileName, DownloadStatus.PAUSED)
+            if (torrentSession) {
+                torrentDownloadService.pauseDownload(entity)
+                updateStatus(fileName, DownloadStatus.PAUSED)
+            } else {
+                // The job's own cancellation handler lands it on PAUSED.
+                job?.join()
+            }
             checkServiceLifecycle()
         }
     }
 
-    fun retryDownload(fileName: String) {
+    /** A paused download resumes in its place in line; anything else goes to the back. */
+    fun retryDownload(fileName: String) =
+        relaunch(fileName, keepPlace = downloadProgressTracker.statusOf(fileName) == DownloadStatus.PAUSED)
+
+    private fun relaunch(fileName: String, keepPlace: Boolean) {
         if (!downloadProgressTracker.canRetryDownload(fileName)) return
         val entity = downloadEntities[fileName] ?: return
         // Reset the existing list entry in place — calling startDownload would add a duplicate.
         downloadProgressTracker.resetDownloadForRetry(fileName)
+        val ticket = downloadQueue.enqueue(entity, keepPlace)
         serviceScope.launch {
             historyDao.markRestarted(fileName, DownloadStatus.DOWNLOADING.name, System.currentTimeMillis())
         }
-        startForegroundService()
+        // A row held before a restart waits without the service; letting it go starts it.
+        if (!ticket.held) startForegroundService()
         val job = serviceScope.launch {
             try {
-                downloadSemaphore.withPermit {
+                downloadQueue.withSlot(ticket) {
                     delay(1000L)
                     perform(entity)
                 }
@@ -212,9 +291,11 @@ class DownloadService @Inject constructor(
                 throw e
             } catch (e: Exception) {
                 Log.e(TAG, "Retry failed for ${entity.fileName}: ${e.message}")
-                updateStatus(entity.fileName, DownloadStatus.FAILED)
+                markFailed(entity.fileName, e)
             } finally {
                 downloadJobs.remove(entity.fileName)
+                reportIfFailed(entity.fileName)
+                checkServiceLifecycle()
             }
         }
         downloadJobs[entity.fileName] = job
@@ -235,8 +316,26 @@ class DownloadService @Inject constructor(
     }
 
     fun cancelAllDownloads() {
-        downloadJobs.values.forEach { it.cancel() }
-        downloadJobs.clear()
+        // Held rows wait without the foreground service (it stops when only they are left) and
+        // must keep their place for when they are let go.
+        downloadJobs.entries.removeAll { (fileName, job) ->
+            (!downloadQueue.isHeld(fileName)).also { if (it) job.cancel() }
+        }
+    }
+
+    // dl-cola
+    /** Holds a row waiting in line: it keeps its place but does not start until [releaseDownload]. */
+    fun holdDownload(fileName: String) {
+        if (!downloadQueue.isWaiting(fileName)) return
+        downloadQueue.setHeld(fileName, true)
+        checkServiceLifecycle()
+    }
+
+    fun releaseDownload(fileName: String) {
+        if (!downloadQueue.isHeld(fileName)) return
+        // Its turn may come right away: the transfer needs the foreground service up first.
+        startForegroundService()
+        downloadQueue.setHeld(fileName, false)
     }
 
     fun getDownloads(): List<DownloadItemModel> = downloadProgressTracker.getDownloads()
@@ -251,6 +350,7 @@ class DownloadService @Inject constructor(
 
     private suspend fun performTorrentDownload(file: DownloadableFileEntity) {
         Log.d(TAG, "Starting torrent download for ${file.fileName}")
+        val startedAt = System.currentTimeMillis()
         torrentDownloadService.startDownload(file)
 
         // Collect just this file's status as a distinct flow instead of polling the full
@@ -261,9 +361,23 @@ class DownloadService @Inject constructor(
             .first { it == DownloadStatus.COMPLETED || it == DownloadStatus.FAILED || it == DownloadStatus.STOPPED }
 
         when (finalStatus) {
-            DownloadStatus.FAILED  -> { Log.e(TAG, "Torrent FAILED: ${file.fileName}"); return }
+            DownloadStatus.FAILED  -> Log.e(TAG, "Torrent FAILED: ${file.fileName}")
             DownloadStatus.STOPPED -> { Log.i(TAG, "Torrent STOPPED: ${file.fileName}"); return }
             else -> moveTorrentFile(file)
+        }
+        recordTorrentOutcome(file, startedAt)
+    }
+
+    /** A torrent's outcome for its track record (HTTP attempts report themselves, see [performHttpDownload]). */
+    private fun recordTorrentOutcome(file: DownloadableFileEntity, startedAt: Long) {
+        val origin = file.torrentMagnet?.let(DownloadOrigins::forTorrent) ?: return
+        val elapsed = System.currentTimeMillis() - startedAt
+        when (downloadProgressTracker.statusOf(file.fileName)) {
+            DownloadStatus.COMPLETED -> sourceStats.recordSuccess(origin, file.fileSize, elapsed)
+            DownloadStatus.FAILED -> sourceStats.recordFailure(
+                origin, downloadProgressTracker.failures.value[file.fileName] ?: DownloadFailure.UNKNOWN, 0L, elapsed
+            )
+            else -> Unit
         }
     }
 
@@ -335,12 +449,14 @@ class DownloadService @Inject constructor(
                 } ?: throw Exception("Could not open output stream for ${documentFile.uri}")
             }
 
-            // Clean up cache
-            internalFile.delete()
-            internalFile.parentFile?.takeIf { it.list()?.isEmpty() == true }?.delete()
-
-            // Release handle only when no sibling files still downloading from same torrent
-            torrentDownloadService.finishDownload(file)
+            // Release handle only when no sibling files still downloading from same torrent;
+            // with "Seed after download" on it stays seeding instead and the cached copy must
+            // survive (libtorrent serves pieces from it) — releaseHandle deletes it at seed end.
+            val seeding = torrentDownloadService.finishDownload(file)
+            if (!seeding) {
+                internalFile.delete()
+                internalFile.parentFile?.takeIf { it.list()?.isEmpty() == true }?.delete()
+            }
 
             Log.i(TAG, "Torrent processed successfully: ${file.fileName}")
             updateStatus(file.fileName, DownloadStatus.COMPLETED)
@@ -349,10 +465,11 @@ class DownloadService @Inject constructor(
 
         } catch (e: Exception) {
             Log.e(TAG, "Error processing torrent file for ${file.fileName}: ${e.message}", e)
-            updateStatus(file.fileName, DownloadStatus.FAILED)
+            markFailed(file.fileName, e)
             // Untrack and, if nothing else uses the torrent, release it (deletes the cached data);
             // a retry re-fetches the metadata and starts clean instead of leaving a partial behind.
-            runCatching { torrentDownloadService.finishDownload(file) }
+            // Never seed a failed move: the release is what lets the retry start clean.
+            runCatching { torrentDownloadService.finishDownload(file, allowSeeding = false) }
         }
     }
 
@@ -371,6 +488,10 @@ class DownloadService @Inject constructor(
         } catch (e: Exception) {
             // Leave nothing behind on the account when the debrid route gives up.
             releaseDebrid(file.fileName)
+            // Still QUEUED: the service itself failed before the transfer (its attempts report themselves).
+            if (e !is kotlinx.coroutines.CancellationException && downloadProgressTracker.statusOf(file.fileName) == DownloadStatus.QUEUED) {
+                sourceStats.recordFailure(DownloadOrigins.forDebrid(client.provider.name), DownloadFailures.classify(e), 0L, 0L)
+            }
             throw e
         }
     }
@@ -396,7 +517,9 @@ class DownloadService @Inject constructor(
             debridTorrents[file.fileName] = client to torrent.id
             Log.d(TAG, "Resuming $label download of ${file.fileName} (torrent ${torrent.id}, file ${remote.id})")
             updateStatus(file.fileName, DownloadStatus.DOWNLOADING)
-            performHttpDownload(file, resumable = true) { client.requestDownload(torrent.id, remote.id) }
+            performHttpDownload(file, resumable = true, origin = DownloadOrigins.forDebrid(client.provider.name)) {
+                client.requestDownload(torrent.id, remote.id)
+            }
             historyDao.setDebrid(file.fileName, null, null, null)
             releaseDebrid(file.fileName)
             return
@@ -460,7 +583,9 @@ class DownloadService @Inject constructor(
         updateStatus(file.fileName, DownloadStatus.DOWNLOADING)
         downloadProgressTracker.updateDownloadProgress(file.fileName, 0f, 0f, 0L)
         // Links expire, so each HTTP attempt asks for a fresh one; attempts resume from the partial file.
-        performHttpDownload(file, resumable = true) { client.requestDownload(torrentId, remote.id) }
+        performHttpDownload(file, resumable = true, origin = DownloadOrigins.forDebrid(client.provider.name)) {
+            client.requestDownload(torrentId, remote.id)
+        }
         historyDao.setDebrid(file.fileName, null, null, null)
         // COMPLETED may already have stopped the foreground service, whose onDestroy cancels every
         // download job: the remote clean-up must not run inside this job.
@@ -474,29 +599,60 @@ class DownloadService @Inject constructor(
     private suspend fun performHttpDownload(
         file: DownloadableFileEntity,
         resumable: Boolean = false,
+        /** Reserve addresses of the source: attempts go round the file's own URL and these. */
+        mirrorUrls: List<String> = emptyList(),
+        /** What the attempts are recorded under when it is not the URL's host (the debrid service). */
+        origin: String? = null,
         urlProvider: suspend () -> String = { file.downloadUrl }
     ) {
-        repeat(3) { attempt ->
+        // Best first by how each host has been doing lately; without history, the file's own URL first.
+        val urls = sourceStats.orderBy(listOf(file.downloadUrl) + mirrorUrls, DownloadOrigins::forWeb)
+        val attempts = maxOf(3, urls.size)
+        // Addresses that gave an answer another try cannot change (a missing file, a web page instead
+        // of the file): once every address has, the rest of the attempts are skipped. Debrid links are
+        // new on every attempt, so they always get them all.
+        val settled = HashSet<String>()
+        repeat(attempts) { attempt ->
+            val meter = TransferMeter()
+            var attemptOrigin = origin
+            var url: String? = null
             try {
-                if (attempt > 0) delay(2000L * attempt)
-                performHttpDownloadAttempt(file, urlProvider(), resumable)
+                if (attempt > 0) {
+                    delay(2000L * minOf(attempt, 3))
+                    // A failed attempt left the row on FAILED; this one is running again.
+                    updateStatus(file.fileName, DownloadStatus.DOWNLOADING)
+                }
+                url = if (mirrorUrls.isEmpty()) urlProvider() else urls[attempt % urls.size]
+                if (attemptOrigin == null) attemptOrigin = DownloadOrigins.forWeb(url)
+                performHttpDownloadAttempt(file, url, resumable, meter, debridOrigin = origin)
+                sourceStats.recordSuccess(attemptOrigin, meter.bytes, meter.millis)
                 return
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Attempt ${attempt + 1} failed for ${file.fileName}: ${e.message}")
-                if (attempt == 2) throw e
+                val failure = DownloadFailures.classify(e)
+                sourceStats.recordFailure(attemptOrigin, failure, meter.bytes, meter.millis)
+                if (attempt == attempts - 1) throw e
+                if (origin == null && !failure.transient && url != null) {
+                    settled += url
+                    if (urls.all { it in settled }) throw e
+                }
             }
         }
     }
 
-    private suspend fun performHttpDownloadAttempt(file: DownloadableFileEntity, downloadUrl: String, resumable: Boolean = false) {
+    private suspend fun performHttpDownloadAttempt(
+        file: DownloadableFileEntity,
+        downloadUrl: String,
+        resumable: Boolean = false,
+        meter: TransferMeter = TransferMeter(),
+        /** Set for a debrid link: it changes on every attempt, so no validator can be sent back to it. */
+        debridOrigin: String? = null
+    ) {
         val downloadDirUri = downloadFileManager.getDownloadDirectoryUri(file)
         if (downloadDirUri == android.net.Uri.EMPTY)
             throw Exception("Download directory not configured or no longer accessible.")
-
-        var speedLimit = settingsRepository.limitSpeed.first()
-        val speedLimitJob = downloadSpeedController.createSpeedLimiter { speedLimit = it }
 
         var inputStream: InputStream? = null
         var outputStream: OutputStream? = null
@@ -504,31 +660,73 @@ class DownloadService @Inject constructor(
 
         try {
             val subPath = downloadFileManager.getSubPath(file)
-            val partial = if (resumable) downloadFileManager.findExistingFile(file, downloadDirUri.toString(), subPath) else null
+            // Only a transfer this app started and has not finished is continued: a file that was
+            // finished and is fetched again, or one already in the folder, starts from zero.
+            val resume = if (resumable) resumeStore.stateFor(file.fileName) else null
+            val partial = resume?.let { downloadFileManager.findExistingFile(file, downloadDirUri.toString(), subPath) }
             val partialBytes = partial?.length() ?: 0L
+            val origin = debridOrigin ?: DownloadOrigins.forWeb(downloadUrl)
+            // If-Range only to the server that gave the validator. A debrid file is fixed by the
+            // torrent's hashes, so its length is check enough when the link changes.
+            val ifRange = resume?.validator?.takeIf { debridOrigin == null && resume.host == origin }
+            val expectedTotal = resume?.totalBytes?.takeIf { it > 0 }
+            val name = FileParsingUtils.decodeUrlEncodedFileName(file.fileName)
             // Files served by the RomM library need the account's credentials.
             val headers = if (RommSource.isDownloadFrom(rommClient.configuredBaseUrl(), downloadUrl)) rommClient.downloadHeaders() else emptyMap()
-            val connection = downloadHttpClient.createConnection(downloadUrl, rangeStart = partialBytes, headers = headers)
+            var connection: HttpURLConnection = downloadHttpClient.createConnection(downloadUrl, rangeStart = partialBytes, headers = headers, ifRange = ifRange, configure = rommClient::secure)
+            // Decided before the partial is touched.
+            var plan = HttpResume.plan(partialBytes, expectedTotal, connection.resumeResponse(), name)
+            if (plan == HttpResume.Plan.Refetch) {
+                Log.d(TAG, "Cannot continue ${file.fileName} from $partialBytes bytes; fetching it whole")
+                connection.disconnect()
+                connection = downloadHttpClient.createConnection(downloadUrl, headers = headers, configure = rommClient::secure)
+                plan = HttpResume.plan(0L, null, connection.resumeResponse(), name)
+            }
+
+            val target: DocumentFile
+            val startOffset: Long
+            val total: Long?
+            when (plan) {
+                is HttpResume.Plan.Append -> {
+                    target = partial ?: throw UnexpectedContentException("Lost the partial file of ${file.fileName}")
+                    outputStream = downloadFileManager.getAppendOutputStream(target)
+                        ?: throw Exception("Failed to open output stream for ${target.uri}")
+                    startOffset = plan.offset
+                    total = plan.total
+                    Log.d(TAG, "Resuming ${file.fileName} from ${plan.offset} of ${plan.total} bytes")
+                }
+                is HttpResume.Plan.Fresh -> {
+                    target = downloadFileManager.createDocumentFile(file, downloadDirUri.toString(), subPath)
+                        ?: throw Exception("Failed to create file in storage.")
+                    outputStream = downloadFileManager.getOutputStream(target)
+                        ?: throw Exception("Failed to open output stream for ${target.uri}")
+                    startOffset = 0L
+                    total = plan.total
+                    if (resumable) {
+                        val validator = HttpResume.validator(connection.getHeaderField("ETag"), connection.getHeaderField("Last-Modified"))
+                        resumeStore.started(file.fileName, validator, origin, plan.total)
+                    }
+                }
+                HttpResume.Plan.Complete -> {
+                    connection.disconnect()
+                    Log.d(TAG, "${file.fileName} was already complete on disk")
+                    handlePostDownload(file, partial ?: throw UnexpectedContentException("Lost the partial file of ${file.fileName}"), subPath)
+                    return
+                }
+                is HttpResume.Plan.Reject -> {
+                    connection.disconnect()
+                    throw UnexpectedContentException("Unexpected response for ${file.fileName}: ${plan.reason}")
+                }
+                HttpResume.Plan.Refetch -> {
+                    connection.disconnect()
+                    throw UnexpectedContentException("Unexpected response for ${file.fileName}: the server did not send the file")
+                }
+            }
+            documentFile = target
             inputStream = connection.inputStream
 
-            val startOffset: Long
-            if (partial != null && partialBytes > 0L && connection.responseCode == java.net.HttpURLConnection.HTTP_PARTIAL) {
-                documentFile = partial
-                outputStream = downloadFileManager.getAppendOutputStream(partial)
-                    ?: throw Exception("Failed to open output stream for ${partial.uri}")
-                startOffset = partialBytes
-                Log.d(TAG, "Resuming ${file.fileName} from $partialBytes bytes")
-            } else {
-                documentFile = downloadFileManager.createDocumentFile(file, downloadDirUri.toString(), subPath)
-                    ?: throw Exception("Failed to create file in storage.")
-                outputStream = downloadFileManager.getOutputStream(documentFile)
-                    ?: throw Exception("Failed to open output stream for ${documentFile.uri}")
-                startOffset = 0L
-            }
-            val contentLength = connection.contentLengthLong.let { if (it > 0) it + startOffset else it }
-
-            streamWithProgress(inputStream, outputStream, file, speedLimit, contentLength, startOffset)
-            handlePostDownload(file, documentFile, subPath)
+            streamWithProgress(inputStream, outputStream, file, total ?: -1L, startOffset, meter)
+            handlePostDownload(file, target, subPath)
 
         } catch (e: kotlinx.coroutines.CancellationException) {
             if (!resumable) documentFile?.let { downloadFileManager.deleteFile(it) }
@@ -539,7 +737,6 @@ class DownloadService @Inject constructor(
             updateStatus(file.fileName, DownloadStatus.FAILED)
             throw e
         } finally {
-            speedLimitJob.cancel()
             inputStream?.close()
             outputStream?.close()
         }
@@ -549,17 +746,15 @@ class DownloadService @Inject constructor(
         input: InputStream,
         output: OutputStream,
         file: DownloadableFileEntity,
-        initialSpeedLimit: Float,
         contentLength: Long,
-        startOffset: Long = 0L
+        startOffset: Long = 0L,
+        meter: TransferMeter? = null
     ) {
         val buffer = ByteArray(Constants.BUFFER_SIZE)
         var downloaded = startOffset
-        var bytesSinceCheck = 0L
         val startTime = System.currentTimeMillis()
         var lastUpdateTime = startTime
         var lastDownloaded = startOffset
-        var lastSpeedCheckTime = startTime
 
         while (true) {
             val bytesRead = input.read(buffer)
@@ -568,20 +763,17 @@ class DownloadService @Inject constructor(
                 updateStatus(file.fileName, DownloadStatus.STOPPED)
                 return
             }
+            // Stop and pause remove the job from downloadJobs before cancelling it, so the check
+            // above never fires: without a cancellation point the transfer would run to the end.
+            currentCoroutineContext().ensureActive()
 
             output.write(buffer, 0, bytesRead)
             downloaded += bytesRead
-            bytesSinceCheck += bytesRead
+            // Shared with every other HTTP download, and re-read live from Settings.
+            downloadSpeedController.throttle(bytesRead)
 
             val now = System.currentTimeMillis()
-            val timeSinceCheck = (now - lastSpeedCheckTime) / 1000f
-            if (timeSinceCheck >= Constants.SPEED_CHECK_INTERVAL_MS / 1000f) {
-                val spd = downloadSpeedController.calculateSpeed(bytesSinceCheck, timeSinceCheck)
-                downloadSpeedController.applySpeedThrottling(spd, initialSpeedLimit, bytesSinceCheck, timeSinceCheck)
-                lastSpeedCheckTime = now
-                bytesSinceCheck = 0L
-            }
-
+            meter?.let { it.bytes += bytesRead; it.millis = now - startTime }
             val progress = if (contentLength > 0)
                 ArchiveExtractionUtils.calculateProgress(downloaded, contentLength) else 0f
 
@@ -595,6 +787,10 @@ class DownloadService @Inject constructor(
                 lastDownloaded = downloaded
             }
         }
+        // A connection that drops early reads as the end of the stream: never call that complete.
+        if (contentLength > 0 && downloaded < contentLength) {
+            throw EOFException("Incomplete download of ${file.fileName}: $downloaded of $contentLength bytes")
+        }
     }
 
     private suspend fun handlePostDownload(
@@ -603,6 +799,7 @@ class DownloadService @Inject constructor(
         subPath: String
     ) {
         if (!ArchiveUtils.isExtractable(file.fileExtension) || !settingsRepository.autoUnzip.first()) {
+            resumeStore.finished(file.fileName)
             updateStatus(file.fileName, DownloadStatus.COMPLETED)
             _finished.tryEmit(file.fileName)
             checkServiceLifecycle()
@@ -622,6 +819,7 @@ class DownloadService @Inject constructor(
         } catch (e: Exception) {
             Log.e(TAG, "Extraction failed for ${file.fileName}: ${e.message}")
         }
+        resumeStore.finished(file.fileName)
         updateStatus(file.fileName, DownloadStatus.COMPLETED)
         _finished.tryEmit(file.fileName)
         checkServiceLifecycle()
@@ -631,14 +829,18 @@ class DownloadService @Inject constructor(
         downloadProgressTracker.updateDownloadStatus(fileName, status)
 
     private fun startForegroundService() {
-        context.startForegroundService(Intent(context, DownloadForegroundService::class.java).apply {
-            action = DownloadForegroundService.ACTION_START_SERVICE
-        })
-        foregroundServiceStarted = true
+        // Android 12+ refuses a foreground service started from the background (an automatic
+        // retry while the app is closed): the download still runs as long as the process lives.
+        runCatching {
+            context.startForegroundService(Intent(context, DownloadForegroundService::class.java).apply {
+                action = DownloadForegroundService.ACTION_START_SERVICE
+            })
+        }.onSuccess { foregroundServiceStarted = true }
+            .onFailure { Log.w(TAG, "Foreground service not started: ${it.message}") }
     }
 
     private fun checkServiceLifecycle() {
-        if (foregroundServiceStarted && !downloadProgressTracker.hasActiveDownloads()) {
+        if (foregroundServiceStarted && !downloadProgressTracker.hasActiveDownloads(ignoring = downloadQueue.heldNames()) && !seedingManager.isSeeding) {
             context.startService(Intent(context, DownloadForegroundService::class.java).apply {
                 action = DownloadForegroundService.ACTION_STOP_SERVICE
             })
