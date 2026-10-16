@@ -3,6 +3,28 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
+## [1.3.1] – 2026-10-16
+
+### Added
+- **In-app updates**: Dogmatix looks for a new release on GitHub when it starts (at most every
+  six hours) and announces it once per version. *Update* downloads the APK, checks that it is a
+  Dogmatix build signed like the one installed, and opens Android's installer — the first time,
+  Android asks you to allow installs from Dogmatix. *Later* (or B) puts that version off; B
+  during the download hides it and the dialog comes back when the APK is ready. Settings →
+  General → *Updates* shows where things stand (*Check*, *Update* or *Install*), and *Check for
+  updates on start* turns the automatic check off. It works from 1.3.1 on: 1.3 and earlier
+  have to be updated by hand once.
+
+### Changed
+- Settings opens on **General**, now the first category; Library comes second.
+- The update check replaces the old start-up toast, which only named the new version.
+
+### Fixed
+- Collection → Summary, and the low-space warning in Health, named storage volumes in the
+  device's language instead of the app's ("Almacenamiento interno compartido" with the app in
+  English). They are now *Internal storage*, *SD card* or *External storage*, in the app's
+  language.
+
 ## [1.3] – 2026-10-16
 
 ### Added
