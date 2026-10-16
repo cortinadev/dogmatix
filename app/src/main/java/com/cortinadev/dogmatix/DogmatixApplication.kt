@@ -85,10 +85,8 @@ class DogmatixApplication : Application(), ImageLoaderFactory {
             }
         }
 
-        // Check for updates on app startup
-        applicationScope.launch {
-            versionCheckerService.checkForUpdates(this@DogmatixApplication)
-        }
+        // New versions on GitHub: checked on start (at most every 6 h), announced by the update dialog
+        versionCheckerService.start()
 
         // Short names / folder aliases configured per console, kept in sync for the static helpers
         applicationScope.launch {

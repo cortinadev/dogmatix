@@ -159,4 +159,14 @@ class SettingsRepositoryImpl @Inject constructor(
     override val secondaryStorageRoot: Flow<String> = settingsDataStore.secondaryStorageRoot
     override suspend fun setTrashRetentionDays(days: Int): Preferences = settingsDataStore.setTrashRetentionDays(days)
     override suspend fun setSecondaryStorageRoot(uri: String): Preferences = settingsDataStore.setSecondaryStorageRoot(uri)
+
+    // actualizaciones
+    override val updateAutoCheck: Flow<Boolean> = settingsDataStore.updateAutoCheck
+    override val updateCheckedAt: Flow<Long> = settingsDataStore.updateCheckedAt
+    override val updateLatest: Flow<String> = settingsDataStore.updateLatest
+    override val updateDismissed: Flow<String> = settingsDataStore.updateDismissed
+    override suspend fun setUpdateAutoCheck(enabled: Boolean): Preferences = settingsDataStore.setUpdateAutoCheck(enabled)
+    override suspend fun setUpdateCheckResult(latest: String, checkedAt: Long): Preferences =
+        settingsDataStore.setUpdateCheckResult(latest, checkedAt)
+    override suspend fun setUpdateDismissed(version: String): Preferences = settingsDataStore.setUpdateDismissed(version)
 }

@@ -11,6 +11,8 @@
     <!-- dl-cola: Android 13+ hides every notification without it (download progress and the
          batch notice); asked the first time a download starts, see NotificationPermissionPrompt. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Self-update: the APK downloaded from the GitHub release is handed to the system installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- "Configure ES-DE" / "Configure iiSU" read the frontend's bundled defaults from its
          installed APK; without these entries Android 11+ package visibility hides the app and

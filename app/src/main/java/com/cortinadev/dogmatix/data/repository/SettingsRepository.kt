@@ -133,4 +133,17 @@ interface SettingsRepository {
     val secondaryStorageRoot: Flow<String>
     suspend fun setTrashRetentionDays(days: Int): Preferences
     suspend fun setSecondaryStorageRoot(uri: String): Preferences
+
+    // actualizaciones
+    /** Check GitHub for a new release when the app starts. */
+    val updateAutoCheck: Flow<Boolean>
+    /** When the last check got an answer (epoch millis; 0 = never). */
+    val updateCheckedAt: Flow<Long>
+    /** The latest release found, as [com.cortinadev.dogmatix.util.AppUpdates.encode] writes it; "" = none. */
+    val updateLatest: Flow<String>
+    /** The version whose startup notice was answered with "Later". */
+    val updateDismissed: Flow<String>
+    suspend fun setUpdateAutoCheck(enabled: Boolean): Preferences
+    suspend fun setUpdateCheckResult(latest: String, checkedAt: Long): Preferences
+    suspend fun setUpdateDismissed(version: String): Preferences
 }

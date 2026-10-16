@@ -398,7 +398,7 @@ class LibraryScanService @Inject constructor(
         }.toSet()
         val manager = context.getSystemService(StorageManager::class.java) ?: return emptyList()
         return manager.storageVolumes.filter { it.state == Environment.MEDIA_MOUNTED }.mapNotNull { volume ->
-            val id = if (volume.isPrimary) "primary" else volume.uuid ?: return@mapNotNull null
+            val id = if (volume.isPrimary) VolumeUsage.PRIMARY else volume.uuid ?: return@mapNotNull null
             val dir = when {
                 Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> volume.directory
                 volume.isPrimary -> Environment.getExternalStorageDirectory()

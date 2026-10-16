@@ -127,6 +127,16 @@ object SettingsKeys {
     val TRASH_RETENTION_DAYS = intPreferencesKey("trash_retention_days")
     /** SAF tree URI of the second library root (smart storage, normally on the SD card); empty = off. */
     val SECONDARY_STORAGE_ROOT = stringPreferencesKey("secondary_storage_root")
+
+    // actualizaciones
+    /** Look for a new release on GitHub when the app starts (at most every 6 h, see AppUpdates). */
+    val UPDATE_AUTO_CHECK = booleanPreferencesKey("update_auto_check")
+    /** Epoch millis of the last update check that got an answer. */
+    val UPDATE_CHECKED_AT = longPreferencesKey("update_checked_at")
+    /** The latest release found ([com.cortinadev.dogmatix.util.AppUpdates.encode]); "" = none. */
+    val UPDATE_LATEST = stringPreferencesKey("update_latest")
+    /** The version whose startup notice was answered with "Later": it is not shown again. */
+    val UPDATE_DISMISSED = stringPreferencesKey("update_dismissed")
 }
 
 /** Language tags are upper-cased ISO codes ("EN", "ES"), matching how files are tagged. */
@@ -330,4 +340,16 @@ class SettingsDataStore @Inject constructor(
     val secondaryStorageRoot: Flow<String> = context.dataStore.data.map { it[SettingsKeys.SECONDARY_STORAGE_ROOT] ?: "" }
     suspend fun setTrashRetentionDays(days: Int) = context.dataStore.edit { it[SettingsKeys.TRASH_RETENTION_DAYS] = TrashRules.retentionOrDefault(days) }
     suspend fun setSecondaryStorageRoot(uri: String) = context.dataStore.edit { it[SettingsKeys.SECONDARY_STORAGE_ROOT] = uri }
+
+    // actualizaciones
+    val updateAutoCheck: Flow<Boolean> = context.dataStore.data.map { it[SettingsKeys.UPDATE_AUTO_CHECK] ?: true }
+    val updateCheckedAt: Flow<Long> = context.dataStore.data.map { it[SettingsKeys.UPDATE_CHECKED_AT] ?: 0L }
+    val updateLatest: Flow<String> = context.dataStore.data.map { it[SettingsKeys.UPDATE_LATEST] ?: "" }
+    val updateDismissed: Flow<String> = context.dataStore.data.map { it[SettingsKeys.UPDATE_DISMISSED] ?: "" }
+    suspend fun setUpdateAutoCheck(enabled: Boolean) = context.dataStore.edit { it[SettingsKeys.UPDATE_AUTO_CHECK] = enabled }
+    suspend fun setUpdateCheckResult(latest: String, checkedAt: Long) = context.dataStore.edit {
+        it[SettingsKeys.UPDATE_LATEST] = latest
+        it[SettingsKeys.UPDATE_CHECKED_AT] = checkedAt
+    }
+    suspend fun setUpdateDismissed(version: String) = context.dataStore.edit { it[SettingsKeys.UPDATE_DISMISSED] = version }
 }

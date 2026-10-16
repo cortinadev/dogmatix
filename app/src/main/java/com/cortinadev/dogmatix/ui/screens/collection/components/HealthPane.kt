@@ -40,6 +40,7 @@ import com.cortinadev.dogmatix.util.HealthFix
 import com.cortinadev.dogmatix.util.HealthKind
 import com.cortinadev.dogmatix.util.HealthSeverity
 import com.cortinadev.dogmatix.util.MultiDisc
+import com.cortinadev.dogmatix.util.VolumeUsage
 import kotlinx.coroutines.launch
 
 private const val MAX_ITEMS = 100
@@ -129,7 +130,7 @@ fun HealthPane(viewModel: CollectionViewModel, active: Boolean, entryFocus: Focu
                     }
                     items(findings.take(MAX_ITEMS), key = { "f:" + it.id }) { finding ->
                         CollectionRow(
-                            title = itemTitle(finding),
+                            title = itemTitle(finding, analysis.snapshot.volumes),
                             subtitle = itemDetail(finding),
                             modifier = Modifier.padding(start = 16.dp),
                             onClick = {
@@ -184,8 +185,9 @@ private fun groupTitle(kind: HealthKind, findings: List<HealthFinding>): String 
 }
 
 @Composable
-private fun itemTitle(finding: HealthFinding): String = when (finding.kind) {
+private fun itemTitle(finding: HealthFinding, volumes: List<VolumeUsage>): String = when (finding.kind) {
     HealthKind.PERMISSION_LOST -> FileParsingUtils.toUserReadablePath(finding.subject)
+    HealthKind.LOW_SPACE -> volumes.firstOrNull { "space:${it.id}" == finding.id }?.let { volumeLabel(it, volumes) } ?: finding.subject
     HealthKind.EMPTY_FOLDER -> finding.folder?.let { listOf(it.topFolder, it.path).filter { p -> p.isNotEmpty() }.joinToString("/") } ?: finding.subject
     HealthKind.STALE_SOURCES -> stringResource(R.string.nav_sources)
     else -> finding.subject

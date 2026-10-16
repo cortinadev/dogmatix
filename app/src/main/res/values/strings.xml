@@ -478,7 +478,6 @@
     <string name="notification_channel_downloads_desc">Active download progress</string>
     <string name="notification_downloading">Downloading</string>
     <string name="notification_downloading_text">Downloads are running in the background</string>
-    <string name="update_available">Update available! Latest version: %1$s</string>
     <string name="scrape_error_title">Scan error</string>
     <string name="scrape_failed">Failed to scan %1$s: %2$s</string>
     <string name="scrape_fetching_torrent">Fetching torrent metadata for %1$s…</string>
@@ -1024,6 +1023,9 @@
     <string name="collection_storage">Storage</string>
     <string name="collection_volume_library">%1$s · library</string>
     <string name="collection_volume_free">%1$s free of %2$s</string>
+    <string name="collection_volume_internal">Internal storage</string>
+    <string name="collection_volume_sd">SD card</string>
+    <string name="collection_volume_external">External storage</string>
     <string name="collection_biggest_games">Biggest games</string>
     <string name="collection_regions">Regions</string>
     <string name="collection_languages">Languages</string>
@@ -1375,4 +1377,38 @@
     <string name="sort_decade_asc_short">Decade ↑</string>
     <string name="sort_decade_desc">Decade: newest → oldest</string>
     <string name="sort_decade_desc_short">Decade ↓</string>
+
+    <!-- Self-update from the GitHub releases (VersionCheckerService, UpdateSettings) -->
+    <string name="settings_updates">Updates</string>
+    <string name="settings_updates_hint_idle">Version %1$s</string>
+    <string name="settings_updates_hint_checking">Checking for a new version…</string>
+    <string name="settings_updates_hint_up_to_date">Version %1$s · up to date</string>
+    <string name="settings_updates_hint_available">Dogmatix %1$s available (you have %2$s)</string>
+    <string name="settings_updates_hint_downloading">Downloading Dogmatix %1$s · %2$s</string>
+    <string name="settings_updates_hint_ready">Dogmatix %1$s ready to install</string>
+    <string name="settings_updates_hint_failed">Version %1$s · couldn’t reach GitHub</string>
+    <string name="settings_updates_check">Check</string>
+    <string name="settings_update_auto">Check for updates on start</string>
+    <string name="settings_update_auto_hint">Looks for a new version on GitHub at most every 6 hours</string>
+    <string name="search_kw_updates">update, new version, upgrade, release, install, apk, github</string>
+    <string name="search_kw_update_auto">update, automatic, new version, check, startup, github</string>
+    <string name="update_dialog_title">New version available</string>
+    <string name="update_dialog_text">%1$s is out. You have %2$s.</string>
+    <string name="update_dialog_size">Download: %1$s</string>
+    <string name="update_now">Update</string>
+    <string name="update_later">Later</string>
+    <string name="update_downloading_title">Downloading the update</string>
+    <string name="update_downloading_progress">%1$s of %2$s</string>
+    <string name="update_hide">Hide</string>
+    <string name="update_ready_title">Dogmatix %1$s is ready</string>
+    <string name="update_ready_text">Android will ask you to confirm the installation. The first time it also asks you to allow installs from Dogmatix: turn it on and come back. Your library, downloads and settings are kept.</string>
+    <string name="update_install">Install</string>
+    <string name="update_failed_title">Update failed</string>
+    <string name="update_retry">Retry</string>
+    <string name="update_open_page">Open on GitHub</string>
+    <string name="update_no_installer">No app on this device can install the update</string>
+    <string name="update_error_network">Couldn’t reach GitHub. Check the connection and try again.</string>
+    <string name="update_error_bad_apk">The downloaded file isn’t a valid Dogmatix APK. Try again later.</string>
+    <string name="update_error_signature">This update is signed with a different key than the installed app, so Android won’t install it over this one. See the release page on GitHub.</string>
+    <string name="update_error_storage">Not enough free space to download the update.</string>
 </resources>

@@ -476,7 +476,6 @@
     <string name="notification_channel_downloads_desc">Progresso das transferências ativas</string>
     <string name="notification_downloading">A transferir</string>
     <string name="notification_downloading_text">As transferências continuam em segundo plano</string>
-    <string name="update_available">Há uma atualização! Versão mais recente: %1$s</string>
     <string name="scrape_error_title">Erro na análise</string>
     <string name="scrape_failed">Não foi possível analisar %1$s: %2$s</string>
     <string name="scrape_fetching_torrent">A obter os metadados do torrent de %1$s…</string>
@@ -1049,6 +1048,9 @@
     <string name="collection_storage">Armazenamento</string>
     <string name="collection_volume_library">%1$s · biblioteca</string>
     <string name="collection_volume_free">%1$s livres de %2$s</string>
+    <string name="collection_volume_internal">Armazenamento interno</string>
+    <string name="collection_volume_sd">Cartão SD</string>
+    <string name="collection_volume_external">Armazenamento externo</string>
     <string name="collection_biggest_games">Jogos maiores</string>
     <string name="collection_regions">Regiões</string>
     <string name="collection_languages">Idiomas</string>
@@ -1434,4 +1436,38 @@
     <string name="sort_decade_asc_short">Década ↑</string>
     <string name="sort_decade_desc">Década: recente → antiga</string>
     <string name="sort_decade_desc_short">Década ↓</string>
+
+    <!-- Self-update from the GitHub releases (VersionCheckerService, UpdateSettings) -->
+    <string name="settings_updates">Atualizações</string>
+    <string name="settings_updates_hint_idle">Versão %1$s</string>
+    <string name="settings_updates_hint_checking">A procurar uma versão nova…</string>
+    <string name="settings_updates_hint_up_to_date">Versão %1$s · atualizada</string>
+    <string name="settings_updates_hint_available">Dogmatix %1$s disponível (tem a %2$s)</string>
+    <string name="settings_updates_hint_downloading">A transferir o Dogmatix %1$s · %2$s</string>
+    <string name="settings_updates_hint_ready">Dogmatix %1$s pronto a instalar</string>
+    <string name="settings_updates_hint_failed">Versão %1$s · não foi possível ligar ao GitHub</string>
+    <string name="settings_updates_check">Verificar</string>
+    <string name="settings_update_auto">Procurar atualizações ao abrir</string>
+    <string name="settings_update_auto_hint">Procura uma versão nova no GitHub no máximo a cada 6 horas</string>
+    <string name="search_kw_updates">atualização, atualizar, versão nova, instalar, apk, github</string>
+    <string name="search_kw_update_auto">atualização, automática, versão nova, verificar, arranque, github</string>
+    <string name="update_dialog_title">Nova versão disponível</string>
+    <string name="update_dialog_text">Já saiu o %1$s. Tem a %2$s.</string>
+    <string name="update_dialog_size">Transferência: %1$s</string>
+    <string name="update_now">Atualizar</string>
+    <string name="update_later">Mais tarde</string>
+    <string name="update_downloading_title">A transferir a atualização</string>
+    <string name="update_downloading_progress">%1$s de %2$s</string>
+    <string name="update_hide">Ocultar</string>
+    <string name="update_ready_title">O Dogmatix %1$s está pronto</string>
+    <string name="update_ready_text">O Android vai pedir-lhe que confirme a instalação. Da primeira vez também pede autorização para instalar a partir do Dogmatix: ative-a e volte. A biblioteca, as transferências e as definições mantêm-se.</string>
+    <string name="update_install">Instalar</string>
+    <string name="update_failed_title">Não foi possível atualizar</string>
+    <string name="update_retry">Tentar novamente</string>
+    <string name="update_open_page">Abrir no GitHub</string>
+    <string name="update_no_installer">Nenhuma app deste dispositivo consegue instalar a atualização</string>
+    <string name="update_error_network">Não foi possível ligar ao GitHub. Verifique a ligação e tente novamente.</string>
+    <string name="update_error_bad_apk">O ficheiro transferido não é um APK válido do Dogmatix. Tente mais tarde.</string>
+    <string name="update_error_signature">Esta atualização está assinada com uma chave diferente da app instalada, por isso o Android não a instala por cima. Consulte a página da versão no GitHub.</string>
+    <string name="update_error_storage">Não há espaço livre suficiente para transferir a atualização.</string>
 </resources>

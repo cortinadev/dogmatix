@@ -55,6 +55,8 @@ import com.cortinadev.dogmatix.ui.screens.collection.CollectionNav
 import com.cortinadev.dogmatix.ui.screens.collection.CollectionViewModel
 import com.cortinadev.dogmatix.util.ConsoleFormatter
 import com.cortinadev.dogmatix.util.HealthSeverity
+import com.cortinadev.dogmatix.util.VolumeKind
+import com.cortinadev.dogmatix.util.VolumeUsage
 
 /**
  * Publishes [entries] as the button legend while [active] (the zone holding the focus); clears
@@ -339,6 +341,19 @@ internal fun agoLabel(at: Long, now: Long = System.currentTimeMillis()): String 
         minutes < 24 * 60 -> pluralStringResource(R.plurals.collection_ago_hours, minutes / 60, minutes / 60)
         else -> pluralStringResource(R.plurals.collection_ago_days, minutes / (24 * 60), minutes / (24 * 60))
     }
+}
+
+/** A volume's name in the app's language; the system description follows the device's. */
+@Composable
+internal fun volumeLabel(volume: VolumeUsage, all: List<VolumeUsage>): String {
+    val name = stringResource(
+        when (volume.kind) {
+            VolumeKind.INTERNAL -> R.string.collection_volume_internal
+            VolumeKind.SD_CARD -> R.string.collection_volume_sd
+            VolumeKind.EXTERNAL -> R.string.collection_volume_external
+        }
+    )
+    return if (VolumeUsage.needsId(volume, all)) "$name · ${volume.id}" else name
 }
 
 /** Short console name, or the folder (or "root") when a file belongs to none. */

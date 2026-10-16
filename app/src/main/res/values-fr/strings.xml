@@ -476,7 +476,6 @@
     <string name="notification_channel_downloads_desc">Progression des téléchargements en cours</string>
     <string name="notification_downloading">Téléchargement en cours</string>
     <string name="notification_downloading_text">Les téléchargements continuent en arrière-plan</string>
-    <string name="update_available">Mise à jour disponible ! Dernière version : %1$s</string>
     <string name="scrape_error_title">Erreur de scan</string>
     <string name="scrape_failed">Échec du scan de %1$s : %2$s</string>
     <string name="scrape_fetching_torrent">Récupération des métadonnées du torrent de %1$s…</string>
@@ -1049,6 +1048,9 @@
     <string name="collection_storage">Stockage</string>
     <string name="collection_volume_library">%1$s · bibliothèque</string>
     <string name="collection_volume_free">%1$s libres sur %2$s</string>
+    <string name="collection_volume_internal">Stockage interne</string>
+    <string name="collection_volume_sd">Carte SD</string>
+    <string name="collection_volume_external">Stockage externe</string>
     <string name="collection_biggest_games">Jeux les plus gros</string>
     <string name="collection_regions">Régions</string>
     <string name="collection_languages">Langues</string>
@@ -1434,4 +1436,38 @@
     <string name="sort_decade_asc_short">Décennie ↑</string>
     <string name="sort_decade_desc">Décennie : récente → ancienne</string>
     <string name="sort_decade_desc_short">Décennie ↓</string>
+
+    <!-- Self-update from the GitHub releases (VersionCheckerService, UpdateSettings) -->
+    <string name="settings_updates">Mises à jour</string>
+    <string name="settings_updates_hint_idle">Version %1$s</string>
+    <string name="settings_updates_hint_checking">Recherche d’une nouvelle version…</string>
+    <string name="settings_updates_hint_up_to_date">Version %1$s · à jour</string>
+    <string name="settings_updates_hint_available">Version %1$s disponible (vous avez la %2$s)</string>
+    <string name="settings_updates_hint_downloading">Téléchargement de Dogmatix %1$s · %2$s</string>
+    <string name="settings_updates_hint_ready">Version %1$s prête à installer</string>
+    <string name="settings_updates_hint_failed">Version %1$s · GitHub injoignable</string>
+    <string name="settings_updates_check">Vérifier</string>
+    <string name="settings_update_auto">Rechercher les mises à jour au démarrage</string>
+    <string name="settings_update_auto_hint">Cherche une nouvelle version sur GitHub au plus toutes les 6 heures</string>
+    <string name="search_kw_updates">mise à jour, nouvelle version, installer, apk, github, actualiser</string>
+    <string name="search_kw_update_auto">mise à jour, automatique, nouvelle version, vérifier, démarrage, github</string>
+    <string name="update_dialog_title">Nouvelle version disponible</string>
+    <string name="update_dialog_text">%1$s est sortie. Vous avez la %2$s.</string>
+    <string name="update_dialog_size">Téléchargement : %1$s</string>
+    <string name="update_now">Mettre à jour</string>
+    <string name="update_later">Plus tard</string>
+    <string name="update_downloading_title">Téléchargement de la mise à jour</string>
+    <string name="update_downloading_progress">%1$s sur %2$s</string>
+    <string name="update_hide">Masquer</string>
+    <string name="update_ready_title">La version %1$s est prête</string>
+    <string name="update_ready_text">Android vous demandera de confirmer l’installation. La première fois, il vous demandera aussi d’autoriser les installations depuis Dogmatix : activez-les puis revenez. Votre bibliothèque, vos téléchargements et vos réglages sont conservés.</string>
+    <string name="update_install">Installer</string>
+    <string name="update_failed_title">Échec de la mise à jour</string>
+    <string name="update_retry">Réessayer</string>
+    <string name="update_open_page">Ouvrir sur GitHub</string>
+    <string name="update_no_installer">Aucune app de cet appareil ne peut installer la mise à jour</string>
+    <string name="update_error_network">Impossible de joindre GitHub. Vérifiez la connexion et réessayez.</string>
+    <string name="update_error_bad_apk">Le fichier téléchargé n’est pas un APK Dogmatix valide. Réessayez plus tard.</string>
+    <string name="update_error_signature">Cette mise à jour est signée avec une autre clé que l’app installée : Android ne l’installera pas par-dessus. Consultez la page de la version sur GitHub.</string>
+    <string name="update_error_storage">Pas assez d’espace libre pour télécharger la mise à jour.</string>
 </resources>

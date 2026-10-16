@@ -55,7 +55,9 @@ data class DiskFolder(
 
 /** One storage volume (internal storage, SD card…) with its usage. */
 data class VolumeUsage(
+    /** "primary" for the internal storage, the filesystem UUID otherwise. */
     val id: String,
+    /** The system's description, in the device language (not the app's): the screen names a volume by [kind]. */
     val label: String,
     val removable: Boolean,
     val totalBytes: Long,
@@ -64,7 +66,22 @@ data class VolumeUsage(
     val hostsLibrary: Boolean
 ) {
     val usedBytes: Long get() = (totalBytes - freeBytes).coerceAtLeast(0)
+
+    val kind: VolumeKind get() = when {
+        id == PRIMARY -> VolumeKind.INTERNAL
+        removable -> VolumeKind.SD_CARD
+        else -> VolumeKind.EXTERNAL
+    }
+
+    companion object {
+        const val PRIMARY = "primary"
+
+        /** Two volumes of the same kind (two SD cards…) are told apart by their id. */
+        fun needsId(volume: VolumeUsage, all: List<VolumeUsage>): Boolean = all.count { it.kind == volume.kind } > 1
+    }
 }
+
+enum class VolumeKind { INTERNAL, SD_CARD, EXTERNAL }
 
 /** A folder the library lives in: the download directory ([consoleId] null) or a per-console one. */
 data class LibraryRoot(

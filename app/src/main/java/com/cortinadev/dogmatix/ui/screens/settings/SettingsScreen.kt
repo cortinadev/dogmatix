@@ -317,6 +317,48 @@ fun SettingsScreen(
 
     // Each category lists its rows in reading order, in blocks under a heading.
     val categories: Map<SettingsCategory, List<SettingsItem>> = mapOf(
+        SettingsCategory.GENERAL to listOf(
+            SettingsHeading(R.string.settings_group_app),
+            SettingsRow(key = SettingsRowKeys.LANGUAGE) {
+                SettingRow(
+                    title = stringResource(R.string.settings_language),
+                    hint = stringResource(R.string.settings_language_hint),
+                    onClick = { cycleLanguage(1) },
+                    onAdjust = ::cycleLanguage
+                ) {
+                    Stepper(stringResource(appLanguage.label), onDecrement = { cycleLanguage(-1) }, onIncrement = { cycleLanguage(1) }, valueWidth = StepperWidth)
+                }
+            },
+            // New versions from the GitHub releases (UpdateSettings.kt)
+            SettingsRow(key = SettingsRowKeys.UPDATES) { UpdatesRow() },
+            SettingsRow(key = SettingsRowKeys.UPDATE_AUTO) { AutoUpdateCheckRow() },
+            SettingsHeading(R.string.settings_group_gamepad),
+            SettingsRow(key = SettingsRowKeys.GAMEPAD_LAYOUT) {
+                SettingRow(
+                    title = stringResource(R.string.settings_gamepad_layout),
+                    hint = stringResource(R.string.settings_gamepad_layout_hint),
+                    onClick = { cycleGamepadLayout(1) },
+                    onAdjust = ::cycleGamepadLayout
+                ) {
+                    Stepper(
+                        stringResource(ui.gamepadLayout.labelRes),
+                        onDecrement = { cycleGamepadLayout(-1) },
+                        onIncrement = { cycleGamepadLayout(1) },
+                        valueWidth = StepperWidth
+                    )
+                }
+            },
+            SettingsRow(key = SettingsRowKeys.SWAP_BUTTONS) {
+                SettingRow(
+                    title = stringResource(R.string.settings_swap_face_buttons),
+                    hint = stringResource(R.string.settings_swap_face_buttons_hint),
+                    onClick = { viewModel.onSwapFaceButtonsChanged(context, !ui.swapFaceButtons) },
+                    onAdjust = { viewModel.onSwapFaceButtonsChanged(context, it > 0) }
+                ) {
+                    ThemedSwitch(ui.swapFaceButtons) { viewModel.onSwapFaceButtonsChanged(context, it) }
+                }
+            }
+        ),
         SettingsCategory.LIBRARY to listOf(
             SettingsHeading(R.string.settings_group_folder),
             SettingsRow(key = SettingsRowKeys.DOWNLOAD_DIR) {
@@ -414,45 +456,6 @@ fun SettingsScreen(
                         onIncrement = { adjustMaxSearchResults(1) },
                         valueWidth = StepperWidth
                     )
-                }
-            }
-        ),
-        SettingsCategory.GENERAL to listOf(
-            SettingsHeading(R.string.settings_group_app),
-            SettingsRow(key = SettingsRowKeys.LANGUAGE) {
-                SettingRow(
-                    title = stringResource(R.string.settings_language),
-                    hint = stringResource(R.string.settings_language_hint),
-                    onClick = { cycleLanguage(1) },
-                    onAdjust = ::cycleLanguage
-                ) {
-                    Stepper(stringResource(appLanguage.label), onDecrement = { cycleLanguage(-1) }, onIncrement = { cycleLanguage(1) }, valueWidth = StepperWidth)
-                }
-            },
-            SettingsHeading(R.string.settings_group_gamepad),
-            SettingsRow(key = SettingsRowKeys.GAMEPAD_LAYOUT) {
-                SettingRow(
-                    title = stringResource(R.string.settings_gamepad_layout),
-                    hint = stringResource(R.string.settings_gamepad_layout_hint),
-                    onClick = { cycleGamepadLayout(1) },
-                    onAdjust = ::cycleGamepadLayout
-                ) {
-                    Stepper(
-                        stringResource(ui.gamepadLayout.labelRes),
-                        onDecrement = { cycleGamepadLayout(-1) },
-                        onIncrement = { cycleGamepadLayout(1) },
-                        valueWidth = StepperWidth
-                    )
-                }
-            },
-            SettingsRow(key = SettingsRowKeys.SWAP_BUTTONS) {
-                SettingRow(
-                    title = stringResource(R.string.settings_swap_face_buttons),
-                    hint = stringResource(R.string.settings_swap_face_buttons_hint),
-                    onClick = { viewModel.onSwapFaceButtonsChanged(context, !ui.swapFaceButtons) },
-                    onAdjust = { viewModel.onSwapFaceButtonsChanged(context, it > 0) }
-                ) {
-                    ThemedSwitch(ui.swapFaceButtons) { viewModel.onSwapFaceButtonsChanged(context, it) }
                 }
             }
         ),
@@ -712,7 +715,7 @@ fun SettingsScreen(
     )
     val latestCategories by rememberUpdatedState(categories)
 
-    var category by rememberSaveable { mutableStateOf(SettingsCategory.LIBRARY) }
+    var category by rememberSaveable { mutableStateOf(SettingsCategory.GENERAL) }
     var contentHasFocus by remember { mutableStateOf(false) }
     // Landed on a row from a search result: B goes straight back to the search, not to the panel.
     var fromSearch by remember { mutableStateOf(false) }
@@ -951,8 +954,8 @@ fun SettingsScreen(
 
 /** The groups Settings is split into, in the order the side panel lists them. */
 enum class SettingsCategory(@param:StringRes val title: Int) {
-    LIBRARY(R.string.settings_category_library),
     GENERAL(R.string.settings_category_general),
+    LIBRARY(R.string.settings_category_library),
     APPEARANCE(R.string.settings_category_appearance),
     DOWNLOADS(R.string.settings_category_downloads),
     INTEGRATIONS(R.string.settings_category_integrations)

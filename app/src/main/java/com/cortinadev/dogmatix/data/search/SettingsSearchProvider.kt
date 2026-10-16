@@ -46,6 +46,8 @@ object SettingsRowKeys {
     const val BATCH_NOTICE = "batch_notice"
     const val ESDE_FAVOURITES = "esde_favourites"
     const val FRONTEND_CHECK = "frontend_check"
+    const val UPDATES = "updates"
+    const val UPDATE_AUTO = "update_auto"
 
     /** Rows only shown with another setting on: a search result lands on that one while they are hidden. */
     val shownWith: Map<String, String> = mapOf(
@@ -101,7 +103,9 @@ object SettingsSearchEntries {
         row(SettingsRowKeys.DAT_FILES, R.string.settings_dat_files, R.string.settings_dat_files_hint_none, R.string.search_kw_dat_files),
         row(SettingsRowKeys.BATCH_NOTICE, R.string.settings_batch_notice, R.string.settings_batch_notice_hint, R.string.search_kw_batch_notice),
         row(SettingsRowKeys.ESDE_FAVOURITES, R.string.settings_esde_favourites, R.string.settings_esde_favourites_hint, R.string.search_kw_esde_favourites),
-        row(SettingsRowKeys.FRONTEND_CHECK, R.string.settings_frontend_check, R.string.settings_frontend_check_hint, R.string.search_kw_frontend_check)
+        row(SettingsRowKeys.FRONTEND_CHECK, R.string.settings_frontend_check, R.string.settings_frontend_check_hint, R.string.search_kw_frontend_check),
+        row(SettingsRowKeys.UPDATES, R.string.settings_updates, null, R.string.search_kw_updates),
+        row(SettingsRowKeys.UPDATE_AUTO, R.string.settings_update_auto, R.string.settings_update_auto_hint, R.string.search_kw_update_auto)
     )
 }
 

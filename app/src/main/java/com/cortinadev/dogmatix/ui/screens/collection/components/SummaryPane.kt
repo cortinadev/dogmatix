@@ -58,7 +58,8 @@ fun SummaryPane(viewModel: CollectionViewModel, active: Boolean, entryFocus: Foc
             item { SummaryTotals(analysis, extras) }
             if (volumes.isNotEmpty()) item { SectionLabel(stringResource(R.string.collection_storage)) }
             itemsIndexed(volumes, key = { _, it -> "v:" + it.id }) { index, volume ->
-                val title = if (volume.hostsLibrary) stringResource(R.string.collection_volume_library, volume.label) else volume.label
+                val name = volumeLabel(volume, volumes)
+                val title = if (volume.hostsLibrary) stringResource(R.string.collection_volume_library, name) else name
                 CollectionRow(
                     title = title,
                     subtitle = stringResource(R.string.collection_volume_free, formatBytes(volume.freeBytes), formatBytes(volume.totalBytes)),

@@ -293,6 +293,8 @@ private fun DogmatixApp(pendingFilters: PendingLibraryFilters) {
         }
     }
     com.cortinadev.dogmatix.ui.screens.download.NotificationPermissionPrompt(downloadViewModel)
+    // A new version on GitHub: the startup notice, its download and the system installer.
+    com.cortinadev.dogmatix.ui.screens.settings.UpdateDialog()
 
     // busqueda: a library search result in another section switches to it; that screen focuses the element.
     val pendingNavigation = rememberPendingNavigation()
