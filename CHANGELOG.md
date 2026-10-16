@@ -3,6 +3,276 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
+## [1.3] – 2026-10-16
+
+### Added
+
+#### Library
+- **Square covers in the library list**: every row starts with the game's box art, cropped
+  to a square, from libretro-thumbnails (the covers RetroArch shows — no API key needed, found
+  by the No-Intro / Redump file name) or, failing that, an image the details popup already
+  cached. Games without a cover get a square in their console's colour with its short name.
+  Lookups are cached (found covers for a month, misses for three days) and the images stay on
+  disk; a lookup that fails because the device is offline or the server is busy is retried
+  later. When the preferred version has no cover, up to three other versions of the game are
+  tried. Downloads shows the same cover in front of each row. Settings → "Covers in the list"
+  turns them off.
+- **Coloured chips**: the console chip is drawn in its console's colour and the tags in the
+  colour of their group — region, language, revision, demo / beta / hack — in the library,
+  the details popup and Downloads. Each console's colour is picked in Sources (console dialog
+  → "Chip colour"; a dot on every console card shows it) and travels in the sources export as
+  `color`; without one, the console uses a default for its family (Nintendo red, PlayStation
+  blue…). The group colours are picked in Settings → "Tag colours", with "Reset".
+- **Colour picker made for the gamepad**: preset swatches (A takes one), hue / saturation /
+  brightness rows that ◀ ▶ adjust, the hex code shown next to a preview chip, and "Default"
+  to go back to the built-in colour. B closes it without changes.
+- **One row per game, preferred version**: the library groups the versions of a game (regions,
+  revisions, demos, the same release from two sources) into one row with a `4+` badge, and
+  the discs of a multi-disc release travel together (`2 discs`, total size). A downloads the
+  version that suits you — every disc of it — from your preferred region and favourite
+  languages: releases before demos, betas and bad dumps, then your region and its closest
+  fallbacks, a version in one of your languages, the latest revision and verified dumps. The
+  details popup lists every version, the preferred one first, in a three-row box that
+  scrolls — LB / RB jump between it and the buttons, which always stay on screen — and A on
+  any of them downloads it. Filters still apply, and paging counts games, so a game's
+  versions always arrive together.
+- **Preferred region**: a new first-run step (after the ROMs folder) and a Settings stepper
+  pick it together with the favourite languages; the default follows the device (Spain for a
+  Spanish device, USA for en-US or Latin America, Europe for the rest of Europe…).
+- **Similar games**: a "Similar" button in the details popup filters the library by the games
+  similar to that one, on every console: its franchise first (found from the title, weighing
+  each word by how rare it is in your library), then related games, and — when the franchise
+  is short — games of the same genre (from the details you looked up before and, with a RAWG
+  key, the most popular games of that genre on your consoles). Other filters (region,
+  language, tag, favourites, source) still apply; A on the "Similar to …" chip under the
+  search box, or B, goes back to the list.
+- **Recommendations**: with no search and no filters, the Library shows shelves of games
+  picked from what you star, download and keep on disk instead of the bare list — "For you"
+  (the genres you play on the consoles you use, plus related games), "Complete the series"
+  (more of the franchises you have), "More for <console>" and, with a RAWG key, "Popular on
+  your platforms"; with nothing to go on yet, "Highlights on <console>". Games you already
+  have, betas and BIOS files are left out, and games with a cover go first. A downloads the
+  preferred version, X opens the details and SELECT stars; ▲ ▼ change shelf and ◀ ▶ move
+  along it. "All games", a search, a filter or another sort order show the list.
+- **Genre and Decade filters**: two new rows in the filter panel and the filter sheet
+  (multi-select, ◀ ▶ quick change). Genres and years come from libretro-database's DATs
+  (cached for a month) and from the details you open (RAWG, TheGamesDB, RomM); disc-based
+  systems with no such DAT (PlayStation, PS2, Saturn, Dreamcast, GameCube, Wii, Xbox…) only
+  count the games whose details were looked up. Deep links take `genre=` and `decade=`
+  (`genre=rpg,platform&decade=1990,80s`).
+- **Sort by console and by decade**, besides name and size: *Console* (offered while more than
+  one console is in play) and *Decade* in both directions.
+- **Jump by letter**: with the list sorted by name, ◀ ▶ jump to the next or previous letter
+  (◀ on the first letter still goes to the filter panel; holding repeats), loading pages as
+  needed, and the letter flashes in the corner.
+- **Search the whole app**: the Library search also finds downloads, sources (console names,
+  aliases, URLs and mirrors), settings, and Collection tools and collections, grouped under
+  the games. "Also in: …" jumps to a group, A opens the result in its section, and B from
+  there comes back to the search.
+- **Recent searches**: the last ten searches that found something show under the empty search
+  box — ▼ reaches them, A runs one, X removes it, and "Clear history" empties the list.
+
+#### Downloads
+- **The download queue survives a restart**: whatever was downloading when the app or the
+  device went down starts again on the next launch, in its queue order, continuing web and
+  debrid downloads from their partial file.
+- **A queue you can arrange**: START on a queued row enters move mode — ▲ ▼ move it, LB puts it
+  next, Y holds it, A or B leave (with touch, the row's buttons do the same). A held download
+  keeps its place but does not start until it is released. A search box and chips with counts
+  (All · In progress · Queued · Held · Failed · Completed) narrow the list, and global buttons
+  — Pause all, Resume all, Retry failed, Clear completed (the files stay) — appear when they
+  have something to act on. Retry failed only retries the failed rows the list is showing, so
+  a search or a chip narrows it and an old failure is not downloaded again by surprise.
+- **Notification with buttons**: the download notification shows how many downloads are
+  running and queued, their progress and speed, and offers Pause all / Resume / Cancel all;
+  tapping it opens Downloads. "Notice when downloads finish" (Settings, on by default) posts
+  how many completed and how many failed once the queue empties. On Android 13+ the
+  notification permission is asked once, with the first download.
+- **Pause for web and debrid downloads**, not only torrents: the partial file stays and play
+  continues it.
+- **Safer resuming**: a download continues from its partial file only when the server confirms
+  it is the same file (`If-Range` with its ETag or date) and otherwise starts over; a transfer
+  cut short is no longer taken as complete, and a web page served instead of the file fails
+  at once ("The server sent a web page, not the file") instead of being saved. "Download
+  again" always starts from zero.
+- **Best address first**: Dogmatix keeps track of how each server, debrid service and torrent
+  behaves (success rate and speed, older results counting less) and tries a source's main
+  address and its mirrors best first. A failure that will not go away by itself moves on to
+  the next address instead of repeating the same one. Sources shows the figures under each
+  URL ("97% successful · 4.1 MB/s").
+- **Download verification**: finished downloads are hashed in the background (CRC32 and SHA-1,
+  inside kept ZIPs too) and checked against RomM's hashes for games downloaded from RomM, or
+  against the console's No-Intro / Redump DAT. The row says *Verified · No-Intro*, *Does not
+  match* (with the detail) or *Not verified* and why. DATs are fetched from libretro-database
+  when a console needs one, or imported by hand (.dat, .xml or .zip) in Settings → "DAT
+  files"; "Verify downloads" turns the check off. Nothing is ever deleted because of it.
+- **Failure reasons**: failed rows say why (no connection, timed out, server error, not on the
+  server any more, not enough space, folder not accessible, no torrent metadata, debrid
+  account problem…), and the reason is kept across restarts.
+- **Automatic retries**: a Settings stepper (Off / 1 / 3 / 5, default 3) retries downloads that
+  failed for a reason that may go away on its own after 1, 5 and 15 minutes; the row shows
+  when. A manual retry, stop or delete cancels it.
+- **Downloads per server**: a Settings stepper (Unlimited / 1–4) caps how many web downloads
+  talk to the same server at once.
+- **Multi-disc games**: when every disc of a release is in, they move into a `<Game>.m3u/`
+  folder next to a `<Game>.m3u` playlist — ES-DE shows it as one game and the emulator swaps
+  discs from the playlist; a disc downloaded later joins it. Only for systems whose emulators
+  read playlists (not PS2 or Xbox). Settings → "Multi-disc games (.m3u)", on by default.
+- **Seed after download**: an optional Settings stepper (Disabled / 30 min / 1 hour / Until
+  ratio 1.0 / Unlimited) keeps finished torrents uploading to other peers. Switching it off
+  stops every seed in progress; deleting a finished row stops its own.
+
+#### Sources and scanning
+- **Incremental rescans**: "Rescan all" only reads what changed — web listings ask the server
+  first (ETag / Last-Modified) and torrents already indexed with the same settings are not
+  fetched again — and each source replaces only its own games, so a source that fails keeps
+  what it had. "Full rescan" reads everything again. Sources are scanned in parallel (a few at a time, two per server) and the
+  scan keeps going when you leave Sources.
+- **Sturdier scans**: busy servers (429, 5xx, timeouts) are retried with growing waits, honouring
+  `Retry-After`; a source's mirrors are tried when its main address fails; an empty listing
+  never wipes a source that had games. A "Last scan" card in Sources lists every source with
+  its result and a readable reason, and "Retry failed" scans only those again. The scan
+  indicator next to the tabs shows the percentage and the time left.
+- **Automatic scan**: Settings → "Automatic scan" (Off / Daily / Weekly), on Wi-Fi only (on by
+  default) and while charging only (off by default). It is always incremental and notifies
+  the new games it finds.
+- **Torrent file lists are cached** on the device (up to 300 MiB), so rescans and direct
+  downloads do not ask the swarm for a torrent's metadata again.
+- **Reserve addresses for web sources**: the URL dialog in Sources takes mirrors of the same
+  folder, one per line; downloads and rescans go round them when the main address fails. They
+  travel in the sources export as `mirrors`.
+- **Favourites in the sources export**: each console carries its starred files as
+  `favourites`, and importing adds them to the ones you already have.
+- **Undo an import**: the last sources import can be undone from Collection → History, which
+  puts the previous sources back and rescans.
+
+#### RomM
+- **Self-signed HTTPS**: when "Test connection" fails because of the certificate, Dogmatix shows
+  it (issued to, issued by, validity, SHA-256, whether the name matches) and "Trust this
+  certificate" accepts it for that server and port only — for the catalogue, covers,
+  downloads, uploads and hash checks alike. A certificate that changes is refused and shown
+  again; Settings → RomM → "Trusted certificate" → "Forget" drops it.
+- **Resumable uploads**: an upload continues from its last confirmed chunk after a failure or
+  when the app opens again (while RomM keeps the session, about a day), retries on its own
+  with the downloads' "Automatic retries" setting, and shows real progress.
+- **Multi-file games upload as one ZIP**: cue/bin sets, gdi, extracted folders and multi-disc
+  `.m3u` folders go up as a single `<game>.zip`, built on the fly without compression or a
+  copy on disk. A disc of an incomplete multi-disc game waits for the others.
+- **Server catalogue**: Dogmatix reads what the server has for the mapped consoles (when the
+  settings change, when you come back to the app — at most every 30 minutes — and on demand)
+  and marks those games in the library with a server icon next to ✓ and ★. Settings → RomM
+  adds "Upload what's missing" (games on disk the server lacks, by console), "Sync favourites
+  with RomM" (★ and RomM's Favourites both ways; off by default) and "RomM covers to ES-DE".
+- **Covers from RomM** come first in the list and the details popup.
+- **RomM in the details popup**: rating and genres, your play status (◀ ▶ to change it) and the
+  RomM collections the game is in (A to add or remove it). RomM collections also show up in
+  Collection → Collections.
+
+#### Frontends
+- **ES-DE favourites**: ★ in Dogmatix and favourites in ES-DE follow each other — a ★ changed
+  here reaches ES-DE's gamelist a moment later, and a full two-way sync runs at start-up, after
+  "Configure ES-DE" and from Settings → "Sync favourites with ES-DE". See FRONTENDS.md.
+- **Check frontends**: a Settings row that reads back the ES-DE, iiSU and shortcut setup, marks
+  each part ✓ or ⚠ and repairs what is missing with one button.
+- A release and a debug build can both be set up in ES-DE: the second adds its own entry after
+  the first instead of replacing it.
+
+#### Collection (new section)
+- A new section between Downloads and Sources to look after the games already on disk. It
+  analyses the download folders on demand (X, or "Analyse"), keeps the result and refreshes a
+  console after each download. Its tools:
+  - **Summary**: games on disk, how much of your catalogue you have, favourites on disk,
+    storage volumes, per-console figures, latest downloads, the biggest games, regions and
+    languages; A opens the Library filtered.
+  - **Health**: twelve checks — lost folder permission, low space, empty files, broken
+    `.cue` / `.m3u` / `.gdi` references, incomplete sets, games in another console's folder,
+    leftover partial downloads, multi-disc sets without a playlist, archives already
+    extracted, empty folders, foreign extensions, sources never scanned — each with its fix.
+  - **Duplicates**: the same game twice (the same files, different versions, or the same size
+    and content), with a suggestion of which copy to keep.
+  - **Repair**: create missing `.m3u` playlists, move games to their console's folder, delete
+    empty folders, leftovers and archives already extracted, with a preview per kind.
+  - **Free up space**: the biggest items first, plus the torrent and cover caches; it deletes
+    for good, and says so.
+  - **SD storage**: a second library folder (on the SD card, typically). Consoles can live
+    there, suggestions say which ones to move when internal space runs low, and a download
+    that does not fit goes to the same console folder on the other one.
+  - **Move library**: moves the whole library, or some consoles, to another folder. Downloads
+    pause while it copies and resume afterwards; it can be interrupted, resumed and undone.
+  - **History**: what was deleted, repaired, moved or imported, with undo. Deleting from
+    Downloads, the Library, Duplicates or Repair moves the files to a hidden trash
+    (`.dogmatix-trash`, skipped by ES-DE) that empties itself after 7 or 30 days.
+  - **Collections**: your own lists, by hand (the new "Collection" button in the details
+    popup) or by rules (console, region, language, tag, genre, decade, favourites, on disk,
+    source, size, text). A opens the Library showing just that collection.
+
+#### Interface
+- **German, French, Portuguese and Italian**: the whole interface is translated into four more
+  languages. Settings → Language offers them next to English and Spanish, and Android 13+ lists
+  them in the system's per-app language settings. Portuguese is written in European Portuguese
+  and covers every Portuguese locale.
+
+### Changed
+- **Settings by category**: Library, General, Appearance, Downloads and Integrations, each with
+  headed blocks, replace the two columns — a panel on the left in landscape (LB / RB move
+  between the panel and the rows) and tabs on top in portrait. "About & contact" sits at the
+  foot of the panel.
+- **Sort moved next to the search box**: the Sort row left the filter panel and became a button
+  to the right of the search box; A opens the list, ▲ ▼ pick, A applies. ◀ on it opens the
+  search and ▶ from the search comes back. It is highlighted when the order is not A → Z.
+- **Active filters under the search box**: whatever is filtered shows as a thin row of chips
+  under the search box ("Region: Europe, Japan +1", "Similar to …", the open collection),
+  with "Clear" when there are two or more; A on a chip removes it. It replaces the filter
+  panel's "Filters · Clear" header and the Similar banner. The filter panel's selectors now
+  line up in one column.
+- The search boxes of the Library and Downloads show a small ✕ (touch) while they have text.
+- "Rescan all" is incremental (see above); the new "Full rescan" button does what it used to.
+- Deleting a game from Downloads or the Library moves it to the trash, undoable from
+  Collection → History; partial downloads are still deleted for good.
+- The details popup always titles a game with its library name, never with the name of the
+  game-database hit, and shows the library cover when the databases have no image (or no API
+  key is configured).
+- The speed limit applies to torrents too, and a change reaches the downloads already running.
+- Rescans no longer wait a second before every request and sub-folder, and their files are
+  written in one transaction per batch.
+- Database version 19 (per-console colour and the cover cache, an index on file names, the
+  game grouping key and failure reasons, source scans, download resume / reliability /
+  verification data, queue order, RomM uploads, genres and years, the RomM catalogue, and
+  history, trash, collections and storage redirects); the update migrates it and groups what
+  is already indexed.
+
+### Fixed
+- The "This game is already in your library" dialog opened with the focus on "Delete", so
+  pressing A twice deleted the game from disk. It now opens on "Download again", and B
+  closes it.
+- On pads that report a trigger both as a button and as an axis (Retroid Pocket 6), one press
+  of ZL / ZR switched several sections.
+- Exporting and then importing the sources gave older consoles a new id, leaving their
+  favourites, download history and folder behind; the export now writes each console's `id`.
+- Game details for some consoles (SNES among them) were looked up under another platform and
+  came back empty.
+- The details popup could show another game of the series ("Naruto – Clash of Ninja 2" as
+  "Naruto: Clash of Ninja"): sequel numbers have to match now, the best candidate wins over
+  the first one, and wrong hits already cached are looked up again.
+- The download speed limit did not limit: Settings saved KB/s but downloads read MB/s, a
+  change never reached a running download, and every download got the whole limit to itself.
+  It is now one budget shared by all web downloads (debrid and RomM included), and the torrent
+  session gets the same limit.
+- Stopping (or pausing) a web download did not cut the transfer: it kept downloading to the
+  end and was then marked as stopped.
+- Resuming a download whose partial file was already complete failed forever with HTTP 416;
+  it now starts over.
+- Freezes with long download queues: every finished download made the library index resolve
+  all the completed ones again, by a file name without an index.
+- Extracting an archive flattened its folders, so `Disc 1/track01.bin` and
+  `Disc 2/track01.bin` overwrote each other. Folders are kept now (unsafe paths are refused
+  and clashing names renamed), and deleting the download removes them again.
+- File sizes from Apache and h5ai directory listings, and the sorting links of Apache
+  listings indexed as files.
+- Two files with the same name in different folders of a torrent could share their tags.
+- The download notification, the update notice and the scan errors were always in English.
+- The details popup could push its buttons off a landscape screen when it had a lot to show.
+
 ## [1.2] – 2026-09-02
 
 ### Added

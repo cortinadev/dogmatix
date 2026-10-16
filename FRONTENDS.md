@@ -117,6 +117,39 @@ ES-DE/downloaded_media/<system>/covers/★ Search for more games....png
 
 (`screenshots/` and `miximages/` work too, depending on the theme's layout.)
 
+### Favourites
+
+Once ES-DE is set up, Dogmatix's ★ and ES-DE's favourites follow each other, matched through
+the files on disk (a starred `Game (USA).zip` unpacked into `Game (USA).gba` is the same game,
+whichever version is starred; a multi-disc `Game.m3u` folder stands for its discs):
+
+- a ★ changed in Dogmatix is written into `gamelists/<system>/gamelist.xml` a moment later
+  (`<favorite>true</favorite>` added or removed; an entry is created for a file that has none),
+  and so is a starred game as soon as its download finishes;
+- the full two-way sync runs a few seconds after Dogmatix starts and at the end of
+  *Configure ES-DE*, and Settings → **Sync favourites with ES-DE** runs it on demand: ES-DE's
+  favourites become ★, and a favourite removed on either side since the last sync is removed
+  on the other.
+
+Gamelists are edited entry by entry, never rewritten. ES-DE reads them when it starts, so it
+shows the changes after a restart; when it saves, it merges entry by entry too, so a running
+ES-DE does not undo them. A side that suddenly has none of the favourites it had (a deleted
+gamelist, sources imported under other console ids) is taken as reset and filled again from
+the other side rather than wiping it. Only systems Dogmatix configured take part.
+
+### Covers from RomM
+
+With a RomM server set up (Settings → RomM), **RomM covers to ES-DE** writes the server's cover
+of every game you have on disk into ES-DE's media folder, named the way ES-DE looks for it:
+
+```
+ES-DE/downloaded_media/<system>/covers/<rom file without extension>.png|jpg
+```
+
+Covers ES-DE already has are left alone unless *Replace the covers ES-DE already has* is
+ticked; images that are neither PNG nor JPEG are converted to PNG. Close ES-DE first: it reads
+the covers when it starts.
+
 ## iiSU
 
 ### Automatic setup (recommended)
@@ -197,6 +230,45 @@ resolver. The `--grant-read-uri-permission` flag asks Daijishō to extend its re
 that URI to Dogmatix. Verified end to end on a real device: with this exact entry, a synced
 `.dgmtx` launches with `FLAG_GRANT_READ_URI_PERMISSION` set and Dogmatix opens filtered to
 the platform.
+
+## Checking the setup
+
+Settings → **Check frontends** reads back what the setups wrote and lists, with ✓ or ⚠:
+
+- ES-DE: access to its data folder, the DOGMATIX find rule *for this build*, the `.dgmtx`
+  extension and Dogmatix command in each system, the shortcut's gamelist entry and its cover;
+- iiSU: access to `iiSULauncher` and the DOGMATIX emulator in each console of `emuladores.json`;
+- the `.dgmtx` shortcut in every console folder (all Daijishō needs: its own configuration
+  cannot be read from outside).
+
+Each warning has **Repair**, which runs the same setup as its Settings row (or asks for the
+folder again when the permission was lost), and the report is checked again afterwards.
+
+With a release and a debug build installed, each one's setup adds its own `<entry>` to the
+DOGMATIX find rule, after the ones already there: ES-DE launches the first installed entry,
+so the order (which build the shortcut opens) stays as it was.
+
+## Multi-disc games
+
+When every disc of a multi-disc release has been downloaded, Dogmatix gathers them into one
+folder named after the game with an `.m3u` extension, holding the discs (and their tracks) next
+to a playlist of the same name:
+
+```
+psx/Final Fantasy VII (USA).m3u/
+psx/Final Fantasy VII (USA).m3u/Final Fantasy VII (USA).m3u
+psx/Final Fantasy VII (USA).m3u/Final Fantasy VII (USA) (Disc 1).cue
+psx/Final Fantasy VII (USA).m3u/Final Fantasy VII (USA) (Disc 1).bin
+…
+```
+
+This is ES-DE's *directories interpreted as files* layout: ES-DE lists the folder as a single
+game and launches the playlist inside, and the emulator swaps discs from it. Dogmatix only
+does it for systems whose emulators read playlists (PlayStation, Saturn, Sega CD, Dreamcast,
+GameCube, PC Engine CD, 3DO, Neo Geo CD, Amiga, C64, MSX…), never for PS2 or Xbox, and a disc
+downloaded later joins the folder and the playlist. Launchers that scan sub-folders file by
+file may list the playlist and the discs separately; Settings → *Multi-disc games (.m3u)*
+turns the whole behaviour off.
 
 ## Any other launcher
 
