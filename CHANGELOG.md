@@ -3,6 +3,62 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
+## [1.4] – 2026-10-27
+
+Downloads, source scans and file handling are sturdier: an interrupted download no longer leaves a half-written file that looks like a game, and Dogmatix tells you why something failed instead of silently stopping. Two new kinds of source arrive with it: Internet Archive items and web pages described with CSS selectors. Checked with the automated suite (679 unit tests, 45 on-device tests) and by hand on an Android 14 handheld in landscape and portrait.
+
+### Added
+- **Downloads that survive a restart**: automatic retries that were waiting when the app closed are picked up again when you reopen it. A retry that comes due while the app is in the background shows *Retry when the app is open* and runs as soon as you come back.
+- **Reasons for failed extractions**: a damaged or unsupported archive, an unsafe path, no room to unpack, a lost folder permission or a removed SD card now show up in the download row as the actual reason. The archive is kept, and *Retry* unpacks it again without downloading it a second time.
+- **Clearer storage problems** in Collection and *Move library*: *not enough space*, *folder permission lost* and *SD card removed* are told apart, and whatever cannot be reached is left alone.
+- **Better confirmations** when deleting from Collection (Duplicates, Repair, Free up space): the dialog counts the files, including the tracks of a `.cue` / `.gdi` that go with them and the playlists that will be rewritten, and shows the space it really frees.
+- **Source lists from more servers**: nginx, IIS and Apache listings that use plain links (not a table) are now read, and links that start with `/` resolve against the server.
+- **Source checks**: switching a source back on rescans it by itself, and a server that is down is reported as *Could not connect* instead of *Connection was cut*.
+- **Testing and validation**: `scripts/validate.sh` runs the whole check (changelog, unit tests, lint, builds, release APK), `scripts/release-check.sh` inspects a release APK before publishing, GitHub workflows run both, and a new set of tests runs on a device or emulator. See [TESTING.md](TESTING.md).
+- **Predefined manufacturers and consoles** in Sources → Add console: pick a manufacturer (or type a new one) and tap one of its consoles — about 50 across 16 manufacturers — to fill in the name, the chip label and the folder aliases, all still editable. Consoles you already have are not offered again.
+- **Web pages with CSS selectors** as a source type. In Sources → Add URL, *Page with CSS selectors* lets you point at a site whose games are not in a folder listing: you give the selector of each element and, optionally, of its link, name and size, a default extension and, for addresses with `{page}`, which pages to read (`1-50`, `A-Z`…). *Test* reads the first page and shows how many elements matched and a sample of the files before you save. The card reads *Type: game · selectors*, the rescan stops at the first numbered page that brings nothing new, and the selectors travel in the sources export as `scrape`. Links must point straight at files; pages built with JavaScript or needing a click-through are not supported.
+- **Internet Archive sources**: add `ia://<item>` or paste an `archive.org/details/…` or `…/download/…` address and the item's files are listed from the Archive's metadata API (generated files such as thumbnails and `_meta.xml` are skipped; a sub-folder in the address narrows the source). A rescan only asks whether the item changed. Pasting the address of a ZIP inside an item (or of its `view_archive.php` viewer) lists the files inside it, so the large per-system ZIPs can be browsed and downloaded one game at a time; those downloads cannot be resumed (pausing starts over, and the row says so) and the progress bar uses the size from the listing.
+- **Honest pausing for downloads that cannot resume**: when a server cannot continue a download (the Internet Archive ZIP viewer), a paused row says *Will restart from the beginning* and Dogmatix no longer sends a useless `Range` request; servers that can resume are unaffected, also in *Pause all* / *Resume all*.
+- **Empty manufacturers can be deleted** from Sources: a manufacturer left without consoles shows a card with a trash button and a confirmation.
+- **Internet Archive verification**: downloads from an item are checked against the hashes the Archive publishes (*Verified · Internet Archive*); games taken from inside a ZIP are checked against the console's DAT, as before.
+- **Internet Archive account** (Settings → Integrations → *Internet Archive*): sign in on archive.org's own page inside the app to scan and download items that need an account. Dogmatix keeps only the session, never your password, sends it only to archive.org (also when a download is redirected to one of the Archive's data nodes) and identifies itself with its own User-Agent as the Archive asks. *Check* tests the session and *Sign out* forgets it; if the session expires, a refused scan says so. Google's sign-in does not work inside apps: use your email and password or *Email me a code to log in*. In landscape the title and *Cancel* sit in a side panel so the page keeps the full height.
+
+### Changed
+- Downloads are written as `<name>.dogmatix-part` and take their final name only when complete. Partial files never show up as games, in the library check marks or in Collection, and deleting a stopped, failed or paused row removes its partial file.
+- *Download again* keeps the copy you already have until the new one is complete.
+- Tapping a download twice quickly no longer starts it twice; pausing, stopping and deleting while a download is starting now settle on the last request.
+- Archives never overwrite existing files: an identical file is reused and a different one with the same name is saved as `name (2).ext`.
+- Copies and moves of games between folders and storage volumes are verified (size and sampled blocks) before the original is deleted. If a copy does not match, the original stays where it was and the move says so.
+- A `.m3u` playlist always lists the discs that are really in its folder, even when another disc could not be moved in, and Collection → *Health* offers to complete a playlist that misses one. Deleting a `.cue` or `.gdi` also removes the tracks it points to, unless another sheet uses them; a playlist that loses a disc is rewritten.
+- Switching a source off, deleting it or changing its address removes its games from the library right away (before, they went at the next rescan). Switching it on rescans it.
+- Scan requests that arrive while a scan is running are queued and merged instead of being dropped.
+- The update check refuses an APK that is not newer than the installed version.
+- The database moves to version 20 (pending automatic retries are stored with the download). Installs from 1.0 to 1.3.1 migrate in place; checked from 1.3 with 60 000 indexed games and the download history, favourites and settings intact.
+- **The first *Rescan* after updating re-reads every web source once** (the listing reader changed); torrents and RomM sources are skipped as before. Starred games and download history of renamed web files are carried over.
+- The *Add / Edit source* and *Add console* dialogs are wider (up to 720 dp), so the fields no longer feel squeezed; the selector fields sit side by side.
+
+### Fixed
+- A download that is paused, stopped or deleted at the same moment it finishes or fails can no longer leave a ghost row, a stuck slot in the queue or a started duplicate.
+- A transfer cut short is never taken for a finished file, and a pending retry no longer disappears when Android restarts the app.
+- A partial file no longer stays on disk with the final name after deleting a failed download.
+- A trash batch that stopped halfway could delete the copy that was just saved; it now keeps exactly what was moved.
+- Listings with empty, anchor, `mailto:` or `..` links, thousands separators in sizes (`12,345,678`) or truncated names (`..>`) no longer produce wrong or empty rows.
+- A scan cancelled halfway, or one in which a source failed, no longer cleans up the games of the other sources.
+- A source whose files were removed is rescanned instead of being treated as unchanged.
+- A scan report no longer shows a made-up *(HTTP 192)* for an empty or missing listing, and Downloads only offers *X Delete* on rows that can be deleted (paused, stopped, failed or completed), not on one that is still running.
+- Web listings with scheme-relative links (`//host/path`, as Internet Archive's ZIP viewer uses) now download: the link takes the listing's scheme and the file is named after its last segment.
+- *Duplicates* and *Free up space* now find a cue/bin, `.gdi` or `.m3u` set that was copied into another console's folder, say which copy is kept, and no longer offer two different Dreamcast games as duplicates just because both have a `track01.bin`.
+- *Rescan all* with many torrent sources that did not change now finishes in under a second (29 torrents on the test device, before 53 to 142 seconds): torrents that list no files are no longer asked from the swarm on every pass, and a pass that changes nothing no longer counts as a library update.
+- Deleting or moving in a folder the app can no longer open shows the reason, and the Collection analysis stops offering that folder. The delete confirmations in Duplicates and *Free up space* count the files of each copy.
+
+### Known issues
+- Not yet checked on a device: moving the library between the SD card and internal storage, cancelling and resuming a move inside one volume, and signing in to Internet Archive inside the app on a real account. Collection after a lost folder permission, a library root under *Documents*, deleting a `.cue` from *Free up space*, moving between two internal roots with undo and the one-off re-read of web sources were checked.
+- *Duplicates* and *Free up space* do not recognise a single loose disc copied next to a set kept in a `<game>.m3u/` folder.
+- With the source filter on *Direct link*, a game that also has torrent versions still shows its *2+* badge; a download from an Internet Archive item can show the chip of a torrent that has a file with the same name.
+- A collapsed console card in Sources closes again after each scan.
+- In the Duplicates confirmation, copies of a single file show no file count while multi-file copies do; with focus on *Delete suggested* / *Repair*, the controller legend is still the one for the rows.
+- The GitHub Actions workflows are included; `validate` runs for the first time with the push of this release and `release` (manual) has not been run yet.
+
 ## [1.3.1] – 2026-10-16
 
 ### Added

@@ -266,7 +266,9 @@ This is ES-DE's *directories interpreted as files* layout: ES-DE lists the folde
 game and launches the playlist inside, and the emulator swaps discs from it. Dogmatix only
 does it for systems whose emulators read playlists (PlayStation, Saturn, Sega CD, Dreamcast,
 GameCube, PC Engine CD, 3DO, Neo Geo CD, Amiga, C64, MSX…), never for PS2 or Xbox, and a disc
-downloaded later joins the folder and the playlist. Launchers that scan sub-folders file by
+downloaded later joins the folder and the playlist. Since 1.4 the playlist always names the discs
+that are really in the folder (a disc that could not be moved in is left out instead of listed),
+and Collection → *Health* offers to complete a playlist that misses one. Launchers that scan sub-folders file by
 file may list the playlist and the discs separately; Settings → *Multi-disc games (.m3u)*
 turns the whole behaviour off.
 
