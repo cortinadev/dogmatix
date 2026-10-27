@@ -141,6 +141,26 @@ Neither workflow has run on GitHub yet.
 fails on any new error. Warnings do not fail. To accept the current state after a deliberate change:
 `./gradlew updateLintBaseline`.
 
+## Results of 27 October 2026 (release 1.4)
+
+Run in Docker with `DOGMATIX_DOCKER=1 scripts/validate.sh --skip instrumented` from the release
+commit (`27b0feb`), with `keystore/` and `.env` in the build tree:
+
+| Step | Result |
+|---|---|
+| Changelog | `## [1.4] – 2026-10-27`, 38 entries |
+| Unit tests | 679 tests in 98 classes, 0 failures |
+| Lint | 0 errors; 14 warnings outside the baseline |
+| Debug and test APKs | built (103.7 MB, 2.5 MB) |
+| Release (R8) | built, 60.0 MB |
+| APK check | OK, publishable: package, 1.4 / 14, not debuggable, signed with the release key, tag `v1.4` free, versionCode 14 > 13 |
+| Handheld update | the release installed over the published 1.3.1 on the Android 14 handheld: library, 26 history rows with their check marks, covers, sources and settings intact; no errors in logcat |
+
+Published as tag `v1.4` and the GitHub release *Dogmatix 1.4* (`dogmatix-1.4.apk`, SHA-256
+`377f9cfba8eb6b22085222d50829df3c6f52ca35aa5c87b62893c2e88ae8a3ea`). Not repeated for 1.4: the
+clean install with a temporary application id, the SD card checks, and watching the previous
+version announce the update (the handheld had already been updated by adb).
+
 ## Results of 23 October 2026
 
 Run in Docker with `DOGMATIX_DOCKER=1 scripts/validate.sh --skip changelog,instrumented`:
