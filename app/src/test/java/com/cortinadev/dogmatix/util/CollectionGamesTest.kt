@@ -29,6 +29,36 @@ class CollectionGamesTest {
     }
 
     @Test
+    fun `the tracks a sheet names are its game, whatever they are called`() {
+        val dc = { path: String, size: Long, refs: List<String>? -> file(path, size, console = "sega_dreamcast", top = "dc", refs = refs) }
+        val games = CollectionGames.group(listOf(
+            dc("Shenmue II (Europe)/track01.bin", 1_000, null),
+            dc("Shenmue II (Europe)/Shenmue II (Europe).gdi", 90, listOf("track01.bin", "track02.raw", "TRACK03.BIN", "missing.bin")),
+            dc("Shenmue II (Europe)/track02.raw", 2_000, null),
+            dc("Shenmue II (Europe)/track03.bin", 3_000, null),
+            dc("Shenmue II (Europe)/notes.txt", 10, null)
+        ))
+        val game = games.single()
+        assertEquals("Shenmue II (Europe)", game.title)
+        assertEquals("shenmue ii", game.groupKey)
+        assertEquals(4, game.files.size)
+        assertEquals(6_090, game.size)
+    }
+
+    @Test
+    fun `a track the sheets of two games name stays on its own`() {
+        val games = CollectionGames.group(listOf(
+            psx("Alpha.cue", 100).copy(references = listOf("Alpha.bin", "shared.bin")),
+            psx("Alpha.bin", 1_000),
+            psx("Beta.cue", 100).copy(references = listOf("Beta.bin", "shared.bin")),
+            psx("Beta.bin", 1_000),
+            psx("shared.bin", 500)
+        )).sortedBy { it.title }
+        assertEquals(listOf("Alpha", "Beta", "shared"), games.map { it.title })
+        assertEquals(listOf(2, 2, 1), games.map { it.files.size })
+    }
+
+    @Test
     fun `the discs of a release are one game, a set folder another`() {
         val games = CollectionGames.group(listOf(
             psx("Final Fantasy VII (USA) (Disc 1).cue"),

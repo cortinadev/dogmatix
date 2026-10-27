@@ -10,7 +10,8 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Scan requests to one server, for one scan run: at most [perHost] at a time. A server that
  * pushes back (429, 5xx) gets nothing until the moment it asked for, and from then on one
- * request at a time until the run ends.
+ * request at a time until the run ends. Host names are compared without case; servers do not
+ * hold each other up. [clock] is in milliseconds, on the same time line as `delay`.
  */
 class ScanHostGate(private val perHost: Int, private val clock: () -> Long = System::currentTimeMillis) {
 
@@ -29,7 +30,9 @@ class ScanHostGate(private val perHost: Int, private val clock: () -> Long = Sys
     suspend fun <T> withSlot(name: String, block: suspend () -> T): T {
         val host = host(name)
         return host.slots.withPermit {
-            if (host.calm) host.single.withLock { waitTurn(host); block() } else { waitTurn(host); block() }
+            waitTurn(host)
+            // Pushed back before or while this one waited: from now on, one at a time.
+            if (host.calm) host.single.withLock { waitTurn(host); block() } else block()
         }
     }
 
@@ -40,8 +43,12 @@ class ScanHostGate(private val perHost: Int, private val clock: () -> Long = Sys
         host.notBefore = maxOf(host.notBefore, clock() + waitMs.coerceAtLeast(0))
     }
 
+    /** Until the server's moment; a push-back that comes meanwhile makes the wait longer. */
     private suspend fun waitTurn(host: Host) {
-        val wait = host.notBefore - clock()
-        if (wait > 0) delay(wait)
+        while (true) {
+            val wait = host.notBefore - clock()
+            if (wait <= 0) return
+            delay(wait)
+        }
     }
 }

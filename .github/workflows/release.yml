@@ -1,0 +1,118 @@
+# Release build, started by hand (Actions → Release build → Run workflow, with the version).
+#
+# It checks the changelog, runs the unit tests and lint, builds the release APK (R8), runs
+# scripts/release-check.sh --pre-tag on it and uploads the APK, its .sha256 / .md5 and the
+# check's output as a workflow artifact. It publishes nothing: tagging and
+# `gh release create ... --repo cortinadev/dogmatix` stay manual.
+#
+# NOTE: written and checked locally, but it has not been run on GitHub yet: the first dispatch
+# will be its first run.
+#
+# Secrets (Settings → Secrets and variables → Actions), all optional:
+#   RELEASE_KEYSTORE_B64     keystore/dogmatix-release.jks in base64 (base64 -i dogmatix-release.jks)
+#   RELEASE_STORE_PASSWORD   } the same values as the RELEASE_* lines of the local .env
+#   RELEASE_KEY_ALIAS        }
+#   RELEASE_KEY_PASSWORD     }
+#   RAWG_API_KEY, THEGAMESDB_API_KEY  game details; without them the build shows "no data"
+# They reach Gradle as environment variables (app/build.gradle.kts reads .env or the
+# environment), so no .env is written. Without the keystore the APK is signed with the debug
+# key: release-check fails on the signature, the job fails, and that APK must not be published.
+# setup-gradle stays on v5 for the reason given in validate.yml.
+
+name: Release build
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: versionName to build (must match app/build.gradle.kts, e.g. 1.4)
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Release APK ${{ inputs.version }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # tags and history: release-check compares with the latest tag
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v5
+
+      - name: Version matches app/build.gradle.kts
+        run: |
+          actual=$(sed -n 's/^[[:space:]]*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' app/build.gradle.kts | head -n 1)
+          if [ "$actual" != "$VERSION" ]; then
+            echo "::error::app/build.gradle.kts has versionName $actual, not $VERSION"
+            exit 1
+          fi
+
+      - name: Changelog entry for this version
+        run: bash scripts/validate.sh --only changelog
+
+      - name: Release keystore
+        env:
+          RELEASE_KEYSTORE_B64: ${{ secrets.RELEASE_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$RELEASE_KEYSTORE_B64" ]; then
+            mkdir -p keystore
+            umask 077
+            printf '%s' "$RELEASE_KEYSTORE_B64" | base64 -d > keystore/dogmatix-release.jks
+          else
+            echo "::warning::RELEASE_KEYSTORE_B64 is not set: the APK will be signed with the debug key and cannot be published."
+          fi
+
+      - name: Unit tests, lint and release APK
+        env:
+          RELEASE_STORE_FILE: keystore/dogmatix-release.jks
+          RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          RAWG_API_KEY: ${{ secrets.RAWG_API_KEY }}
+          THEGAMESDB_API_KEY: ${{ secrets.THEGAMESDB_API_KEY }}
+        run: |
+          [ -n "$RAWG_API_KEY" ] || echo "::warning::RAWG_API_KEY is not set: game details will show no data."
+          [ -n "$THEGAMESDB_API_KEY" ] || echo "::warning::THEGAMESDB_API_KEY is not set."
+          ./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
+
+      - name: Release check (version, package, signature, tag) and checksums
+        run: |
+          mkdir -p dist
+          cp app/build/outputs/apk/release/app-release.apk "dist/dogmatix-$VERSION.apk"
+          bash scripts/release-check.sh "dist/dogmatix-$VERSION.apk" --pre-tag | tee dist/release-check.txt
+          exit "${PIPESTATUS[0]}"
+
+      - name: Upload the APK and its checksums
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: dogmatix-${{ inputs.version }}
+          path: dist/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: reports-${{ inputs.version }}
+          path: |
+            app/build/reports
+            app/build/test-results
+          if-no-files-found: ignore
+
+      - name: Remove the keystore
+        if: always()
+        run: rm -rf keystore

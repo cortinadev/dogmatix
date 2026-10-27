@@ -169,4 +169,8 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setUpdateCheckResult(latest: String, checkedAt: Long): Preferences =
         settingsDataStore.setUpdateCheckResult(latest, checkedAt)
     override suspend fun setUpdateDismissed(version: String): Preferences = settingsDataStore.setUpdateDismissed(version)
+
+    // internet-archive
+    override val iaCookies: Flow<Pair<String, String>> = settingsDataStore.iaCookies
+    override suspend fun setIaCookies(user: String, sig: String): Preferences = settingsDataStore.setIaCookies(user, sig)
 }

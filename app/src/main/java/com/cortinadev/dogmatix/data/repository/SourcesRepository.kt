@@ -4,11 +4,13 @@ import android.content.Context
 import androidx.core.net.toUri
 import com.cortinadev.dogmatix.data.local.dao.ConsoleDao
 import com.cortinadev.dogmatix.data.local.dao.ManufacturerDao
+import com.cortinadev.dogmatix.data.local.dao.SourceScanDao
 import com.cortinadev.dogmatix.data.local.entity.ConsoleEntity
 import com.cortinadev.dogmatix.data.local.entity.ManufacturerEntity
 import com.cortinadev.dogmatix.data.model.Console
 import com.cortinadev.dogmatix.data.model.ContentType
 import com.cortinadev.dogmatix.data.model.Manufacturer
+import com.cortinadev.dogmatix.data.model.ScrapeRecipe
 import com.cortinadev.dogmatix.data.model.UrlEntry
 import com.cortinadev.dogmatix.data.service.DatabaseScrapingService
 import com.cortinadev.dogmatix.data.service.SourcesImportUndo
@@ -19,6 +21,8 @@ import com.cortinadev.dogmatix.util.ConsoleAliasRegistry
 import com.cortinadev.dogmatix.util.ConsoleFolderAliases
 import com.cortinadev.dogmatix.util.ConsoleFormatter
 import com.cortinadev.dogmatix.util.FileParsingUtils
+import com.cortinadev.dogmatix.util.IaSource
+import com.cortinadev.dogmatix.util.MirrorUrls
 import com.cortinadev.dogmatix.util.SourceConsole
 import com.cortinadev.dogmatix.util.SourceManufacturer
 import com.cortinadev.dogmatix.util.SourcesJson
@@ -48,7 +52,9 @@ class SourcesRepository @Inject constructor(
     // frontends: stars travel in the export and come back (added) on import
     private val favouritesRepository: FavouritesRepository,
     // coleccion-gestion
-    private val importUndo: javax.inject.Provider<SourcesImportUndo>
+    private val importUndo: javax.inject.Provider<SourcesImportUndo>,
+    // escaneo: a source deleted or switched off leaves the library at once
+    private val scanDao: SourceScanDao
 ) {
 
     /** Manufacturers with their consoles and parsed URL entries; consoles without a manufacturer are dropped. */
@@ -91,8 +97,9 @@ class SourcesRepository @Inject constructor(
         return id
     }
 
-    suspend fun addConsole(manufacturerId: String, name: String, shortName: String = "", folderAliases: List<String> = emptyList(), color: String = ""): String {
-        val id = "${manufacturerId}_${SourcesJson.slug(name)}"
+    /** [key] fixes the console part of the id (a predefined console keeps the id its tables know); empty = slug of [name]. */
+    suspend fun addConsole(manufacturerId: String, name: String, shortName: String = "", folderAliases: List<String> = emptyList(), color: String = "", key: String = ""): String {
+        val id = "${manufacturerId}_${key.trim().ifEmpty { SourcesJson.slug(name) }}"
         if (consoleDao.getConsoleById(id) == null) {
             consoleDao.insertConsole(ConsoleEntity(
                 id = id, name = name.trim(), manufacturerId = manufacturerId, urls = "[]",
@@ -119,11 +126,12 @@ class SourcesRepository @Inject constructor(
         ))
     }
 
-    /** Deletes the console; its indexed files go with it (Room cascade) and torrent handles are released. */
+    /** Deletes the console; its indexed files go with it (Room cascade), its scan results too, and torrent handles are released. */
     suspend fun deleteConsole(consoleId: String) {
         val console = consoleDao.getConsoleById(consoleId) ?: return
         releaseSources(SourcesJson.parseUrlEntries(console.urls))
         consoleDao.deleteConsoleById(consoleId)
+        scanDao.deleteConsole(consoleId)
     }
 
     /** Deletes the manufacturer and every console under it (consoles have no FK to manufacturers). */
@@ -136,45 +144,69 @@ class SourcesRepository @Inject constructor(
 
     /**
      * Appends a source. `content://` URIs (a picked .torrent) are copied into internal storage;
-     * magnets are trimmed to the tracker limit. Returns false if the entry could not be stored.
+     * magnets are trimmed to the tracker limit. A page [scrape] recipe only applies to a web address.
+     * Returns false if the entry could not be stored.
      */
-    suspend fun addUrl(consoleId: String, url: String, contentType: ContentType, folders: List<String> = emptyList(), mirrors: List<String> = emptyList()): Boolean {
+    suspend fun addUrl(
+        consoleId: String, url: String, contentType: ContentType, folders: List<String> = emptyList(),
+        mirrors: List<String> = emptyList(), scrape: ScrapeRecipe? = null
+    ): Boolean {
         val console = consoleDao.getConsoleById(consoleId) ?: return false
         val stored = normalizeUrl(url) ?: return false
-        val urls = SourcesJson.parseUrlEntries(console.urls) + UrlEntry(stored, contentType, folders, mirrors = mirrors)
+        // A pasted …/download/<item>/roms/ narrows the item to that folder.
+        val itemFolder = IaSource.normalize(url)?.subpath?.takeIf { folders.isEmpty() }
+        val urls = SourcesJson.parseUrlEntries(console.urls) +
+            UrlEntry(stored, contentType, itemFolder?.let(::listOf) ?: folders, mirrors = mirrors, scrape = scrape?.takeIf { MirrorUrls.isWeb(stored) })
         consoleDao.updateConsole(console.copy(urls = SourcesJson.serializeUrlEntries(urls)))
         return true
     }
 
-    /** Replaces the entry at [index]; a changed torrent source releases the old handle. */
-    suspend fun updateUrl(consoleId: String, index: Int, url: String, contentType: ContentType, mirrors: List<String> = emptyList()): Boolean {
+    /**
+     * Replaces the entry at [index]; a changed torrent source releases the old handle. A changed
+     * address is a different source: the old one's games leave the library now. [scrape] replaces
+     * the recipe as given: null removes it.
+     */
+    suspend fun updateUrl(
+        consoleId: String, index: Int, url: String, contentType: ContentType,
+        mirrors: List<String> = emptyList(), scrape: ScrapeRecipe? = null
+    ): Boolean {
         val console = consoleDao.getConsoleById(consoleId) ?: return false
         val urls = SourcesJson.parseUrlEntries(console.urls).toMutableList()
         val old = urls.getOrNull(index) ?: return false
         val stored = if (url.trim() == old.url) old.url else normalizeUrl(url) ?: return false
         if (stored != old.url) releaseSource(old.url)
-        urls[index] = old.copy(url = stored, contentType = contentType, mirrors = mirrors)
+        urls[index] = old.copy(url = stored, contentType = contentType, mirrors = mirrors, scrape = scrape?.takeIf { MirrorUrls.isWeb(stored) })
         consoleDao.updateConsole(console.copy(urls = SourcesJson.serializeUrlEntries(urls)))
+        if (stored != old.url && urls.none { it.url == old.url }) scanDao.forgetSource(consoleId, old.url)
         return true
     }
 
-    /** Turns the entry at [index] on or off; a source going off releases its torrent handle. */
-    suspend fun setUrlEnabled(consoleId: String, index: Int, enabled: Boolean) {
-        val console = consoleDao.getConsoleById(consoleId) ?: return
+    /**
+     * Turns the entry at [index] on or off; a source going off releases its torrent handle and its
+     * games leave the library now (its scan result stays, so switching it on reads it again in
+     * full). Returns the source's address when it changed, null when there was nothing to do.
+     */
+    suspend fun setUrlEnabled(consoleId: String, index: Int, enabled: Boolean): String? {
+        val console = consoleDao.getConsoleById(consoleId) ?: return null
         val urls = SourcesJson.parseUrlEntries(console.urls).toMutableList()
-        val old = urls.getOrNull(index) ?: return
-        if (old.enabled == enabled) return
+        val old = urls.getOrNull(index) ?: return null
+        if (old.enabled == enabled) return null
         if (!enabled) releaseSource(old.url)
         urls[index] = old.copy(enabled = enabled)
         consoleDao.updateConsole(console.copy(urls = SourcesJson.serializeUrlEntries(urls)))
+        if (!enabled && urls.none { it.url == old.url && it.enabled }) scanDao.deleteSource(consoleId, old.url)
+        return old.url
     }
 
+    /** Deletes the entry at [index]; its games and its scan result go with it (not at the next rescan). */
     suspend fun deleteUrl(consoleId: String, index: Int) {
         val console = consoleDao.getConsoleById(consoleId) ?: return
         val urls = SourcesJson.parseUrlEntries(console.urls).toMutableList()
         if (index !in urls.indices) return
-        releaseSource(urls.removeAt(index).url)
+        val removed = urls.removeAt(index)
+        releaseSource(removed.url)
         consoleDao.updateConsole(console.copy(urls = SourcesJson.serializeUrlEntries(urls)))
+        if (urls.none { it.url == removed.url }) scanDao.forgetSource(consoleId, removed.url)
     }
 
     // ---- Export / import ----------------------------------------------------------------------
@@ -291,7 +323,8 @@ class SourcesRepository @Inject constructor(
             trimmed.isEmpty() -> null
             trimmed.startsWith("content://") -> copyTorrentToInternalStorage(trimmed)
             trimmed.startsWith("magnet:") -> FileParsingUtils.optimizeMagnetUri(trimmed)
-            else -> trimmed
+            // Internet Archive: ia://<item>, or the stable address of a ZIP viewer (never a data node).
+            else -> IaSource.normalize(trimmed)?.source ?: trimmed
         }
     }
 

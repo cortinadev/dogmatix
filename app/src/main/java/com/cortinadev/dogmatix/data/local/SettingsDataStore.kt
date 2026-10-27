@@ -137,6 +137,11 @@ object SettingsKeys {
     val UPDATE_LATEST = stringPreferencesKey("update_latest")
     /** The version whose startup notice was answered with "Later": it is not shown again. */
     val UPDATE_DISMISSED = stringPreferencesKey("update_dismissed")
+
+    // internet-archive
+    /** The archive.org session (its `logged-in-user` / `logged-in-sig` cookies, from the sign-in page); never exported. */
+    val IA_COOKIE_USER = stringPreferencesKey("ia_cookie_user")
+    val IA_COOKIE_SIG = stringPreferencesKey("ia_cookie_sig")
 }
 
 /** Language tags are upper-cased ISO codes ("EN", "ES"), matching how files are tagged. */
@@ -352,4 +357,19 @@ class SettingsDataStore @Inject constructor(
         it[SettingsKeys.UPDATE_CHECKED_AT] = checkedAt
     }
     suspend fun setUpdateDismissed(version: String) = context.dataStore.edit { it[SettingsKeys.UPDATE_DISMISSED] = version }
+
+    // internet-archive
+    val iaCookies: Flow<Pair<String, String>> = context.dataStore.data.map {
+        (it[SettingsKeys.IA_COOKIE_USER] ?: "") to (it[SettingsKeys.IA_COOKIE_SIG] ?: "")
+    }
+    /** Both cookies at once; blank values forget the session. */
+    suspend fun setIaCookies(user: String, sig: String) = context.dataStore.edit {
+        if (user.isBlank() || sig.isBlank()) {
+            it.remove(SettingsKeys.IA_COOKIE_USER)
+            it.remove(SettingsKeys.IA_COOKIE_SIG)
+        } else {
+            it[SettingsKeys.IA_COOKIE_USER] = user
+            it[SettingsKeys.IA_COOKIE_SIG] = sig
+        }
+    }
 }

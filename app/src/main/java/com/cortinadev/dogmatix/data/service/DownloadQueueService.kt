@@ -1,7 +1,5 @@
 package com.cortinadev.dogmatix.data.service
 
-import android.util.Log
-import com.cortinadev.dogmatix.data.local.dao.DownloadHistoryDao
 import com.cortinadev.dogmatix.data.local.entity.DownloadHistoryEntity
 import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
@@ -12,15 +10,12 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
-
-private const val TAG = "DownloadQueueService"
 
 /** The queue as the UI sees it: who waits, in order (held rows included), and who is held. */
 data class QueueState(val waiting: List<String> = emptyList(), val held: Set<String> = emptySet()) {
@@ -32,8 +27,11 @@ data class QueueState(val waiting: List<String> = emptyList(), val held: Set<Str
     }
 }
 
-/** A row's place in line, handed from [DownloadQueueService.enqueue] to its job. */
-class QueueTicket internal constructor(val name: String, val order: Long, val held: Boolean) {
+/**
+ * A row's place in line, handed from [DownloadQueueService.enqueue] to its job. [serial] names
+ * this place and no other, so the slot it is granted is given back once, and only by its job.
+ */
+class QueueTicket internal constructor(val name: String, val order: Long, val held: Boolean, internal val serial: Long) {
     internal val turn = CompletableDeferred<Unit>()
 }
 
@@ -46,7 +44,8 @@ class QueueTicket internal constructor(val name: String, val order: Long, val he
 @Singleton
 class DownloadQueueService @Inject constructor(
     settingsRepository: SettingsRepository,
-    private val historyDao: DownloadHistoryDao
+    /** Its places are saved through the history's single ordered writer (after the row's insert). */
+    private val tracker: DownloadProgressTracker
 ) {
     private data class Place(val order: Long, val held: Boolean)
 
@@ -62,8 +61,6 @@ class DownloadQueueService @Inject constructor(
     val state: StateFlow<QueueState> = _state.asStateFlow()
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    /** One writer, in order: two quick moves must not reach the database the other way round. */
-    private val writes = Channel<Pair<String, Place>>(Channel.UNLIMITED)
 
     init {
         scope.launch {
@@ -71,12 +68,6 @@ class DownloadQueueService @Inject constructor(
         }
         scope.launch {
             settingsRepository.perHostDownloads.collect { max -> locked { queue.perHost = max } }
-        }
-        scope.launch {
-            for ((name, place) in writes) {
-                runCatching { historyDao.setQueuePlace(name, place.order, place.held) }
-                    .onFailure { Log.e(TAG, "Could not save the queue place of $name: ${it.message}") }
-            }
         }
     }
 
@@ -99,7 +90,7 @@ class DownloadQueueService @Inject constructor(
         val previous = stale?.let { Place(it.order, it.held) } ?: if (keepPlace) places[name] else null
         val host = if (file.isTorrent) null else MirrorUrls.hostOf(file.downloadUrl)
         val entry = queue.enqueue(name, host, previous?.order, previous?.held == true)!!
-        val ticket = QueueTicket(name, entry.order, entry.held)
+        val ticket = QueueTicket(name, entry.order, entry.held, entry.serial)
         tickets[name] = ticket
         remember(entry)
         grantLocked()
@@ -120,8 +111,8 @@ class DownloadQueueService @Inject constructor(
                 val current = tickets[name] === ticket
                 if (current) tickets.remove(name)
                 // Granted just as it was cancelled: the slot is ours to give back.
-                if (ticket.turn.isCompleted && !ticket.turn.isCancelled) queue.finish(name)
-                else if (current) queue.remove(name)?.let { if (it.held) remember(it.copy(held = false)) }
+                if (ticket.turn.isCompleted && !ticket.turn.isCancelled) queue.finish(name, ticket.serial)
+                else if (current) queue.remove(name, ticket.serial)?.let { if (it.held) remember(it.copy(held = false)) }
             }
             throw e
         }
@@ -130,7 +121,7 @@ class DownloadQueueService @Inject constructor(
         } finally {
             locked {
                 if (tickets[name] === ticket) tickets.remove(name)
-                queue.finish(name)
+                queue.finish(name, ticket.serial)
             }
         }
     }
@@ -162,7 +153,9 @@ class DownloadQueueService @Inject constructor(
     private fun remember(entry: DownloadQueue.Entry) {
         val place = Place(entry.order, entry.held)
         places[entry.name] = place
-        writes.trySend(entry.name to place)
+        // In order with every other history write: two quick moves never land the other way round,
+        // and a move right after the start never lands before the row's insert (which would undo it).
+        tracker.persist { setQueuePlace(entry.name, place.order, place.held) }
     }
 
     /** Runs [change] under the lock, then starts whoever's turn came and publishes the line. */

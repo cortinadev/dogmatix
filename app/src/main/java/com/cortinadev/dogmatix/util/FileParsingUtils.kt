@@ -13,7 +13,16 @@ object FileParsingUtils {
     private val SPACES = Regex("\\s+")
 
     /** A table cell holding nothing but a size: `1.2 MiB`, `12 MB`, `66M` (Apache), `512` (bytes). */
-    private val SIZE_CELL_TEXT = Regex("""\d[\d.,]*\s*(?:[KMGTPE](?:i?B)?|B)?""", RegexOption.IGNORE_CASE)
+    internal val SIZE_CELL_TEXT = Regex("""\d[\d.,]*\s*(?:[KMGTPE](?:i?B)?|B)?""", RegexOption.IGNORE_CASE)
+
+    /** The scheme of an address with a host (`https://`, `ftp://`…). */
+    private val HOST_SCHEME = Regex("""^([A-Za-z][A-Za-z0-9+.-]*)://""")
+
+    /**
+     * Link schemes without a host that are never a file of the listing. Any other `word:` start is
+     * taken as part of a file name (a server that does not encode `Zelda: …`), as before.
+     */
+    private val NON_FILE_SCHEMES = listOf("javascript", "mailto", "data", "tel", "sms", "magnet", "about", "blob", "file", "urn", "news")
 
     fun toUserReadablePath(uriString: String): String {
         if (uriString.isBlank()) return ""
@@ -31,7 +40,7 @@ object FileParsingUtils {
     }
 
     fun buildDownloadUrl(baseUrl: String, href: String): String {
-        return if (href.startsWith("http")) {
+        return if (MirrorUrls.isWeb(href)) {
             href
         } else {
             val base = baseUrl.trimEnd('/')
@@ -138,48 +147,96 @@ object FileParsingUtils {
         }
     }
 
-    /** [link]: the row's link when the caller already found it (saves selecting it again). */
-    fun parseFileFromRow(row: Element, baseUrl: String, consoleId: String, link: Element? = null): Pair<DownloadableFileEntity?, List<FileTagEntity>> {
+    /**
+     * [link]: the row's link when the caller already found it (saves selecting it again).
+     * [pageUrl]: the address that served the listing, when not [baseUrl] (a mirror); see [fileFromLink].
+     */
+    fun parseFileFromRow(
+        row: Element,
+        baseUrl: String,
+        consoleId: String,
+        link: Element? = null,
+        pageUrl: String = baseUrl
+    ): Pair<DownloadableFileEntity?, List<FileTagEntity>> {
         val linkCell = link ?: row.select("td.link a").first() ?: row.select("a").first()
-        val sizeCell = sizeCellOf(row)
+            ?: return Pair(null, emptyList())
+        val (fileEntity, tags) = fileFromLink(linkCell, sizeCellOf(row)?.text(), baseUrl, pageUrl, consoleId)
+            ?: return Pair(null, emptyList())
+        // fileId is set after the file is inserted.
+        return Pair(fileEntity, tags.map { FileTagEntity(fileId = 0L, tag = it) })
+    }
 
-        if (linkCell == null) return Pair(null, emptyList())
-
-        val href = linkCell.attr("href")
-        val title = linkCell.attr("title")
-        val linkText = linkCell.text()
-
-        if (shouldSkipFile(href)) return Pair(null, emptyList())
-
-        val fileSize = sizeCell?.text()?.takeIf { it != ScrapingConstants.UNKNOWN_FILE_SIZE } ?: ScrapingConstants.DEFAULT_FILE_SIZE
-        val downloadUrl = buildDownloadUrl(baseUrl, href)
-
-        val actualFileExtension = if (href.contains(".")) {
-            "." + href.substringAfterLast(".")
-        } else {
-            ""
-        }
-
-        val displayName = title.ifEmpty { linkText }
+    /**
+     * One file of a web listing from its link, or null when the link is not a file of the listing
+     * ([listingFileName]). Relative links resolve against [baseUrl] (the source's own address, so
+     * rows keep it whichever mirror answered); absolute paths and scheme-relative links against the
+     * host of [pageUrl], the page that holds them. [sizeText]: the size as the listing shows it.
+     * Returns the row and its tags (from the name).
+     */
+    fun fileFromLink(link: Element, sizeText: String?, baseUrl: String, pageUrl: String, consoleId: String): Pair<DownloadableFileEntity, List<String>>? {
+        val href = link.attr("href").trim()
+        val leaf = listingFileName(href) ?: return null
+        val linkText = link.text().trim()
+        // The name the listing shows, unless it is cut ("Very long na..>", nginx and Apache) or missing (an icon link).
+        val shown = link.attr("title").trim().ifEmpty { linkText.takeUnless { it.isEmpty() || it.endsWith("..>") }.orEmpty() }
+        val displayName = shown.ifEmpty { decodeUrlEncodedFileName(leaf) }
         val (cleanName, tags) = extractNameAndTags(displayName)
-
-        val fileEntity = DownloadableFileEntity(
+        val fileSize = sizeText?.trim()?.takeIf { it != ScrapingConstants.UNKNOWN_FILE_SIZE } ?: ScrapingConstants.DEFAULT_FILE_SIZE
+        val extension = leaf.substringAfterLast('.', "").let { if (it.isEmpty()) "" else ".$it" }
+        val entity = DownloadableFileEntity(
             name = cleanName,
-            fileName = href,
+            // As the listing links it (a plain relative link is kept exactly); only the last part of a longer path.
+            fileName = leaf,
             consoleId = consoleId,
-            downloadUrl = downloadUrl,
+            downloadUrl = resolveHref(baseUrl, pageUrl, href),
             fileSize = FileSizeUtils.parseFileSize(fileSize),
-            fileExtension = actualFileExtension
+            fileExtension = extension
         )
+        return Pair(entity, tags)
+    }
 
-        val tagEntities = tags.map { tag ->
-            FileTagEntity(
-                fileId = 0L, // Will be set after file insertion
-                tag = tag
-            )
-        }
+    /**
+     * The file name a listing link stands for (as linked, still URL-encoded), or null when the link
+     * is not a file of this listing: empty, an anchor (`#…`), a sort link (`?C=N;O=D`), a folder
+     * (`…/`), another scheme (`javascript:`, `mailto:`, `ftp://`…), a way out of the folder (`..`),
+     * or a name that would not be one file on disk (an encoded `/`). A plain relative link comes
+     * back as it is; a longer one (`sub/x.zip`, `/roms/x.zip`, `https://host/x.zip?dl=1`) as its last part.
+     */
+    fun listingFileName(href: String): String? {
+        val link = href.trim()
+        if (link.isEmpty() || link == ScrapingConstants.PARENT_DIRECTORY || link == ScrapingConstants.CURRENT_DIRECTORY) return null
+        if (link.startsWith("#") || link.startsWith("?")) return null
+        if (NON_FILE_SCHEMES.any { link.startsWith("$it:", ignoreCase = true) }) return null
+        val scheme = HOST_SCHEME.find(link)?.groupValues?.get(1)
+        if (scheme != null && !scheme.equals("http", true) && !scheme.equals("https", true)) return null
+        // The path of an address with a host: what follows the host (nothing = the site itself).
+        val path = if (scheme != null || link.startsWith("//")) {
+            link.substringAfter("//").let { rest -> rest.indexOf('/').let { if (it < 0) "" else rest.substring(it) } }
+        } else {
+            link
+        }.substringBefore('#').substringBefore('?')
+        if (path.isEmpty() || path.endsWith("/")) return null
+        val segments = path.split('/')
+        if (segments.any { it == ".." || decodeUrlEncodedFileName(it) == ".." }) return null
+        val leaf = segments.last()
+        val decoded = decodeUrlEncodedFileName(leaf)
+        if (leaf.isEmpty() || decoded.isBlank() || decoded == "." || decoded.contains('/') || decoded.contains('\\')) return null
+        return leaf
+    }
 
-        return Pair(fileEntity, tagEntities)
+    /** Where a listing link points: see [fileFromLink]. */
+    fun resolveHref(baseUrl: String, pageUrl: String, href: String): String = when {
+        MirrorUrls.isWeb(href) -> href
+        href.startsWith("//") -> pageUrl.substringBefore("://", "https") + ":" + href
+        href.startsWith("/") -> originOf(pageUrl) + normalizeUrl(href)
+        else -> buildDownloadUrl(baseUrl, href)
+    }
+
+    /** `scheme://host[:port]` of [url]. */
+    private fun originOf(url: String): String {
+        val scheme = url.substringBefore("://")
+        val authority = url.substringAfter("://").substringBefore('/').substringBefore('?').substringBefore('#')
+        return "$scheme://$authority"
     }
 
     /**
@@ -192,14 +249,6 @@ object FileParsingUtils {
         return row.selectFirst("td.size, td.fb-s")
             ?: cells.lastOrNull { it.select("a").isEmpty() && SIZE_CELL_TEXT.matches(it.text().trim()) }
             ?: cells.getOrNull(1)
-    }
-
-    private fun shouldSkipFile(href: String): Boolean {
-        return href == ScrapingConstants.PARENT_DIRECTORY ||
-               href == ScrapingConstants.CURRENT_DIRECTORY ||
-               href.endsWith("/") ||
-               // Column sort links of Apache / nginx indexes ("?C=N;O=D"): the header row, not a file.
-               href.startsWith("?")
     }
 
     /**

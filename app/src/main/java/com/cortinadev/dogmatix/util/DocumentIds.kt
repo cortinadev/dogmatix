@@ -51,6 +51,17 @@ object DocumentIds {
     fun rebase(docId: String, fromRoot: String, toRoot: String): String? =
         relativePath(fromRoot, docId)?.let { child(toRoot, it) }
 
+    private val fatSerial = Regex("^[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}$")
+    private val fullUuid = Regex("^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$")
+
+    /**
+     * True when [volume] (the part of a document id before `:`) names a removable volume by its
+     * UUID: `6A3B-BB88` (FAT / exFAT serial) or a 36-character UUID. Only such a volume can be told
+     * "pulled out" when the system no longer lists it; other roots of the external storage
+     * provider (`home`, `downloads`…) are never listed as volumes at all.
+     */
+    fun looksLikeVolumeUuid(volume: String): Boolean = fatSerial.matches(volume) || fullUuid.matches(volume)
+
     /** Last segment of [docId] (`Game.sfc`), or the id itself when it is opaque. */
     fun nameOf(docId: String): String = pathOf(docId)?.substringAfterLast('/')?.ifEmpty { null } ?: docId
 }

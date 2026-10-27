@@ -42,7 +42,7 @@ enum class UnknownReason {
 data class MismatchDetail(val file: String, val what: HashKind, val expected: String, val actual: String)
 
 /**
- * The verdict on one download. [against] names the reference: [DownloadCheck.ROMM],
+ * The verdict on one download. [against] names the reference: [DownloadCheck.ROMM], [DownloadCheck.IA],
  * [DownloadCheck.NO_INTRO], [DownloadCheck.REDUMP] or `dat:<name>` for an imported DAT.
  * [files] are the paths checked (kept while CHECKING so a restart can pick the check up again).
  */
@@ -60,6 +60,8 @@ data class CheckResult(
 object DownloadCheck {
 
     const val ROMM = "romm"
+    /** The hashes Internet Archive lists for the files of an item. */
+    const val IA = "ia"
     const val NO_INTRO = "no-intro"
     const val REDUMP = "redump"
     const val IMPORTED_PREFIX = "dat:"

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Test APK only (com.cortinadev.dogmatix.debug.test), never the app. A documents provider the
+    storage tests use as if it were a folder picked through SAF: it runs in the test package's own
+    process, keeps its files in that package's cache and grants the app a tree permission when the
+    control receiver is told to (see storage/TestDocuments.kt). Both are Java on purpose: that
+    process has no Kotlin runtime (the test APK leaves out what the app already ships).
+    While the test APK is installed, the system file picker lists the provider's root
+    ("Dogmatix tests"); uninstalling the test APK removes it.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <application>
+        <provider
+            android:name="com.cortinadev.dogmatix.storage.TestDocumentsProvider"
+            android:authorities="com.cortinadev.dogmatix.test.documents"
+            android:exported="true"
+            android:grantUriPermissions="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
+
+        <receiver
+            android:name="com.cortinadev.dogmatix.storage.TestDocumentsControl"
+            android:exported="true"
+            tools:ignore="ExportedReceiver" />
+    </application>
+
+</manifest>

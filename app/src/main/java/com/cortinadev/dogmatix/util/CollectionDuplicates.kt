@@ -36,9 +36,15 @@ data class DuplicateGroup(
  *
  * Within a console, every copy with the same group key (the name without tags) is one group: the
  * same files in two folders, or several versions. Elsewhere only identical content (same size and
- * hash) counts, so two different games are never offered just because they share a size.
+ * hash) counts, so two different games are never offered just because they share a size. A game of
+ * several files (a sheet and its tracks, a `<game>.m3u/` folder) is compared as a whole: every big
+ * file by its hash, the small ones the scan does not hash (sheets, playlists) by name, size and
+ * what they list.
  */
 object CollectionDuplicates {
+
+    /** Files smaller than this are never hashed (the scan's rule): sheets, playlists and the like. */
+    const val MIN_HASH_BYTES = 16 * 1024L
 
     private val bios = Regex("(?i)^(scph\\d+\\w*|.*bios.*|dc_(boot|flash)|syscard\\d*|firmware.*)$")
     private val systemFolders = setOf("bios", "system", "firmware")
@@ -46,7 +52,8 @@ object CollectionDuplicates {
     fun find(games: List<DiskGame>, prefs: VersionPrefs, setFolders: Boolean = true): List<DuplicateGroup> {
         val candidates = games.filter { comparable(it) }
         val groups = ArrayList<DuplicateGroup>()
-        val grouped = HashSet<String>()
+        /** Game id → index in [groups] of the console group it went to. */
+        val grouped = HashMap<String, Int>()
 
         candidates.filter { it.consoleId != null && it.groupKey.isNotBlank() }
             .groupBy { it.consoleId + "|" + it.groupKey }
@@ -54,16 +61,23 @@ object CollectionDuplicates {
             .forEach { (key, copies) ->
                 val names = copies.map { names(it) }
                 val kind = if (names.size != names.toSet().size) DuplicateKind.SAME_FILE else DuplicateKind.VERSIONS
+                copies.forEach { grouped[it.id] = groups.size }
                 groups += build("v:$key", kind, copies.first().consoleId, copies, prefs, setFolders)
-                copies.forEach { grouped += it.id }
             }
 
-        candidates.filter { it.id !in grouped }
-            .mapNotNull { game -> signature(game)?.let { it to game } }
+        candidates.mapNotNull { game -> signature(game)?.let { it to game } }
             .groupBy({ it.first }, { it.second })
-            .filterValues { it.size > 1 }
             .forEach { (signature, copies) ->
-                groups += build("h:$signature", DuplicateKind.SAME_CONTENT, null, copies, prefs, setFolders)
+                val loose = copies.filter { it.id !in grouped }
+                if (loose.isEmpty()) return@forEach
+                // A copy in another console of a game already grouped in its own joins that group.
+                val joined = copies.firstNotNullOfOrNull { grouped[it.id] }
+                if (joined != null) {
+                    val group = groups[joined]
+                    groups[joined] = build(group.id, group.kind, group.consoleId, group.games + loose, prefs, setFolders)
+                } else if (loose.size > 1) {
+                    groups += build("h:$signature", DuplicateKind.SAME_CONTENT, null, loose, prefs, setFolders)
+                }
             }
 
         return groups.sortedWith(
@@ -117,7 +131,9 @@ object CollectionDuplicates {
 
     /**
      * Among equal versions, the copy in the right place: a folder of the console its file type
-     * belongs to, the `<game>.m3u/` layout when multi-disc playlists are on, the shallowest folder.
+     * belongs to, then one whose console's catalogue lists the game (a disc image says nothing
+     * about its console: a PlayStation `.cue` in the Sega CD folder is only told apart this way),
+     * the `<game>.m3u/` layout when multi-disc playlists are on, the shallowest folder.
      */
     private fun placeOrder(setFolders: Boolean): Comparator<DiskGame> =
         compareBy<DiskGame> { game ->
@@ -127,6 +143,7 @@ object CollectionDuplicates {
                 false -> 2
             }
         }
+            .thenBy { game -> if (game.files.any { it.catalogId != null }) 0 else 1 }
             .thenBy { if (setFolders && it.files.size > 1) (if (it.setFolderUri != null) 0 else 1) else 0 }
             .thenBy { it.files.first().depth }
             .thenBy { it.files.first().path.lowercase(Locale.ROOT) }
@@ -140,10 +157,40 @@ object CollectionDuplicates {
     private fun names(game: DiskGame): Set<String> =
         game.files.filter { it.extension != "m3u" }.mapTo(HashSet()) { it.name.lowercase(Locale.ROOT) }
 
-    /** Size plus every file's hash; null unless all of them were hashed. */
+    /**
+     * What identical copies share: the size, plus per file its hash, or, for a file too small to be
+     * hashed (a sheet, a playlist), its name, size and what it lists. Null when a big file has no
+     * hash, and when none has one: name and size alone never make two games the same.
+     */
     private fun signature(game: DiskGame): String? {
-        if (game.files.any { it.hash == null }) return null
-        return game.size.toString() + ":" + game.files.map { it.hash }.sortedBy { it }.joinToString(",")
+        var hashed = false
+        val parts = game.files.map { file ->
+            val hash = file.hash
+            when {
+                hash != null -> "#$hash".also { hashed = true }
+                file.size < MIN_HASH_BYTES -> "=" + file.name.lowercase(Locale.ROOT) + ":" + file.size + ":" +
+                    file.references?.joinToString("|") { it.trim().replace('\\', '/').lowercase(Locale.ROOT) }
+                else -> return null
+            }
+        }
+        if (!hashed) return null
+        return game.size.toString() + ":" + parts.sorted().joinToString(",")
+    }
+
+    /**
+     * The files worth a sampled hash, in the order the scan spends its budget on them: game files
+     * of at least [MIN_HASH_BYTES] whose size another one shares. First the sizes shared across
+     * games or consoles (only the hash finds those copies; same-named copies in one console are
+     * grouped by name anyway), then the rarer sizes (two files of one size are most likely one
+     * copy of the other; a size hundreds of cartridges share mostly is not). The walk order breaks
+     * ties, so the tracks of one set stay together.
+     */
+    fun hashCandidates(files: List<DiskFile>): List<DiskFile> {
+        val big = files.filter { CollectionGames.isGameFile(it) && it.size >= MIN_HASH_BYTES }
+        val bySize = big.groupBy { it.size }.filterValues { it.size > 1 }
+        val spread = bySize.mapValues { (_, same) -> same.mapTo(HashSet()) { it.consoleId + "|" + it.groupKey }.size > 1 }
+        return big.filter { it.size in bySize }
+            .sortedWith(compareBy<DiskFile> { if (spread[it.size] == true) 0 else 1 }.thenBy { bySize[it.size]?.size ?: 0 })
     }
 
     private fun sameContent(a: DiskGame, b: DiskGame): Boolean =

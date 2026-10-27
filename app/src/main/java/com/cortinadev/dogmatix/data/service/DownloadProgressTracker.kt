@@ -6,9 +6,12 @@ import com.cortinadev.dogmatix.data.model.DownloadItemModel
 import com.cortinadev.dogmatix.data.model.DownloadStatus
 import com.cortinadev.dogmatix.util.Constants
 import com.cortinadev.dogmatix.util.DownloadFailure
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.completeWith
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
@@ -27,6 +30,36 @@ class DownloadProgressTracker @Inject constructor(
 
     private val persistScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /**
+     * Every write to the history goes through here, one at a time and in call order: a status
+     * never lands before its row is inserted or after it is deleted, and two quick changes never
+     * reach the database the other way round (each used to be its own coroutine). Statuses and
+     * failures (this class), rows, restarts, retries and debrid ids (DownloadService) and queue
+     * places (DownloadQueueService) all do; only the startup read of the whole list does not.
+     */
+    private val writes = Channel<suspend DownloadHistoryDao.() -> Unit>(Channel.UNLIMITED)
+
+    init {
+        persistScope.launch {
+            for (write in writes) {
+                runCatching { historyDao.write() }
+                    .onFailure { Log.e("DownloadProgressTracker", "Could not write the download history: ${it.message}") }
+            }
+        }
+    }
+
+    /** Queues [write] after every history write asked for before it. */
+    fun persist(write: suspend DownloadHistoryDao.() -> Unit) {
+        writes.trySend(write)
+    }
+
+    /** Reads the history once every write asked for before has landed (a retry sees the clean-up of a stop). */
+    suspend fun <T> read(query: suspend DownloadHistoryDao.() -> T): T {
+        val result = CompletableDeferred<T>()
+        writes.trySend { result.completeWith(runCatching { query() }) }
+        return result.await()
+    }
+
     /** Seeds the list with entries persisted from previous runs (see [DownloadService]). */
     fun restore(items: List<DownloadItemModel>) {
         _downloads.update { current ->
@@ -37,6 +70,7 @@ class DownloadProgressTracker @Inject constructor(
 
     fun updateDownloadStatus(fileName: String, status: DownloadStatus) {
         if (status != DownloadStatus.FAILED) clearFailure(fileName)
+        if (status == DownloadStatus.COMPLETED) setRestartsFromZero(fileName, false)
         var changed: DownloadItemModel? = null
         _downloads.update { list ->
             list.map { item ->
@@ -52,13 +86,7 @@ class DownloadProgressTracker @Inject constructor(
     }
 
     private fun persistStatus(item: DownloadItemModel) {
-        persistScope.launch {
-            try {
-                historyDao.updateStatus(item.fileName, item.status.name, item.finishedAt)
-            } catch (e: Exception) {
-                Log.e("DownloadProgressTracker", "Could not persist status for ${item.fileName}: ${e.message}")
-            }
-        }
+        persist { updateStatus(item.fileName, item.status.name, item.finishedAt) }
     }
 
     private val lastUpdateTimes = ConcurrentHashMap<String, Long>()
@@ -93,6 +121,7 @@ class DownloadProgressTracker @Inject constructor(
         _downloads.update { list -> list.filter { it.fileName != fileName } }
         lastUpdateTimes.remove(fileName)
         _failures.update { it - fileName }
+        setRestartsFromZero(fileName, false)
     }
 
     fun getDownloads(): List<DownloadItemModel> {
@@ -151,13 +180,14 @@ class DownloadProgressTracker @Inject constructor(
     private val _failures = MutableStateFlow<Map<String, DownloadFailure>>(emptyMap())
     val failures: StateFlow<Map<String, DownloadFailure>> = _failures
 
-    /** Call before marking the row FAILED, so whoever reacts to FAILED already sees the reason. */
+    /**
+     * Call before marking the row FAILED, so whoever reacts to FAILED already sees the reason.
+     * A row no longer in the list (deleted while its job wound down) is left alone.
+     */
     fun recordFailure(fileName: String, failure: DownloadFailure) {
+        if (_downloads.value.none { it.fileName == fileName }) return
         _failures.update { it + (fileName to failure) }
-        persistScope.launch {
-            runCatching { historyDao.setFailure(fileName, failure.name) }
-                .onFailure { Log.e("DownloadProgressTracker", "Could not persist failure for $fileName: ${it.message}") }
-        }
+        persist { setFailure(fileName, failure.name) }
     }
 
     /** Reasons read back from the history at startup (see [DownloadService]). */
@@ -165,11 +195,25 @@ class DownloadProgressTracker @Inject constructor(
         _failures.update { failures + it }
     }
 
+    // Web transfers whose server cannot carry them on (no length and no Accept-Ranges, such as
+    // archive.org's ZIP viewer): a pause or a stop starts them again from zero, and a paused row
+    // says so. Set by the answer that starts each transfer; after a restart, from the missing
+    // resume record (see DownloadRestore.restartsFromZero).
+    private val _restartsFromZero = MutableStateFlow<Set<String>>(emptySet())
+    val restartsFromZero: StateFlow<Set<String>> = _restartsFromZero
+
+    fun restartsFromZero(fileName: String): Boolean = fileName in _restartsFromZero.value
+
+    fun setRestartsFromZero(fileName: String, restarts: Boolean) {
+        if (restarts == (fileName in _restartsFromZero.value)) return
+        _restartsFromZero.update { if (restarts) it + fileName else it - fileName }
+    }
+
     fun statusOf(fileName: String): DownloadStatus? = _downloads.value.firstOrNull { it.fileName == fileName }?.status
 
     private fun clearFailure(fileName: String) {
         if (fileName !in _failures.value) return
         _failures.update { it - fileName }
-        persistScope.launch { runCatching { historyDao.setFailure(fileName, null) } }
+        persist { setFailure(fileName, null) }
     }
 }

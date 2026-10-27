@@ -1470,4 +1470,5 @@
     <string name="update_error_bad_apk">O ficheiro transferido não é um APK válido do Dogmatix. Tente mais tarde.</string>
     <string name="update_error_signature">Esta atualização está assinada com uma chave diferente da app instalada, por isso o Android não a instala por cima. Consulte a página da versão no GitHub.</string>
     <string name="update_error_storage">Não há espaço livre suficiente para transferir a atualização.</string>
+    <string name="update_error_older">O APK transferido não é mais recente do que a versão instalada, por isso não a pode atualizar. Consulte a página da versão no GitHub.</string>
 </resources>

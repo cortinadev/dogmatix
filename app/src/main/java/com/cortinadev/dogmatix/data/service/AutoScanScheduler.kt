@@ -151,13 +151,21 @@ class AutoScanJobService : JobService() {
     private var running: Job? = null
 
     override fun onStartJob(params: JobParameters): Boolean {
+        Log.i(TAG, "Job ${params.jobId} started")
         running = scope.launch {
             var stopped = false
             try {
                 val frequency = settingsRepository.autoScanFrequency.first()
                 val last = settingsRepository.lastFullScanAt.first()
-                if (AutoScanSchedule.isDue(System.currentTimeMillis(), last, frequency)) {
-                    scanService.runAutoScan()?.let(notifier::newGames)
+                val now = System.currentTimeMillis()
+                val due = AutoScanSchedule.isDue(now, last, frequency)
+                val ago = if (last > 0) "${(now - last) / 60_000} min ago" else "never"
+                Log.i(TAG, "Frequency $frequency, last complete scan $ago: ${if (due) "scanning" else "not due yet"}")
+                if (due) {
+                    val summary = scanService.runAutoScan()
+                    if (summary == null) Log.i(TAG, "No background scan: one of everything was already under way, there are no sources, or it was stopped")
+                    else Log.i(TAG, "Background scan finished: $summary")
+                    summary?.let(notifier::newGames)
                 }
             } catch (e: CancellationException) {
                 stopped = true
@@ -165,7 +173,10 @@ class AutoScanJobService : JobService() {
             } catch (e: Exception) {
                 Log.w(TAG, "Background scan failed: ${e.message}")
             } finally {
-                if (!stopped) jobFinished(params, false)
+                if (!stopped) {
+                    Log.i(TAG, "Job ${params.jobId} done")
+                    jobFinished(params, false)
+                }
             }
         }
         return true
@@ -173,6 +184,8 @@ class AutoScanJobService : JobService() {
 
     /** Conditions lost (Wi-Fi, charger): stop; the next check picks it up again. */
     override fun onStopJob(params: JobParameters): Boolean {
+        val reason = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) " (stop reason ${params.stopReason})" else ""
+        Log.i(TAG, "Job ${params.jobId} stopped by the system$reason; the next check picks it up again")
         running?.cancel()
         return false
     }

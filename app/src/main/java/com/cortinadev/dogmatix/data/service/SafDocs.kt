@@ -2,12 +2,27 @@ package com.cortinadev.dogmatix.data.service
 
 import android.content.Context
 import android.net.Uri
+import android.os.Environment
+import android.os.storage.StorageManager
 import android.provider.DocumentsContract
 import android.util.Log
 import androidx.core.net.toUri
+import com.cortinadev.dogmatix.util.CopyCheck
+import com.cortinadev.dogmatix.util.DocumentIds
+import com.cortinadev.dogmatix.util.LibraryMoveRules
+import com.cortinadev.dogmatix.util.StorageProblem
+import com.cortinadev.dogmatix.util.StorageProblems
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+import java.io.File
+import java.io.FileInputStream
 import java.io.IOException
+import java.io.InputStream
+import java.nio.ByteBuffer
+import java.nio.channels.FileChannel
 
 /**
  * Document-level SAF operations shared by the trash and the library mover: everything works on
@@ -137,6 +152,237 @@ internal object SafDocs {
         }
         return written
     }
+
+    // ---- Reachability ------------------------------------------------------------------------
+
+    private const val EXTERNAL_STORAGE = "com.android.externalstorage.documents"
+
+    /**
+     * What stops the app from writing into the folder [uriString] (a picked tree, or a folder in
+     * one; for a file, the root of its tree) right now: its volume gone, its grant lost, the folder
+     * unreachable or read-only. Null when it is fine, or when [uriString] is not a SAF tree at all.
+     * Asked before long operations, so they stop with a reason instead of failing file by file.
+     */
+    fun problemOf(context: Context, uriString: String): StorageProblem? {
+        val uri = runCatching { uriString.toUri() }.getOrNull() ?: return null
+        if (!runCatching { DocumentsContract.isTreeUri(uri) }.getOrDefault(false)) return null
+        val treeId = runCatching { treeId(uri) }.getOrNull() ?: return null
+        val granted = runCatching {
+            context.contentResolver.persistedUriPermissions.any { grant ->
+                grant.isReadPermission && grant.isWritePermission && grant.uri.authority == uri.authority &&
+                    runCatching { DocumentsContract.getTreeDocumentId(grant.uri) == treeId }.getOrDefault(false)
+            }
+        }.getOrDefault(false)
+        val doc = docUri(uriString) ?: return null
+        val flags = flagsOf(context, doc)?.let { (flags, isDirectory) ->
+            if (isDirectory) flags else flagsOf(context, treeRootOf(doc))?.first
+        }
+        return StorageProblems.ofTree(
+            granted = granted,
+            volumeMounted = volumeMounted(context, uri.authority, treeId),
+            reachable = flags != null,
+            writable = flags != null && flags and DocumentsContract.Document.FLAG_DIR_SUPPORTS_CREATE != 0
+        )
+    }
+
+    /**
+     * True/false for the volumes of external storage (internal storage, SD cards, USB); null when
+     * it cannot be told: other providers, and roots of external storage that are no volume
+     * (`home:` for Documents, `downloads`…), which the system never lists.
+     */
+    private fun volumeMounted(context: Context, authority: String?, treeId: String): Boolean? {
+        if (authority != EXTERNAL_STORAGE) return null
+        val volume = DocumentIds.volumeOf(treeId) ?: return null
+        if (volume.equals("primary", ignoreCase = true)) return Environment.getExternalStorageState() == Environment.MEDIA_MOUNTED
+        val manager = context.getSystemService(StorageManager::class.java) ?: return null
+        val listed = runCatching { manager.storageVolumes }.getOrNull() ?: return null
+        listed.firstOrNull { it.uuid.equals(volume, ignoreCase = true) }?.let { return it.state == Environment.MEDIA_MOUNTED }
+        // A card that was pulled out is no longer listed at all; anything else unlisted is unknown.
+        return if (DocumentIds.looksLikeVolumeUuid(volume)) false else null
+    }
+
+    /** The document's flags, and whether it is a folder; null when the provider does not answer for it. */
+    private fun flagsOf(context: Context, doc: Uri): Pair<Int, Boolean>? = runCatching {
+        val projection = arrayOf(DocumentsContract.Document.COLUMN_FLAGS, DocumentsContract.Document.COLUMN_MIME_TYPE)
+        context.contentResolver.query(doc, projection, null, null, null)?.use { c ->
+            if (c.moveToFirst()) c.getInt(0) to (c.getString(1) == DocumentsContract.Document.MIME_TYPE_DIR) else null
+        }
+    }.getOrNull()
+
+    /** [problemOf] the first of [uris] that has one. */
+    fun problemOfAny(context: Context, uris: Iterable<String>): StorageProblem? =
+        uris.distinct().firstNotNullOfOrNull { problemOf(context, it) }
+
+    // ---- Checked copies ----------------------------------------------------------------------
+
+    /** The bytes of [uri] at the [CopyCheck] sample offsets of a file of [size]; null when it cannot be read. */
+    fun samples(context: Context, uri: Uri, size: Long): List<ByteArray>? {
+        val offsets = CopyCheck.offsets(size)
+        if (offsets.isEmpty()) return emptyList()
+        return runCatching {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                FileInputStream(pfd.fileDescriptor).use { readAt(it.channel, size, offsets) }
+            }
+        }.getOrNull() ?: runCatching {
+            // Providers that hand out pipes cannot seek: read through, skipping between blocks.
+            context.contentResolver.openInputStream(uri)?.use { readThrough(it, size, offsets) }
+        }.getOrNull()
+    }
+
+    fun samples(file: File, size: Long): List<ByteArray>? {
+        val offsets = CopyCheck.offsets(size)
+        if (offsets.isEmpty()) return emptyList()
+        return runCatching { FileInputStream(file).use { readAt(it.channel, size, offsets) } }.getOrNull()
+    }
+
+    private fun readAt(channel: FileChannel, size: Long, offsets: List<Long>): List<ByteArray> = offsets.map { offset ->
+        val buffer = ByteBuffer.allocate(CopyCheck.lengthAt(size, offset))
+        channel.position(offset)
+        while (buffer.hasRemaining() && channel.read(buffer) > 0) Unit
+        buffer.array().copyOf(buffer.position())
+    }
+
+    private fun readThrough(input: InputStream, size: Long, offsets: List<Long>): List<ByteArray> {
+        var position = 0L
+        return offsets.map { offset ->
+            while (position < offset) {
+                val skipped = input.skip(offset - position)
+                if (skipped <= 0) {
+                    if (input.read() < 0) break
+                    position++
+                } else position += skipped
+            }
+            val block = ByteArray(CopyCheck.lengthAt(size, offset))
+            var filled = 0
+            while (filled < block.size) {
+                val n = input.read(block, filled, block.size - filled)
+                if (n < 0) break
+                filled += n
+            }
+            position += filled
+            block.copyOf(filled)
+        }
+    }
+
+    /** Whether [copy] ([copySize] bytes, null = unknown) stands for [source]: [CopyCheck.verdict] over both. */
+    fun compare(context: Context, source: Uri, sourceSize: Long, copy: Uri, copySize: Long?): CopyCheck.Verdict {
+        if (sourceSize < 0 || copySize != sourceSize) return CopyCheck.Verdict.SIZE
+        return CopyCheck.verdict(sourceSize, copySize, samples(context, source, sourceSize), samples(context, copy, copySize))
+    }
+
+    /**
+     * Copies the file [source] ([size] bytes) into the folder [targetDir] as [name], never over a
+     * file already there: under `<name>.dogmatix-part` first, then checked against the original
+     * ([compare]: size and sampled blocks) and only then renamed. Returns the copy, or null when it
+     * did not come out the same (the part is deleted). Throws on read and write errors, leaving
+     * nothing behind. [replaceStalePart] deletes a part of that name an earlier run left.
+     */
+    suspend fun copyFileVerified(
+        context: Context,
+        source: Uri,
+        size: Long,
+        targetDir: Uri,
+        name: String,
+        replaceStalePart: Boolean = false,
+        onBytes: (Long) -> Unit = {}
+    ): Uri? {
+        val resolver = context.contentResolver
+        val partName = LibraryMoveRules.partName(name)
+        if (replaceStalePart) child(context, targetDir, partName)?.let { delete(context, it.uri) }
+        val part = DocumentsContract.createDocument(resolver, targetDir, OCTET_STREAM, partName)
+            ?: throw IOException("Cannot create $partName")
+        // What is ours to delete if anything goes wrong: the part until it is renamed, then the copy.
+        var partAlive = true
+        var placed: Uri? = null
+        try {
+            copyInto(context, source, part, onBytes)
+            if (compare(context, source, size, part, stat(context, part)?.size) != CopyCheck.Verdict.SAME) {
+                Log.w(TAG, "Copy of $name did not match its original")
+                delete(context, part)
+                return null
+            }
+            if (child(context, targetDir, name) != null) throw IOException("$name appeared in the target meanwhile")
+            val renamed = runCatching { DocumentsContract.renameDocument(resolver, part, name) }.getOrNull()
+            if (renamed == null) {
+                // A provider that cannot rename gets the file written again under its own name.
+                val direct = DocumentsContract.createDocument(resolver, targetDir, OCTET_STREAM, name) ?: throw IOException("Cannot create $name")
+                placed = direct
+                if (delete(context, part)) partAlive = false
+                copyInto(context, source, direct)
+                if (compare(context, source, size, direct, stat(context, direct)?.size) != CopyCheck.Verdict.SAME) {
+                    delete(context, direct)
+                    return null
+                }
+                return direct
+            }
+            partAlive = false
+            placed = renamed
+            // The provider never overwrites: a name taken in the meantime comes back as "name (1)".
+            if (stat(context, renamed)?.name != name) throw IOException("$name was taken in the target meanwhile")
+            return renamed
+        } catch (e: Throwable) {
+            withContext(NonCancellable) {
+                if (partAlive) delete(context, part)
+                placed?.let { delete(context, it) }
+            }
+            throw e
+        }
+    }
+
+    /** How [moveFile] went. */
+    enum class Placement {
+        /** Moved by the provider, or copied, checked and its original deleted. */
+        MOVED,
+        /** The same file was already in the target (what an interrupted move leaves): the original was deleted. */
+        ALREADY_THERE,
+        /** Something else of that name is in the target: both stay as they are. */
+        CONFLICT,
+        /** The copy did not match its original: the copy went, the original stays. */
+        UNVERIFIED,
+        /** Could not be moved; [Placed.problem] says why when it can be told. */
+        FAILED
+    }
+
+    data class Placed(val placement: Placement, val problem: StorageProblem? = null, val copied: Boolean = false)
+
+    /**
+     * Moves the file [source] (in the folder [sourceParent], null when unknown) into the folder
+     * [target] under its own name: by the provider when it can (same volume, a rename), otherwise
+     * copied with [copyFileVerified] and only then is the original deleted. A file of that name in
+     * [target] is never replaced: the same file (size and samples) stands for this one and the
+     * original goes; anything else is a [Placement.CONFLICT].
+     */
+    suspend fun moveFile(
+        context: Context,
+        source: Doc,
+        sourceParent: Uri?,
+        target: Uri,
+        replaceStalePart: Boolean = false,
+        onBytes: (Long) -> Unit = {}
+    ): Placed {
+        val existing = child(context, target, source.name)
+        if (existing != null) {
+            if (existing.isDirectory || compare(context, source.uri, source.size, existing.uri, existing.size) != CopyCheck.Verdict.SAME) {
+                return Placed(Placement.CONFLICT)
+            }
+            return if (delete(context, source.uri)) Placed(Placement.ALREADY_THERE) else Placed(Placement.FAILED, problemOfAny(context, listOf(source.uri.toString())))
+        }
+        if (sourceParent != null && move(context, source.uri, sourceParent, target) != null) return Placed(Placement.MOVED)
+        val copy = try {
+            copyFileVerified(context, source.uri, source.size, target, source.name, replaceStalePart, onBytes)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Copy of ${source.name} failed: ${e.message}")
+            return Placed(Placement.FAILED, StorageProblems.classify(e) ?: problemOfAny(context, listOf(target.toString(), source.uri.toString())))
+        } ?: return Placed(Placement.UNVERIFIED, copied = true)
+        if (delete(context, source.uri)) return Placed(Placement.MOVED, copied = true)
+        // The original cannot go: drop the copy so the file is not left twice.
+        delete(context, copy)
+        return Placed(Placement.FAILED, problemOfAny(context, listOf(source.uri.toString())), copied = true)
+    }
+
+    private const val OCTET_STREAM = "application/octet-stream"
 
     private val PROJECTION = arrayOf(
         DocumentsContract.Document.COLUMN_DOCUMENT_ID,

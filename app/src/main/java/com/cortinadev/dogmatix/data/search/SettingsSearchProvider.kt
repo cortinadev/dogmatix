@@ -48,6 +48,7 @@ object SettingsRowKeys {
     const val FRONTEND_CHECK = "frontend_check"
     const val UPDATES = "updates"
     const val UPDATE_AUTO = "update_auto"
+    const val IA_SESSION = "ia_session"
 
     /** Rows only shown with another setting on: a search result lands on that one while they are hidden. */
     val shownWith: Map<String, String> = mapOf(
@@ -105,7 +106,8 @@ object SettingsSearchEntries {
         row(SettingsRowKeys.ESDE_FAVOURITES, R.string.settings_esde_favourites, R.string.settings_esde_favourites_hint, R.string.search_kw_esde_favourites),
         row(SettingsRowKeys.FRONTEND_CHECK, R.string.settings_frontend_check, R.string.settings_frontend_check_hint, R.string.search_kw_frontend_check),
         row(SettingsRowKeys.UPDATES, R.string.settings_updates, null, R.string.search_kw_updates),
-        row(SettingsRowKeys.UPDATE_AUTO, R.string.settings_update_auto, R.string.settings_update_auto_hint, R.string.search_kw_update_auto)
+        row(SettingsRowKeys.UPDATE_AUTO, R.string.settings_update_auto, R.string.settings_update_auto_hint, R.string.search_kw_update_auto),
+        row(SettingsRowKeys.IA_SESSION, R.string.settings_ia_session, R.string.settings_ia_session_none, R.string.search_kw_ia_session)
     )
 }
 

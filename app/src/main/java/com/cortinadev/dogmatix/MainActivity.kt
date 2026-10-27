@@ -85,6 +85,7 @@ import com.cortinadev.dogmatix.ui.screens.onboarding.OnboardingScreen
 import com.cortinadev.dogmatix.ui.screens.settings.SettingsScreen
 import com.cortinadev.dogmatix.ui.screens.settings.SettingsViewModel
 import com.cortinadev.dogmatix.ui.screens.settings.romm.RommScreen
+import com.cortinadev.dogmatix.ui.screens.settings.ia.IaLoginScreen
 import com.cortinadev.dogmatix.ui.screens.sources.SourcesScreen
 import com.cortinadev.dogmatix.ui.screens.sources.SourcesViewModel
 import com.cortinadev.dogmatix.ui.theme.DogmatixTheme
@@ -381,6 +382,7 @@ private fun DogmatixApp(pendingFilters: PendingLibraryFilters) {
                     composable(NavRoutes.Settings.route) { SettingsScreen(navController) }
                     composable(NavRoutes.Contact.route) { ContactScreen(navController) }
                     composable(NavRoutes.Romm.route) { RommScreen() }
+                    composable(NavRoutes.IaLogin.route) { IaLoginScreen(navController) }
                 }
             }
 

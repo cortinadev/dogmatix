@@ -105,7 +105,7 @@ class SourcesImportUndo @Inject constructor(
 
     /** Same as the rescan after an import (Sources): every source read again in full, then the library re-indexed. */
     private suspend fun rescanAll() {
-        if (rescan.isRescanning.value) return
+        // A scan under way does not drop this one: it runs right after it (SourceScanService).
         sourceScans.get().scanAll(force = true).join()
         runCatching { libraryIndex.get().refresh() }
     }

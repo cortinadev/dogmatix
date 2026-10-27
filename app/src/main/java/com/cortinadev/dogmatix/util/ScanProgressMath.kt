@@ -37,6 +37,10 @@ class ScanProgressMath {
     companion object {
         const val WEIGHT_WEB = 1.0
         const val WEIGHT_ROMM = 1.0
+        /** An Internet Archive item: one metadata request (or the cheap check of its last update). */
+        const val WEIGHT_IA = 1.0
+        /** Each page a page-recipe source plans to read. */
+        const val WEIGHT_SCRAPE_PAGE = 1.0
         /** A torrent whose metadata is at hand (cached on disk, or a handle in the session). */
         const val WEIGHT_TORRENT_KNOWN = 1.0
         /** A torrent whose metadata must come from the swarm: usually the slowest part of a scan. */

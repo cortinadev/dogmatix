@@ -10,12 +10,15 @@ import com.cortinadev.dogmatix.data.model.Console
 import com.cortinadev.dogmatix.data.model.ContentType
 import com.cortinadev.dogmatix.data.model.Manufacturer
 import com.cortinadev.dogmatix.data.model.ResolvedDownloadPath
+import com.cortinadev.dogmatix.data.model.ScrapeRecipe
 import com.cortinadev.dogmatix.data.model.UrlEntry
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.data.repository.SourcesRepository
 import com.cortinadev.dogmatix.data.service.ConsoleDownloadPathResolver
+import com.cortinadev.dogmatix.data.service.DatabaseScrapingService
 import com.cortinadev.dogmatix.data.service.ScanReport
 import com.cortinadev.dogmatix.data.service.ScanSummary
+import com.cortinadev.dogmatix.data.service.ScrapePreviewRow
 import com.cortinadev.dogmatix.data.service.SourceScanService
 import com.cortinadev.dogmatix.data.service.RommClient
 import com.cortinadev.dogmatix.data.service.RommPlatform
@@ -23,9 +26,15 @@ import com.cortinadev.dogmatix.data.service.FolderMergeService
 import com.cortinadev.dogmatix.data.service.LibraryIndexService
 import com.cortinadev.dogmatix.data.state.RescanStateHolder
 import com.cortinadev.dogmatix.data.state.ScanProgress
+import com.cortinadev.dogmatix.util.RecipeProblem
+import com.cortinadev.dogmatix.util.ScanFailure
+import com.cortinadev.dogmatix.util.ScanRetry
+import com.cortinadev.dogmatix.util.ScrapeRecipes
 import com.cortinadev.dogmatix.util.SourcesJson
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -49,7 +58,8 @@ class SourcesViewModel @Inject constructor(
     private val pathResolver: ConsoleDownloadPathResolver,
     private val folderMergeService: FolderMergeService,
     private val libraryIndexService: LibraryIndexService,
-    private val rommClient: RommClient
+    private val rommClient: RommClient,
+    private val scraping: DatabaseScrapingService
 ) : ViewModel() {
 
     /** RomM platforms offered in the source dialog; empty when RomM is not configured or unreachable. */
@@ -152,6 +162,7 @@ class SourcesViewModel @Inject constructor(
         data class EditUrl(val consoleId: String, val index: Int, val entry: UrlEntry) : Dialog
         data class ConfirmDeleteConsole(val consoleId: String, val name: String) : Dialog
         data class ConfirmDeleteUrl(val consoleId: String, val index: Int, val url: String) : Dialog
+        data class ConfirmDeleteManufacturer(val manufacturerId: String, val name: String) : Dialog
         data object ConfirmImport : Dialog
     }
 
@@ -163,12 +174,13 @@ class SourcesViewModel @Inject constructor(
 
     fun showAddConsoleDialog() { _dialog.value = Dialog.AddConsole }
     fun showEditConsoleDialog(console: Console) { _dialog.value = Dialog.EditConsole(console) }
-    fun showAddUrlDialog(consoleId: String) { loadRommPlatforms(); _dialog.value = Dialog.AddUrl(consoleId) }
-    fun showEditUrlDialog(consoleId: String, index: Int, entry: UrlEntry) { loadRommPlatforms(); _dialog.value = Dialog.EditUrl(consoleId, index, entry) }
+    fun showAddUrlDialog(consoleId: String) { loadRommPlatforms(); resetScrapeTest(); _dialog.value = Dialog.AddUrl(consoleId) }
+    fun showEditUrlDialog(consoleId: String, index: Int, entry: UrlEntry) { loadRommPlatforms(); resetScrapeTest(); _dialog.value = Dialog.EditUrl(consoleId, index, entry) }
     fun confirmDeleteConsole(console: Console) { _dialog.value = Dialog.ConfirmDeleteConsole(console.id, console.name) }
     fun confirmDeleteUrl(consoleId: String, index: Int, entry: UrlEntry) { _dialog.value = Dialog.ConfirmDeleteUrl(consoleId, index, entry.url) }
+    fun confirmDeleteManufacturer(manufacturer: Manufacturer) { _dialog.value = Dialog.ConfirmDeleteManufacturer(manufacturer.id, manufacturer.name) }
     fun confirmImport() { _dialog.value = Dialog.ConfirmImport }
-    fun dismissDialog() { _dialog.value = null }
+    fun dismissDialog() { resetScrapeTest(); _dialog.value = null }
 
     fun beginPickingDownloadPath(consoleId: String) { pendingPathConsoleId = consoleId }
     fun finishPickingDownloadPath(uri: String) {
@@ -178,12 +190,13 @@ class SourcesViewModel @Inject constructor(
 
     // ---- Editing ------------------------------------------------------------------------------
 
-    fun addConsole(manufacturerId: String, name: String, shortName: String, aliases: List<String>, color: String) {
-        viewModelScope.launch { sources.addConsole(manufacturerId, name, shortName, aliases, color) }
+    /** [key] is the console part of the id for a predefined console; empty = derived from [name]. */
+    fun addConsole(manufacturerId: String, name: String, shortName: String, aliases: List<String>, color: String, key: String = "") {
+        viewModelScope.launch { sources.addConsole(manufacturerId, name, shortName, aliases, color, key) }
     }
 
-    fun addConsoleUnderNewManufacturer(manufacturerName: String, consoleName: String, shortName: String, aliases: List<String>, color: String) {
-        viewModelScope.launch { sources.addConsole(sources.addManufacturer(manufacturerName), consoleName, shortName, aliases, color) }
+    fun addConsoleUnderNewManufacturer(manufacturerName: String, consoleName: String, shortName: String, aliases: List<String>, color: String, key: String = "") {
+        viewModelScope.launch { sources.addConsole(sources.addManufacturer(manufacturerName), consoleName, shortName, aliases, color, key) }
     }
 
     fun updateConsole(consoleId: String, name: String, shortName: String, aliases: List<String>, color: String) {
@@ -197,32 +210,75 @@ class SourcesViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Only a manufacturer left without consoles goes from this screen (consoles are deleted one by
+     * one, with their own confirmation): one that got a console meanwhile is left alone.
+     */
     fun deleteManufacturer(manufacturerId: String) {
-        viewModelScope.launch { sources.deleteManufacturer(manufacturerId) }
+        viewModelScope.launch {
+            val manufacturer = sources.manufacturers.first().firstOrNull { it.id == manufacturerId } ?: return@launch
+            if (manufacturer.consoles.isEmpty()) sources.deleteManufacturer(manufacturerId)
+        }
     }
 
-    fun addUrl(consoleId: String, url: String, contentType: ContentType, mirrors: List<String> = emptyList()) {
+    fun addUrl(consoleId: String, url: String, contentType: ContentType, mirrors: List<String> = emptyList(), scrape: ScrapeRecipe? = null) {
         viewModelScope.launch {
-            if (!sources.addUrl(consoleId, url, contentType, mirrors = mirrors)) {
+            if (!sources.addUrl(consoleId, url, contentType, mirrors = mirrors, scrape = scrape)) {
                 rescanStateHolder.setErrorMessage(context.getString(R.string.sources_url_not_added))
             }
         }
     }
 
-    fun updateUrl(consoleId: String, index: Int, url: String, contentType: ContentType, mirrors: List<String> = emptyList()) {
+    fun updateUrl(consoleId: String, index: Int, url: String, contentType: ContentType, mirrors: List<String> = emptyList(), scrape: ScrapeRecipe? = null) {
         viewModelScope.launch {
-            if (!sources.updateUrl(consoleId, index, url, contentType, mirrors)) {
+            if (!sources.updateUrl(consoleId, index, url, contentType, mirrors, scrape)) {
                 rescanStateHolder.setErrorMessage(context.getString(R.string.sources_url_not_added))
             }
         }
+    }
+
+    // ---- Page recipe test ("Test" in the source dialog) ----------------------------------------
+
+    private val _scrapeTest = MutableStateFlow<ScrapeTestState>(ScrapeTestState.Idle)
+    val scrapeTest: StateFlow<ScrapeTestState> = _scrapeTest.asStateFlow()
+    private var scrapeTestJob: Job? = null
+
+    /** Reads the first page of [url] with [recipe]; a new test (or any edit) drops the one under way. */
+    fun testScrape(url: String, recipe: ScrapeRecipe) {
+        scrapeTestJob?.cancel()
+        ScrapeRecipes.validate(recipe, url)?.let {
+            _scrapeTest.value = ScrapeTestState.Error(it, null, null, null)
+            return
+        }
+        _scrapeTest.value = ScrapeTestState.Running
+        scrapeTestJob = viewModelScope.launch {
+            _scrapeTest.value = try {
+                val preview = scraping.preview(url, recipe)
+                ScrapeTestState.Result(preview.matched, preview.total, preview.rows)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                ScrapeTestState.Error(null, ScanRetry.classify(e), ScanRetry.httpCodeOf(e), e.message)
+            }
+        }
+    }
+
+    fun resetScrapeTest() {
+        scrapeTestJob?.cancel()
+        scrapeTestJob = null
+        _scrapeTest.value = ScrapeTestState.Idle
     }
 
     fun deleteUrl(consoleId: String, index: Int) {
         viewModelScope.launch { sources.deleteUrl(consoleId, index) }
     }
 
+    /** Off: the source's games leave the library at once. On: the source is read again (after a scan under way, if any). */
     fun setUrlEnabled(consoleId: String, index: Int, enabled: Boolean) {
-        viewModelScope.launch { sources.setUrlEnabled(consoleId, index, enabled) }
+        viewModelScope.launch {
+            val url = sources.setUrlEnabled(consoleId, index, enabled) ?: return@launch
+            if (enabled) sourceScanService.scanSource(consoleId, url)
+        }
     }
 
     // ---- Scraping -----------------------------------------------------------------------------
@@ -240,8 +296,8 @@ class SourcesViewModel @Inject constructor(
         sourceScanService.scanAll(force)
     }
 
+    /** While a scan runs, the console is read right after it (the button is not greyed out like the global ones). */
     fun refreshConsole(consoleId: String) {
-        if (rescanStateHolder.isRescanning.value) return
         sourceScanService.scanConsole(consoleId)
     }
 
@@ -300,4 +356,14 @@ class SourcesViewModel @Inject constructor(
             libraryIndexService.refresh()
         }
     }
+}
+
+/** Where "Test" in the source dialog stands. */
+sealed interface ScrapeTestState {
+    data object Idle : ScrapeTestState
+    data object Running : ScrapeTestState
+    /** [matched] elements on the first page, [total] of them with a file link; [sample] = the first few. */
+    data class Result(val matched: Int, val total: Int, val sample: List<ScrapePreviewRow>) : ScrapeTestState
+    /** [problem] = the recipe itself is wrong; otherwise the page could not be read. */
+    data class Error(val problem: RecipeProblem?, val failure: ScanFailure?, val httpCode: Int?, val detail: String?) : ScrapeTestState
 }

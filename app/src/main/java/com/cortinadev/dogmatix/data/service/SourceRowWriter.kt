@@ -19,9 +19,10 @@ data class SourceWrite(
 )
 
 /**
- * The one place a scan writes a source's rows. Same files as last time: nothing is touched (no
- * delete + insert, the row ids, FTS and observers stay quiet). Otherwise the source's rows are
- * replaced in one transaction ([SourceScanDao.replaceSource]).
+ * The one place a scan writes a source's rows. Same files as last time, and all of them still in
+ * the library: nothing is touched (no delete + insert, the row ids, FTS and observers stay quiet).
+ * Otherwise the source's rows are replaced in one transaction ([SourceScanDao.replaceSource]), so
+ * a failure or a cancellation leaves the old rows whole.
  */
 @Singleton
 class SourceRowWriter @Inject constructor(private val dao: SourceScanDao) {
@@ -35,7 +36,7 @@ class SourceRowWriter @Inject constructor(private val dao: SourceScanDao) {
         tags: List<List<String>>
     ): SourceWrite {
         val hash = SourceScanCheck.contentHash(files, tags)
-        if (SourceScanCheck.sameContent(entry, previous, force, hash)) {
+        if (SourceScanCheck.sameContent(entry, previous, force, hash, files.size)) {
             return SourceWrite(files.size, 0, unchanged = true, contentHash = hash)
         }
         val written = dao.replaceSource(consoleId, entry.url, files, tags)

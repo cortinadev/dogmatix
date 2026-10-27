@@ -14,6 +14,7 @@ class RescanStateHolder @Inject constructor() {
     val isRescanning: StateFlow<Boolean> = _isRescanning.asStateFlow()
 
     private val _lastRescanTime = MutableStateFlow(0L)
+    /** When a scan that changed library rows last ended: the Library and its recommendations look again. */
     val lastRescanTime: StateFlow<Long> = _lastRescanTime.asStateFlow()
 
     private val _progressMessage = MutableStateFlow("")
@@ -25,9 +26,10 @@ class RescanStateHolder @Inject constructor() {
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
-    fun setRescanning(value: Boolean) { 
-        _isRescanning.value = value 
-        if (!value) {
+    /** A scan starts, or ends; one that ends without [libraryChanged] (no source wrote or lost rows) leaves [lastRescanTime]. */
+    fun setRescanning(value: Boolean, libraryChanged: Boolean = true) {
+        _isRescanning.value = value
+        if (!value && libraryChanged) {
             _lastRescanTime.value = System.currentTimeMillis()
         }
     }

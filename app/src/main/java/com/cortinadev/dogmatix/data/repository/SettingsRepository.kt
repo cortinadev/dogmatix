@@ -146,4 +146,10 @@ interface SettingsRepository {
     suspend fun setUpdateAutoCheck(enabled: Boolean): Preferences
     suspend fun setUpdateCheckResult(latest: String, checkedAt: Long): Preferences
     suspend fun setUpdateDismissed(version: String): Preferences
+
+    // internet-archive
+    /** The archive.org session cookies (`logged-in-user` to `logged-in-sig`); blank = not signed in. */
+    val iaCookies: Flow<Pair<String, String>>
+    /** Blank values forget the session. */
+    suspend fun setIaCookies(user: String, sig: String): Preferences
 }

@@ -107,4 +107,70 @@ class AppUpdatesTest {
         assertNull(AppUpdates.decode(null))
         assertNull(AppUpdates.decode("{\"name\":\"no version\"}"))
     }
+
+    // ---- Checking the downloaded APK -----------------------------------------------------------
+
+    private val release = AppUpdates.InstalledApp("com.cortinadev.dogmatix", "1.3.1", 13, setOf("key-release"))
+    private val debug = AppUpdates.InstalledApp("com.cortinadev.dogmatix.debug", "1.3.1-debug", 13, setOf("key-debug"))
+
+    private fun apk(
+        size: Long = 1000,
+        pkg: String? = "com.cortinadev.dogmatix",
+        name: String? = "1.4",
+        code: Long = 14,
+        signers: Set<String>? = setOf("key-release")
+    ) = AppUpdates.ApkFacts(size, pkg, name, code, signers)
+
+    @Test
+    fun `a newer release signed like the app installs`() {
+        assertNull(AppUpdates.checkApk(1000, apk(), release))
+        // GitHub did not give a size: any size goes.
+        assertNull(AppUpdates.checkApk(0, apk(size = 12345), release))
+        // The system could not read the signers on one side: nothing to compare.
+        assertNull(AppUpdates.checkApk(1000, apk(signers = null), release))
+        assertNull(AppUpdates.checkApk(1000, apk(), release.copy(signers = null)))
+    }
+
+    @Test
+    fun `a file of another size or that is no apk is refused`() {
+        assertEquals(AppUpdates.ApkProblem.SIZE, AppUpdates.checkApk(1000, apk(size = 999), release))
+        assertEquals(AppUpdates.ApkProblem.NOT_AN_APK, AppUpdates.checkApk(1000, apk(pkg = null), release))
+    }
+
+    @Test
+    fun `another app's apk is refused`() {
+        assertEquals(AppUpdates.ApkProblem.OTHER_APP, AppUpdates.checkApk(1000, apk(pkg = "com.santiifm.milou"), release))
+        assertEquals(AppUpdates.ApkProblem.OTHER_APP, AppUpdates.checkApk(1000, apk(pkg = "com.cortinadev.dogmatix.plus"), release))
+        // The release never installs a debug build, and a debug build only takes the release.
+        assertEquals(AppUpdates.ApkProblem.OTHER_APP, AppUpdates.checkApk(1000, apk(pkg = "com.cortinadev.dogmatix.debug"), release))
+        assertEquals(AppUpdates.ApkProblem.OTHER_APP, AppUpdates.checkApk(1000, apk(pkg = "com.cortinadev.dogmatix.debug"), debug))
+    }
+
+    @Test
+    fun `a debug build takes the release by name, whatever key signs it`() {
+        assertNull(AppUpdates.checkApk(1000, apk(signers = setOf("key-release")), debug))
+        // Its own version code does not count either: the release is another package.
+        assertNull(AppUpdates.checkApk(1000, apk(code = 2), debug))
+        assertEquals(AppUpdates.ApkProblem.NOT_NEWER, AppUpdates.checkApk(1000, apk(name = "1.3.1"), debug))
+    }
+
+    @Test
+    fun `an apk that is not newer than the app is refused`() {
+        assertEquals(AppUpdates.ApkProblem.NOT_NEWER, AppUpdates.checkApk(1000, apk(name = "1.3.1", code = 13), release))
+        assertEquals(AppUpdates.ApkProblem.NOT_NEWER, AppUpdates.checkApk(1000, apk(name = "1.2", code = 11), release))
+        // Newer by name but a lower version code: Android would refuse the downgrade.
+        assertEquals(AppUpdates.ApkProblem.NOT_NEWER, AppUpdates.checkApk(1000, apk(name = "1.4", code = 12), release))
+        // Same version code with a newer name installs (Android allows it); unknown codes do not count.
+        assertNull(AppUpdates.checkApk(1000, apk(name = "1.4", code = 13), release))
+        assertNull(AppUpdates.checkApk(1000, apk(code = 0), release))
+        // No version name in the APK: the version code alone decides.
+        assertNull(AppUpdates.checkApk(1000, apk(name = null, code = 14), release))
+        assertEquals(AppUpdates.ApkProblem.NOT_NEWER, AppUpdates.checkApk(1000, apk(name = null, code = 12), release))
+    }
+
+    @Test
+    fun `the same package signed with another key is refused`() {
+        assertEquals(AppUpdates.ApkProblem.SIGNATURE, AppUpdates.checkApk(1000, apk(signers = setOf("key-other")), release))
+        assertEquals(AppUpdates.ApkProblem.SIGNATURE, AppUpdates.checkApk(1000, apk(signers = setOf("key-release", "key-other")), release))
+    }
 }

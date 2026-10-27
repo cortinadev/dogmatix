@@ -78,6 +78,24 @@ class LibraryMoveJobTest {
     }
 
     @Test
+    fun `a rerun after an interruption carries on file by file`() {
+        val never = { throw AssertionError("sampled bytes asked for files of different sizes") }
+        // A half-copied part in the source (an older move of the other way): deleted, never moved.
+        assertEquals(LibraryMoveRules.FileStep.DROP_PART, LibraryMoveRules.fileStep("Game.iso.dogmatix-part", 10, null, never))
+        // Nothing there yet (or only a stale part of it, which goes first): copied again from the start.
+        assertEquals(LibraryMoveRules.FileStep.MOVE, LibraryMoveRules.fileStep("Game.iso", 10, null, never))
+        assertEquals(listOf("Game.iso.dogmatix-part"), LibraryMoveRules.staleParts(listOf("Game.iso.dogmatix-part", "Other.iso.dogmatix-part", "Game.iso.txt"), "Game.iso"))
+        // Renamed into place but the original not deleted yet: the same file, so the original goes.
+        assertEquals(LibraryMoveRules.FileStep.ALREADY_THERE, LibraryMoveRules.fileStep("Game.iso", 10, 10) { true })
+        // Same size but other bytes, another size, or a folder of that name: both stay.
+        assertEquals(LibraryMoveRules.FileStep.CONFLICT, LibraryMoveRules.fileStep("Game.iso", 10, 10) { false })
+        assertEquals(LibraryMoveRules.FileStep.CONFLICT, LibraryMoveRules.fileStep("Game.iso", 10, 9, never))
+        assertEquals(LibraryMoveRules.FileStep.CONFLICT, LibraryMoveRules.fileStep("Game.iso", 10, -1, never))
+        // A size the provider does not report is never taken for the same file.
+        assertEquals(LibraryMoveRules.FileStep.CONFLICT, LibraryMoveRules.fileStep("Game.iso", -1, -1, never))
+    }
+
+    @Test
     fun `an item never lands inside itself`() {
         assertTrue(MoveJobs.landsInside("primary:ROMs/snes", "primary:ROMs", "snes"))
         assertTrue(MoveJobs.landsInside("primary:ROMs", "primary:ROMs/new", "ROMs"))

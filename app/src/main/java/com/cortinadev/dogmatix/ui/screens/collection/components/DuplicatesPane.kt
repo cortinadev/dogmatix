@@ -117,17 +117,24 @@ fun DuplicatesPane(viewModel: CollectionViewModel, active: Boolean, entryFocus: 
 
         confirm?.let { targets ->
             val games = targets.flatMap { it.removable(viewModel.keepOf(it, choices)) }
+            // What really goes (tracks and playlists of these discs included): shown, then deleted as it is.
+            val plan = remember(games) { viewModel.deletionPlan(games.flatMap { it.files }) }
             ConfirmDialog(
                 title = pluralStringResource(R.plurals.collection_delete_copies_title, games.size, games.size),
-                lines = games.take(6).map { "${it.title}  ·  ${location(it.files.first())}" } +
+                // A game of several files (a sheet and its tracks, a set) says so: they all go.
+                lines = games.take(6).map { game ->
                     listOfNotNull(
-                        (games.size - 6).takeIf { it > 0 }?.let { stringResource(R.string.collection_and_more, it) },
-                        stringResource(R.string.collection_frees, formatBytes(games.sumOf { it.size }))
-                    ),
+                        game.title, location(game.files.first()),
+                        game.files.size.takeIf { it > 1 }?.let { pluralStringResource(R.plurals.collection_files, it, it) }
+                    ).joinToString("  ·  ")
+                } +
+                    listOfNotNull((games.size - 6).takeIf { it > 0 }?.let { stringResource(R.string.collection_and_more, it) }) +
+                    takenAlongLines(plan) +
+                    stringResource(R.string.collection_frees, formatBytes(plan.bytes)),
                 confirmLabel = stringResource(R.string.collection_delete),
                 onConfirm = {
                     confirm = null
-                    viewModel.deleteDuplicates(targets)
+                    viewModel.deleteDuplicates(targets, plan)
                 },
                 onDismiss = { confirm = null }
             )

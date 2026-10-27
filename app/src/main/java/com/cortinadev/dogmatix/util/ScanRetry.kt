@@ -1,5 +1,7 @@
 package com.cortinadev.dogmatix.util
 
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.TimeoutCancellationException
 import java.io.IOException
 import java.net.ConnectException
 import java.net.NoRouteToHostException
@@ -17,8 +19,10 @@ enum class ScanFailure {
     /** HTTP 5xx. */
     SERVER,
     TIMEOUT,
-    /** The connection was refused or cut half-way. */
+    /** The connection was cut half-way (reset, closed early). */
     CONNECTION,
+    /** The server refused the connection: nothing listens there (a RomM server switched off, a wrong port). */
+    UNREACHABLE,
     /** Unknown host or no route: no network, or a mistyped address. */
     OFFLINE,
     /** TLS handshake / certificate problem. */
@@ -55,7 +59,7 @@ class EmptyListingException(url: String) : IOException("Empty listing at $url")
  * Retries of one scan request. 429, 5xx and timeouts (also a connection cut half-way) are tried
  * again up to [MAX_ATTEMPTS] times, waiting what the server asked for (`Retry-After`, in seconds
  * or as an HTTP date) or else a growing pause with jitter, so a dozen sources of one server do
- * not all come back at the same instant. 404, 403 and the like are final.
+ * not all come back at the same instant. 404, 403, a refused connection and the like are final.
  */
 object ScanRetry {
     /** Attempts per address, the first one included. */
@@ -67,8 +71,11 @@ object ScanRetry {
     /** Spread added to a `Retry-After` wait, so the sources of one server do not return together. */
     const val RETRY_AFTER_JITTER_MS = 1_000L
 
-    /** "HTTP 503", "HTTP error 429"… in messages of clients that do not throw [ListingHttpException]. */
-    private val httpInMessage = Regex("""\bHTTP\b\D{0,40}?([1-5]\d\d)\b""", RegexOption.IGNORE_CASE)
+    /**
+     * "HTTP 503", "HTTP error 429"… in messages of clients that do not throw [ListingHttpException].
+     * Never the `http://` of a URL in the message (`http://192.168…` is not "HTTP 192").
+     */
+    private val httpInMessage = Regex("""\bHTTP(?!S?://)\b\D{0,40}?([1-5]\d\d)\b""", RegexOption.IGNORE_CASE)
 
     fun classify(error: Throwable): ScanFailure {
         val chain = generateSequence(error) { it.cause }.take(8).toList()
@@ -77,10 +84,12 @@ object ScanRetry {
             chain.any { it is NoListingException || it.javaClass.simpleName == "UnsupportedMimeTypeException" } -> ScanFailure.NO_LISTING
             chain.any { it is EmptyListingException } -> ScanFailure.EMPTY
             chain.any { it.javaClass.simpleName == "TorrentMetadataTimeoutException" } -> ScanFailure.TORRENT_METADATA
-            chain.any { it is SocketTimeoutException } -> ScanFailure.TIMEOUT
+            chain.any { it is SocketTimeoutException || it is TimeoutCancellationException } -> ScanFailure.TIMEOUT
             chain.any { it is UnknownHostException || it is NoRouteToHostException } -> ScanFailure.OFFLINE
             chain.any { it is SSLException } -> ScanFailure.SECURE
-            chain.any { it is ConnectException || it is SocketException } -> ScanFailure.CONNECTION
+            // Refused: nobody listens there. Cut: the server was there and dropped the line.
+            chain.any { it is ConnectException } -> ScanFailure.UNREACHABLE
+            chain.any { it is SocketException } -> ScanFailure.CONNECTION
             else -> chain.firstNotNullOfOrNull { e -> httpInMessage.find(e.message.orEmpty())?.groupValues?.get(1)?.toIntOrNull() }
                 ?.let(::fromHttpStatus)
                 ?: if (chain.any { it is IOException }) ScanFailure.CONNECTION else ScanFailure.OTHER
@@ -125,6 +134,37 @@ object ScanRetry {
         val ceiling = (BASE_DELAY_MS shl (attemptsDone - 1).coerceIn(0, 10)).coerceAtMost(MAX_DELAY_MS)
         return ceiling / 2 + (r * (ceiling / 2)).toLong()
     }
+
+    /**
+     * Runs [attempt] until it works or fails in a way not worth another try ([nextDelayMs] null):
+     * then its last error is thrown. Before each new try, [onRetry] gets the error, its reason, the
+     * wait and the attempts made so far, and does the waiting itself (a server that pushed back
+     * makes its gate wait: [ScanHostGate.pushBack]; anything else, a plain delay). [random] gives
+     * the jitter, in [0, 1). A cancellation is never retried.
+     */
+    suspend fun <T> retrying(
+        random: () -> Double,
+        onRetry: suspend (error: Exception, failure: ScanFailure, waitMs: Long, attemptsDone: Int) -> Unit,
+        attempt: suspend () -> T
+    ): T {
+        var attemptsDone = 0
+        while (true) {
+            try {
+                return attempt()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                attemptsDone++
+                val failure = classify(e)
+                val wait = nextDelayMs(attemptsDone, failure, retryAfterOf(e), random()) ?: throw e
+                onRetry(e, failure, wait, attemptsDone)
+            }
+        }
+    }
+
+    /** The `Retry-After` an HTTP error carried, in milliseconds. */
+    fun retryAfterOf(error: Throwable): Long? =
+        generateSequence(error) { it.cause }.take(8).firstNotNullOfOrNull { it as? ListingHttpException }?.retryAfterMs
 
     /** `Retry-After` as milliseconds from [nowMs]: a number of seconds, or an HTTP date. */
     fun parseRetryAfter(value: String?, nowMs: Long): Long? {

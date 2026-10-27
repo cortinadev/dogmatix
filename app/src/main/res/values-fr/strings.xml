@@ -1470,4 +1470,5 @@
     <string name="update_error_bad_apk">Le fichier téléchargé n’est pas un APK Dogmatix valide. Réessayez plus tard.</string>
     <string name="update_error_signature">Cette mise à jour est signée avec une autre clé que l’app installée : Android ne l’installera pas par-dessus. Consultez la page de la version sur GitHub.</string>
     <string name="update_error_storage">Pas assez d’espace libre pour télécharger la mise à jour.</string>
+    <string name="update_error_older">L’APK téléchargé n’est pas plus récent que la version installée : il ne peut donc pas la mettre à jour. Consultez la page de la version sur GitHub.</string>
 </resources>

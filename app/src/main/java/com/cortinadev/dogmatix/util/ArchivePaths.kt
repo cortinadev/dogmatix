@@ -29,11 +29,17 @@ object ArchivePaths {
 
     /**
      * Hands out destination paths for the entries of one archive, keeping two entries from landing
-     * on the same file. Storage may compare names without case (FAT, exFAT on SD cards), so
-     * `Game.bin` and `game.BIN` collide: the later one becomes `game (2).BIN`.
+     * on the same file, and (seeded with [taken], or told with [reserve]) off the files already in
+     * the destination: those are never overwritten. Storage may compare names without case (FAT,
+     * exFAT on SD cards), so `Game.bin` and `game.BIN` collide: the later one becomes `game (2).BIN`.
      */
-    class Allocator {
-        private val taken = HashSet<String>()
+    class Allocator(taken: Collection<String> = emptyList()) {
+        private val taken = taken.mapTo(HashSet()) { key(it) }
+
+        /** [path] is in use already (a file of the destination): [allocate] never hands it out. */
+        fun reserve(path: String) {
+            taken.add(key(path))
+        }
 
         fun allocate(path: String): String {
             if (taken.add(key(path))) return path

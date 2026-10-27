@@ -14,6 +14,8 @@ import com.cortinadev.dogmatix.util.CheckState
 import com.cortinadev.dogmatix.util.Checksums
 import com.cortinadev.dogmatix.util.DownloadCheck
 import com.cortinadev.dogmatix.util.HashedFile
+import com.cortinadev.dogmatix.util.IaFiles
+import com.cortinadev.dogmatix.util.IaSource
 import com.cortinadev.dogmatix.util.MultiDisc
 import com.cortinadev.dogmatix.util.RommSource
 import com.cortinadev.dogmatix.util.StorageHelper
@@ -43,7 +45,8 @@ private const val TAG = "DownloadVerifier"
 /**
  * Checks each finished download (Settings → "Verify downloads"): CRC-32 and SHA-1 (plus MD5 for
  * RomM) of every file it left on disk, extracted ones included, compared with the hashes RomM
- * keeps for its ROMs or with the console's No-Intro / Redump DAT. Runs one file at a time on a
+ * keeps for its ROMs, the ones Internet Archive lists for the files of an item, or with the
+ * console's No-Intro / Redump DAT. Runs one file at a time on a
  * low-priority thread once the multi-disc step is done with a finished download
  * ([MultiDiscService.settled], so the discs already sit where they will stay); neither COMPLETED
  * nor the rest of the queue waits for it, and a mismatch is only reported, nothing is ever deleted.
@@ -58,7 +61,8 @@ class DownloadVerifier @Inject constructor(
     private val downloadFileManager: DownloadFileManager,
     private val rommClient: RommClient,
     private val datStore: DatStore,
-    private val dao: DownloadTrackDao
+    private val dao: DownloadTrackDao,
+    private val iaAuth: IaAuth
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val worker = Executors.newSingleThreadExecutor { task ->
@@ -130,13 +134,22 @@ class DownloadVerifier @Inject constructor(
         val directory = StorageHelper.createDirectory(context, dirUri.toString(), downloadFileManager.getSubPath(entity))
             ?: return unknown(UnknownReason.NOT_FOUND)
         val fromRomm = RommSource.isDownloadFrom(rommClient.configuredBaseUrl(), entity.downloadUrl)
+        // A file of an Internet Archive item (not one listed inside a ZIP of it, which IA has no hashes for).
+        val fromIa = IaSource.itemAndPathOf(entity.downloadUrl)?.let { !IaSource.isInsideArchive(it.second) } == true
 
         val job = currentCoroutineContext()[Job]
         val checkpoint = { job?.ensureActive(); Unit }
-        val hashed = paths.flatMap { path ->
+        fun hashAll(wholeFile: Boolean) = paths.flatMap { path ->
             val doc = locate(directory, path) ?: return@flatMap emptyList()
-            hash(doc, path, withMd5 = fromRomm, checkpoint)
+            hash(doc, path, withMd5 = fromRomm, wholeFile = wholeFile, checkpoint)
         }
+        // Internet Archive hashes a ZIP as it is; the DATs below describe what is inside it.
+        val whole = if (fromIa) hashAll(wholeFile = true) else null
+        if (whole != null) {
+            if (whole.isEmpty()) return unknown(UnknownReason.NOT_FOUND)
+            iaVerdict(entity, whole)?.let { return it.copy(files = paths) }
+        }
+        val hashed = whole?.takeIf { hashedFiles -> hashedFiles.none { it.path.endsWith(".zip", ignoreCase = true) } } ?: hashAll(wholeFile = false)
         if (hashed.isEmpty()) return unknown(UnknownReason.NOT_FOUND)
 
         if (fromRomm) rommVerdict(entity, hashed)?.let { return it.copy(files = paths) }
@@ -158,10 +171,10 @@ class DownloadVerifier @Inject constructor(
                 directory.findFile("${disc.setStem}.m3u")?.takeIf { it.isDirectory }?.findFile(DownloadCheck.leafOf(path))?.takeIf { it.isFile }
             }
 
-    /** A ZIP kept as it is is checked by what is inside it; anything else by its own bytes. */
-    private fun hash(doc: DocumentFile, path: String, withMd5: Boolean, checkpoint: () -> Unit): List<HashedFile> {
+    /** A ZIP kept as it is is checked by what is inside it (unless [wholeFile]); anything else by its own bytes. */
+    private fun hash(doc: DocumentFile, path: String, withMd5: Boolean, wholeFile: Boolean, checkpoint: () -> Unit): List<HashedFile> {
         fun open() = context.contentResolver.openInputStream(doc.uri) ?: throw java.io.IOException("Could not read $path")
-        if (path.endsWith(".zip", ignoreCase = true)) {
+        if (!wholeFile && path.endsWith(".zip", ignoreCase = true)) {
             val entries = runCatching { open().use { Checksums.zipEntries(it, withMd5, checkpoint) } }.getOrNull()
             if (!entries.isNullOrEmpty()) return entries.map { (name, hashes) -> HashedFile("$path/$name", hashes) }
         }
@@ -178,6 +191,19 @@ class DownloadVerifier @Inject constructor(
         val expected = DownloadCheck.rommExpectedFiles(body)
         if (expected.isEmpty()) return null
         return DownloadCheck.combine(DownloadCheck.ROMM, hashed, hashed.map { DownloadCheck.check(it, expected) })
+    }
+
+    /** What Internet Archive's hashes of the item's files say; null when it cannot be asked or does not list the file. */
+    private suspend fun iaVerdict(entity: DownloadableFileEntity, hashed: List<HashedFile>): CheckResult? {
+        val (id, _) = IaSource.itemAndPathOf(entity.downloadUrl) ?: return null
+        val url = IaSource.metadataUrl(id) + "/files"
+        val headers = iaAuth.headers(url)
+        val body = runCatching { JsonHttp.requireOk(JsonHttp.request("GET", url, headers)).body }
+            .onFailure { Log.w(TAG, "Internet Archive did not give the hashes of $id: ${it.javaClass.simpleName}") }
+            .getOrNull() ?: return null
+        val expected = IaFiles.expected(IaFiles.parse(body))
+        if (expected.isEmpty()) return null
+        return DownloadCheck.combine(DownloadCheck.IA, hashed, hashed.map { DownloadCheck.check(it, expected) })
     }
 
     private suspend fun save(fileName: String, result: CheckResult) {

@@ -2,6 +2,7 @@ package com.cortinadev.dogmatix.data.service
 
 import android.util.Log
 import com.cortinadev.dogmatix.data.model.TorrentFileEntry
+import com.cortinadev.dogmatix.util.IndexFilters
 import org.libtorrent4j.TorrentInfo
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -11,7 +12,7 @@ import javax.inject.Singleton
  *
  * Filtering applied (in order):
  * 1. Zero-size entries and hidden files (leading dot) are always skipped.
- * 2. Files whose extension matches [BLOCKED_EXTENSIONS] are skipped.
+ * 2. Files whose extension matches [IndexFilters.BLOCKED_EXTENSIONS] are skipped.
  * 3. If [allowedFolders] is non-empty, only files whose torrent path contains
  *    one of the specified folder segments are included (case-insensitive).
  *    If empty, all surviving files are included.
@@ -41,8 +42,7 @@ class TorrentFileIndexer @Inject constructor() {
             val fileName = rawPath.substringAfterLast('/').trim()
             if (fileName.startsWith(".") || fileName.isBlank()) continue
 
-            val ext = ".${fileName.substringAfterLast('.', "")}".lowercase()
-            if (ext in BLOCKED_EXTENSIONS) continue
+            if (IndexFilters.isBlocked(fileName)) continue
 
             if (normalizedFolders.isNotEmpty()) {
                 val normalizedPath = rawPath.replace('\\', '/').lowercase()
@@ -62,16 +62,5 @@ class TorrentFileIndexer @Inject constructor() {
 
     companion object {
         private const val TAG = "TorrentFileIndexer"
-
-        private val BLOCKED_EXTENSIONS = setOf(
-            // Metadata / database
-            ".xml", ".sqlite", ".nfo", ".txt", ".pdf", ".log", ".html", ".htm",
-            // Checksums / verification
-            ".sfv", ".md5", ".sha1", ".sha256",
-            // Images
-            ".jpg", ".jpeg", ".png", ".gif", ".bmp", ".webp",
-            // System / hidden
-            ".ds_store"
-        )
     }
 }

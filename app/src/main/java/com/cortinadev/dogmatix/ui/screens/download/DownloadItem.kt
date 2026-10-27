@@ -40,6 +40,7 @@ import com.cortinadev.dogmatix.data.model.DownloadItemModel
 import com.cortinadev.dogmatix.data.model.DownloadStatus
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
 import com.cortinadev.dogmatix.data.model.LibraryGame
+import com.cortinadev.dogmatix.data.service.DownloadAutoRetry
 import com.cortinadev.dogmatix.data.service.UploadState
 import com.cortinadev.dogmatix.data.service.UploadStatus
 import com.cortinadev.dogmatix.ui.components.checkLabel
@@ -82,6 +83,8 @@ fun DownloadItem(
     /** Why a FAILED row failed, and when it will be retried on its own (null = it will not). */
     failure: DownloadFailure? = null,
     retryAt: Long? = null,
+    /** Its server cannot carry it on: paused, the row says resuming starts it again from zero. */
+    restartsFromZero: Boolean = false,
     selectionMode: Boolean = false,
     selected: Boolean = false,
     /** Where ▲ goes from this row: the selection bar sits off-centre, so focus search never picks it. */
@@ -122,7 +125,8 @@ fun DownloadItem(
         DownloadStatus.QUEUED -> stringResource(R.string.status_queued_debrid, viewModel.debridLabel.collectAsState().value, (item.progress * 100).toInt())
         DownloadStatus.COMPLETED -> stringResource(R.string.status_completed)
         DownloadStatus.FAILED -> retryAt?.let {
-            stringResource(R.string.status_retry_at, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it)))
+            if (it == DownloadAutoRetry.WAITING_FOR_APP) stringResource(R.string.status_retry_when_open)
+            else stringResource(R.string.status_retry_at, DateFormat.getTimeInstance(DateFormat.SHORT).format(Date(it)))
         } ?: stringResource(R.string.status_failed)
         DownloadStatus.STOPPED -> stringResource(R.string.status_stopped)
         DownloadStatus.PAUSED -> stringResource(R.string.status_paused)
@@ -140,13 +144,14 @@ fun DownloadItem(
         else stringResource(R.string.download_started_at, it)
     }
     val failureLabel = if (status == DownloadStatus.FAILED) failure?.let { stringResource(it.labelRes) } else null
+    val restartLabel = if (status == DownloadStatus.PAUSED && restartsFromZero) stringResource(R.string.download_restarts_from_zero) else null
     // Checksum / DAT verdict, only for the file on disk now (a new download hides the old one).
     val check = rememberCheckResult(item.fileName)?.takeIf { status == DownloadStatus.COMPLETED }
     val checkText = check?.let { checkLabel(it) }
     val detail = when (if (queued) null else status) {
         DownloadStatus.DOWNLOADING -> stringResource(R.string.download_speed, item.downloadSpeed) +
             "  ·  ${formatBytes(item.downloadedBytes)} / ${formatBytes(item.fileSize)}"
-        else -> listOfNotNull(failureLabel, formatBytes(item.fileSize), checkText).joinToString("  ·  ")
+        else -> listOfNotNull(failureLabel, restartLabel, formatBytes(item.fileSize), checkText).joinToString("  ·  ")
     } + (timeLabel?.let { "  ·  $it" } ?: "")
     val busy = status == DownloadStatus.COPYING || status == DownloadStatus.UNZIPPING ||
         (status == DownloadStatus.QUEUED && item.progress <= 0f)
@@ -398,4 +403,8 @@ private val DownloadFailure.labelRes: Int
         DownloadFailure.DEBRID -> R.string.failure_debrid
         DownloadFailure.UNKNOWN -> R.string.failure_unknown
         DownloadFailure.WRONG_CONTENT -> R.string.failure_wrong_content
+        DownloadFailure.EXTRACTION -> R.string.failure_extraction
+        DownloadFailure.EXTRACTION_NO_SPACE -> R.string.failure_extraction_no_space
+        DownloadFailure.PERMISSION_LOST -> R.string.failure_permission_lost
+        DownloadFailure.STORAGE_GONE -> R.string.failure_storage_gone
     }

@@ -46,4 +46,18 @@ class DocumentIdsTest {
         assertEquals("6A3B-BB88:ROMS/snes", DocumentIds.rebase("primary:ROMs/snes", "primary:ROMs", "6A3B-BB88:ROMS"))
         assertNull(DocumentIds.rebase("primary:Other/snes", "primary:ROMs", "6A3B-BB88:ROMS"))
     }
+
+    @Test
+    fun `only volume UUIDs can be told pulled out when the system stops listing them`() {
+        assertTrue(DocumentIds.looksLikeVolumeUuid("6A3B-BB88"))
+        assertTrue(DocumentIds.looksLikeVolumeUuid("6a3b-bb88"))
+        assertTrue(DocumentIds.looksLikeVolumeUuid("0d3e4f5a-1b2c-4d5e-8f90-a1b2c3d4e5f6"))
+        // Roots of the provider that are no volume, and the internal storage, are never "gone".
+        assertFalse(DocumentIds.looksLikeVolumeUuid("home"))
+        assertFalse(DocumentIds.looksLikeVolumeUuid("downloads"))
+        assertFalse(DocumentIds.looksLikeVolumeUuid("primary"))
+        assertFalse(DocumentIds.looksLikeVolumeUuid("6A3B-BB8"))
+        assertFalse(DocumentIds.looksLikeVolumeUuid("6A3B-BB88-1"))
+        assertFalse(DocumentIds.looksLikeVolumeUuid(""))
+    }
 }

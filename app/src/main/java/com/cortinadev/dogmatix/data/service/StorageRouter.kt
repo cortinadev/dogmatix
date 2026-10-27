@@ -9,6 +9,7 @@ import com.cortinadev.dogmatix.data.repository.ConsoleRepository
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.util.DocumentIds
 import com.cortinadev.dogmatix.util.FileParsingUtils
+import com.cortinadev.dogmatix.util.LibraryMoveRules
 import com.cortinadev.dogmatix.util.SmartStorage
 import com.cortinadev.dogmatix.util.StorageHelper
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -89,10 +90,13 @@ class StorageRouter @Inject constructor(
         } else {
             Target(main, pathResolver.resolveAll(listOf(file.consoleId), main, settings.separateByConsole.first(), emptyMap()).getValue(file.consoleId).subPath)
         }
-        // Resuming: the partial is where the usual resolution puts it.
+        // Resuming: the partial is where the usual resolution puts it (`<name>.dogmatix-part` from 1.4 on).
         val name = FileParsingUtils.decodeUrlEncodedFileName(file.fileName)
-        val existing = StorageHelper.getDocumentFile(context, usual.rootUri)
-            ?.let { root -> StorageHelper.findFile(root, listOf(usual.subPath, name).filter { it.isNotEmpty() }.joinToString("/")) }
+        val existing = StorageHelper.getDocumentFile(context, usual.rootUri)?.let { root ->
+            listOf(LibraryMoveRules.partName(name), name).firstNotNullOfOrNull { candidate ->
+                StorageHelper.findFile(root, listOf(usual.subPath, candidate).filter { it.isNotEmpty() }.joinToString("/"))
+            }
+        }
         if (existing != null) return null
         val chosen = SmartStorage.downloadPlace(
             bytes = file.fileSize,

@@ -13,6 +13,7 @@ import com.cortinadev.dogmatix.data.local.dao.ConsoleDao
 import com.cortinadev.dogmatix.data.local.dao.DownloadableFileDao
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.util.CatalogRow
+import com.cortinadev.dogmatix.util.CollectionDuplicates
 import com.cortinadev.dogmatix.util.CollectionGames
 import com.cortinadev.dogmatix.util.CollectionHealth
 import com.cortinadev.dogmatix.util.ConsoleFolderAliases
@@ -163,6 +164,25 @@ class LibraryScanService @Inject constructor(
             dirtyConsoles += touchedConsoles
             dirty.tryEmit(Unit)
         }
+        saveRequests.tryEmit(Unit)
+    }
+
+    /**
+     * Drops from the snapshot what was found through a library folder that cannot be read any
+     * more (deleted or moved, grant lost, card out), so a cached analysis never offers to delete
+     * or move what is not there; the folder then shows in Health, as after a new analysis.
+     * [candidates]: the trees to check (an operation that found them blocked), or null for every
+     * tree the snapshot still reads as accessible (opening Collection). One provider query per
+     * tree, the same test the analysis uses; call it off the main thread.
+     */
+    fun forgetUnreachable(candidates: Collection<String>? = null) {
+        val current = _snapshot.value ?: return
+        val roots = candidates?.toSet() ?: current.roots.filter { it.accessible }.mapTo(HashSet()) { it.uri }
+        // What is no SAF tree cannot be judged here: it stays.
+        val unreachable = roots.filterTo(HashSet()) { uri -> rootDocument(uri)?.let { SafDocs.stat(context, it) == null } == true }
+        if (unreachable.isEmpty()) return
+        Log.i(TAG, "Library folders no longer readable, dropped from the analysis: $unreachable")
+        _snapshot.update { it?.withoutRoots(unreachable) }
         saveRequests.tryEmit(Unit)
     }
 
@@ -353,22 +373,27 @@ class LibraryScanService @Inject constructor(
 
     /**
      * A sampled hash (size, plus the first, middle and last 64 KiB; small files whole) for game
-     * files that share their size with another one: what tells a renamed copy from another game.
-     * Unchanged files keep the hash of the previous scan.
+     * files that share their size with another one, in any console: what tells a renamed copy, or
+     * the same set in another console's folder, from another game. At most [MAX_HASHES] new ones
+     * per scan, spent in [CollectionDuplicates.hashCandidates] order; unchanged files keep the
+     * hash of the previous scan.
      */
     private suspend fun hash(files: List<DiskFile>, previous: LibrarySnapshot?): List<DiskFile> {
         val known = previous?.files?.associateBy { it.uri }.orEmpty()
-        val sizes = files.filter { CollectionGames.isGameFile(it) && it.size >= MIN_HASH_BYTES }.groupingBy { it.size }.eachCount()
+        val hashes = HashMap<String, String?>()
         var computed = 0
-        return files.map { file ->
-            if ((sizes[file.size] ?: 0) < 2 || !CollectionGames.isGameFile(file) || file.size < MIN_HASH_BYTES) return@map file
-            known[file.uri]?.takeIf { it.size == file.size && it.lastModified == file.lastModified && it.hash != null }
-                ?.let { return@map file.copy(hash = it.hash) }
-            if (computed >= MAX_HASHES) return@map file
+        for (file in CollectionDuplicates.hashCandidates(files)) {
+            val kept = known[file.uri]?.takeIf { it.size == file.size && it.lastModified == file.lastModified }?.hash
+            if (kept != null) {
+                hashes[file.uri] = kept
+                continue
+            }
+            if (computed >= MAX_HASHES) continue
             currentCoroutineContext().ensureActive()
             computed++
-            file.copy(hash = runCatching { sampledHash(file.uri.toUri(), file.size) }.getOrNull())
+            hashes[file.uri] = runCatching { sampledHash(file.uri.toUri(), file.size) }.getOrNull()
         }
+        return files.map { file -> if (file.uri in hashes) file.copy(hash = hashes[file.uri]) else file }
     }
 
     private fun sampledHash(uri: Uri, size: Long): String? {
@@ -478,7 +503,6 @@ class LibraryScanService @Inject constructor(
         )
         const val MAX_SHEET_BYTES = 256 * 1024L
         const val MAX_SHEETS = 3_000
-        const val MIN_HASH_BYTES = 16 * 1024L
         const val WHOLE_HASH_BYTES = 4L * 1024 * 1024
         const val HASH_CHUNK = 64 * 1024
         const val MAX_HASHES = 400

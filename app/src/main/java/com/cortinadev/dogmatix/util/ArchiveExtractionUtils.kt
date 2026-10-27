@@ -69,23 +69,19 @@ object ArchiveExtractionUtils {
         }
     }
     
+    /**
+     * The folder an archive unpacks into ([destinationUri]/[subPath], created when missing), or
+     * null when it cannot be reached or made. Never the root instead: the files would land outside
+     * the console's folder without anyone noticing.
+     */
     fun prepareExtractionDestination(
         context: Context,
         destinationUri: Uri,
         subPath: String
-    ): Uri {
-        return if (subPath.isNotEmpty()) {
-            val consoleDir = StorageHelper.createDirectory(context, destinationUri.toString(), subPath)
-            if (consoleDir != null) {
-                Log.d("ArchiveExtractorService", "Created console directory for extraction: $subPath")
-                consoleDir.uri
-            } else {
-                Log.w("ArchiveExtractorService", "Failed to create console directory: $subPath, using root destination")
-                destinationUri
-            }
-        } else {
-            Log.d("ArchiveExtractorService", "Extracting to root destination (no console separation)")
-            destinationUri
-        }
+    ): Uri? {
+        if (destinationUri == Uri.EMPTY) return null
+        val folder = StorageHelper.createDirectory(context, destinationUri.toString(), subPath)
+        if (folder == null) Log.w(TAG, "Extraction destination not accessible: $destinationUri/$subPath")
+        return folder?.uri
     }
 }

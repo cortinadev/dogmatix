@@ -47,13 +47,15 @@ object DownloadOrigins {
 
     /**
      * A source address as typed in Sources: torrents the way the scraper recognises them,
-     * `romm://` by the host of the RomM server ([rommBaseUrl], empty when not set up).
+     * `romm://` by the host of the RomM server ([rommBaseUrl], empty when not set up), `ia://` by
+     * Internet Archive's host (where its files are downloaded from).
      */
     fun forSourceUrl(url: String, rommBaseUrl: String): String? {
         val u = url.trim()
         return when {
             u.startsWith("magnet:", ignoreCase = true) || u.endsWith(".torrent", ignoreCase = true) -> forTorrent(u)
             RommSource.isSource(u) -> forWeb(rommBaseUrl)
+            IaSource.isSource(u) -> IaSource.HOST
             else -> forWeb(u)
         }
     }
@@ -73,9 +75,8 @@ object SourceReliability {
     /** Below this the stats are noise left by decay: nothing to show. */
     private const val MIN_ATTEMPTS_SHOWN = 0.05
 
-    /** The device's own trouble (a full disk, a folder without access) says nothing about the origin. */
-    fun countsAgainstOrigin(failure: DownloadFailure): Boolean =
-        failure != DownloadFailure.NO_SPACE && failure != DownloadFailure.STORAGE
+    /** The device's own trouble (a full disk, a folder without access, unpacking) says nothing about the origin. */
+    fun countsAgainstOrigin(failure: DownloadFailure): Boolean = !failure.local
 
     /** [stats] with its weights decayed up to [now]. */
     fun decayed(stats: OriginStats, now: Long): OriginStats {

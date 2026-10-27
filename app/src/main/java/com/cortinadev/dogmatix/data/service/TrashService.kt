@@ -8,7 +8,6 @@ import com.cortinadev.dogmatix.data.local.dao.TrashDao
 import com.cortinadev.dogmatix.data.local.dao.TrashTotals
 import com.cortinadev.dogmatix.data.local.entity.TrashItemEntity
 import com.cortinadev.dogmatix.util.DocumentIds
-import com.cortinadev.dogmatix.util.LibraryMoveRules
 import com.cortinadev.dogmatix.util.TrashRules
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -28,7 +27,9 @@ data class TrashResult(val batchId: String, val moved: Int, val bytes: Long, val
 /**
  * The trash: deleting moves things to `.dogmatix-trash/<batch>/…` at the root of their own SAF
  * tree (same volume: the provider renames, no copy, no extra space), so undoing is moving them
- * back. Folders the provider cannot move between are copied, checked by size and then deleted.
+ * back. What the provider cannot move is copied, checked (size and sampled bytes) and only then
+ * deleted; a folder deleted only in part leaves in the trash just what really went, so every
+ * batch (and its history entry) holds what it says.
  * The trash folder carries `.nomedia` and `noload.txt` so galleries and ES-DE leave it alone,
  * and the library walks skip it (dot name). Batches are emptied by age or by hand
  * ([ActionHistoryService] decides when, and keeps the history in step).
@@ -77,8 +78,9 @@ class TrashService @Inject constructor(
         val slot = SafDocs.ensureDirs(context, treeRoot, TrashRules.slotPath(batchId, relative, index)) ?: return null
         val parent = request.parentUri
             ?: DocumentIds.parentOf(docId)?.takeIf { DocumentIds.isWithin(rootId, it) }?.let { SafDocs.sibling(request.uri, it) }
-        val size = if (doc.isDirectory) SafDocs.folderSize(context, doc.uri) else doc.size.coerceAtLeast(0)
         val moved = parent?.let { SafDocs.move(context, doc.uri, it, slot) } ?: copyThenDelete(doc, slot) ?: return null
+        // Measured where it is now: a copied folder whose original could only be partly deleted holds just what left.
+        val size = if (doc.isDirectory) SafDocs.folderSize(context, moved) else doc.size.coerceAtLeast(0)
         // Files get a suffix while they wait (a provider that cannot rename leaves the name as it was).
         val trashed = if (doc.isDirectory) moved else SafDocs.rename(context, moved, TrashRules.trashedName(doc.name)) ?: moved
         val item = TrashItemEntity(
@@ -141,7 +143,7 @@ class TrashService @Inject constructor(
             ?: return false
         if (SafDocs.child(context, target, item.name) != null) return false
         val slot = DocumentIds.parentOf(SafDocs.docId(trashed))?.let { SafDocs.sibling(trashed, it) }
-        val back = slot?.let { SafDocs.move(context, trashed, it, target) } ?: copyThenDelete(doc, target) ?: return false
+        val back = slot?.let { SafDocs.move(context, trashed, it, target) } ?: copyThenDelete(doc, target, restoring = true) ?: return false
         if (doc.name != item.name && SafDocs.rename(context, back, item.name) == null) {
             Log.w(TAG, "Restored ${item.name} but could not drop the trash suffix")
         }
@@ -200,16 +202,42 @@ class TrashService @Inject constructor(
 
     /**
      * For providers that cannot move: copies [doc] (a file, or a folder with everything in it)
-     * into [targetDir], checks every file's size, then deletes the original. Nothing is deleted
-     * when the copy is incomplete. Returns the copy.
+     * into [targetDir], checks every file (size and sampled bytes), then deletes the original.
+     * Nothing is deleted when the copy is incomplete. A folder whose original can only be partly
+     * deleted keeps in the copy just what really left (what stayed is still in its place), so
+     * nothing is lost and the trash holds what is gone. [restoring]: the copy is the item back in
+     * the library and stays whole; what could not leave the trash is a spare copy there. Returns
+     * the copy; null when nothing moved.
      */
-    private suspend fun copyThenDelete(doc: SafDocs.Doc, targetDir: Uri): Uri? {
+    private suspend fun copyThenDelete(doc: SafDocs.Doc, targetDir: Uri, restoring: Boolean = false): Uri? {
         val copy = copyTree(doc, targetDir) ?: return null
-        if (!SafDocs.delete(context, doc.uri)) {
+        if (SafDocs.delete(context, doc.uri) || SafDocs.stat(context, doc.uri) == null || restoring) return copy
+        if (!doc.isDirectory) {
             SafDocs.delete(context, copy)
             return null
         }
-        return copy
+        Log.w(TAG, "${doc.name} could only be partly deleted: the trash keeps what left")
+        return if (dropWhatStayed(doc.uri, copy)) copy else {
+            SafDocs.delete(context, copy)
+            null
+        }
+    }
+
+    /**
+     * Deletes from the folder [copy] every file whose original is still in [original] (and the
+     * folders left empty); true when something is left in [copy].
+     */
+    private fun dropWhatStayed(original: Uri?, copy: Uri): Boolean {
+        val stayed = original?.let { SafDocs.list(context, it) }.orEmpty().associateBy { it.name }
+        for (child in SafDocs.list(context, copy).orEmpty()) {
+            val same = stayed[child.name]
+            if (child.isDirectory) {
+                if (!dropWhatStayed(same?.takeIf { it.isDirectory }?.uri, child.uri)) SafDocs.delete(context, child.uri)
+            } else if (same != null && !same.isDirectory) {
+                SafDocs.delete(context, child.uri)
+            }
+        }
+        return SafDocs.list(context, copy)?.isNotEmpty() == true
     }
 
     private suspend fun copyTree(doc: SafDocs.Doc, targetDir: Uri): Uri? {
@@ -224,13 +252,15 @@ class TrashService @Inject constructor(
             }
             return dir
         }
-        val target = SafDocs.createFile(context, targetDir, doc.name) ?: return null
-        val written = runCatching { SafDocs.copyInto(context, doc.uri, target) }.getOrNull()
-        if (!LibraryMoveRules.mayDeleteSource(doc.size, written)) {
-            SafDocs.delete(context, target)
-            return null
+        // Under a temporary name, checked against the original (size and sampled bytes), then renamed.
+        return try {
+            SafDocs.copyFileVerified(context, doc.uri, doc.size, targetDir, doc.name)
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Could not copy ${doc.name}: ${e.message}")
+            null
         }
-        return target
     }
 
     // ---- UndoHandler (UndoKinds.TRASH): the entry's data is the batch id -------------------------

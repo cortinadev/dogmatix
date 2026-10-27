@@ -276,6 +276,7 @@
     <string name="download_started">Se ha iniciado la descarga de "%1$s"</string>
     <string name="download_speed">%1$.2f MB/s</string>
     <string name="download_started_at">Iniciada %1$s</string>
+    <string name="download_restarts_from_zero">Se reanudará desde el principio</string>
     <string name="download_finished_at">%1$s</string>
     <string name="download_size">Tamaño: %1$s</string>
     <string name="download_cancel">Cancelar descarga</string>
@@ -367,6 +368,10 @@
     <string name="sources_delete_console_message">Se eliminarán la consola, sus fuentes y sus juegos indexados. Los archivos descargados se conservan.</string>
     <string name="sources_delete_url_title">¿Eliminar fuente?</string>
     <string name="sources_delete_url_message">%1$s se quitará de esta consola. Reescanea para retirar sus juegos de la biblioteca.</string>
+    <string name="sources_manufacturer_no_consoles">Sin consolas</string>
+    <string name="sources_delete_manufacturer">Eliminar fabricante</string>
+    <string name="sources_delete_manufacturer_title">¿Eliminar %1$s?</string>
+    <string name="sources_delete_manufacturer_message">Ya no tiene consolas: solo se elimina el fabricante.</string>
     <string name="dialog_delete">Eliminar</string>
     <string name="dialog_save">Guardar</string>
     <string name="dialog_ok">Aceptar</string>
@@ -384,10 +389,10 @@
     <string name="sources_url_type">Tipo: %1$s</string>
 
     <string name="dialog_add_source">Añadir fuente</string>
-    <string name="dialog_add_source_hint">Introduce una URL, un enlace magnet o sube un archivo .torrent:</string>
+    <string name="dialog_add_source_hint">Introduce una URL (también un ítem o un ZIP de Internet Archive), un enlace magnet o sube un archivo .torrent:</string>
     <string name="dialog_from_romm">Desde tu servidor RomM:</string>
     <string name="dialog_url_label">URL / Magnet</string>
-    <string name="dialog_url_placeholder">https://…, magnet:? o romm://psp</string>
+    <string name="dialog_url_placeholder">https://…, magnet:?, romm://psp o archive.org/details/…</string>
     <string name="dialog_upload_torrent">Subir .torrent</string>
     <string name="dialog_content_type">Tipo de contenido:</string>
     <string name="dialog_add">Añadir</string>
@@ -397,6 +402,7 @@
     <string name="dialog_name">Nombre</string>
     <string name="dialog_manufacturer">Fabricante:</string>
     <string name="dialog_new_manufacturer">O un fabricante nuevo</string>
+    <string name="dialog_known_consoles">Elige una consola o escribe su nombre abajo:</string>
 
     <string name="error_download_dir_missing">La carpeta de descargas no está configurada. Elige una en Ajustes.</string>
     <string name="error_download_dir_inaccessible">No se puede acceder a la carpeta de descargas. Revisa los permisos de la carpeta en Ajustes.</string>
@@ -458,6 +464,7 @@
 
     <!-- Reintentos y fallos de descarga, límite por servidor, mirrors, multidisco, versiones -->
     <string name="status_retry_at">Reintento a las %1$s</string>
+    <string name="status_retry_when_open">Reintento al abrir la app</string>
     <string name="failure_network">Sin conexión</string>
     <string name="failure_timeout">Tiempo de espera agotado</string>
     <string name="failure_server">Error del servidor</string>
@@ -496,6 +503,47 @@
     <string name="region_australia">Australia</string>
     <string name="dialog_mirrors_label">Direcciones de reserva (una por línea)</string>
     <string name="dialog_mirrors_hint">La misma carpeta en otros servidores: se prueban por turno si falla una descarga desde la dirección principal</string>
+    <string name="dialog_scrape_toggle">Página con selectores CSS</string>
+    <string name="dialog_scrape_toggle_hint">Para sitios cuya lista de juegos no es un listado de carpeta</string>
+    <string name="dialog_scrape_item">Elemento (obligatorio)</string>
+    <string name="dialog_scrape_item_hint">table.list tr · ul.roms li · a.rom</string>
+    <string name="dialog_scrape_link">Enlace</string>
+    <string name="dialog_scrape_link_hint">a@href · vacío = el enlace del elemento</string>
+    <string name="dialog_scrape_name">Nombre</string>
+    <string name="dialog_scrape_name_hint">td.title · a@title · vacío = texto del enlace</string>
+    <string name="dialog_scrape_size">Tamaño</string>
+    <string name="dialog_scrape_size_hint">span.s · td:nth-child(3) · vacío = sin tamaño</string>
+    <string name="dialog_scrape_pages">Páginas para {page}</string>
+    <string name="dialog_scrape_pages_hint">1-50 · A-Z · 0,A-Z · vacío = 1-100</string>
+    <string name="dialog_scrape_ext">Extensión</string>
+    <string name="dialog_scrape_ext_hint">zip (si el enlace no la tiene)</string>
+    <plurals name="dialog_scrape_test_items">
+        <item quantity="one">%d elemento · primera página</item>
+        <item quantity="other">%d elementos · primera página</item>
+    </plurals>
+    <string name="dialog_scrape_test_none">Ningún elemento coincide con el selector</string>
+    <string name="dialog_scrape_test_no_links">%1$d elementos coinciden, ninguno con enlace a fichero</string>
+    <string name="dialog_scrape_test_bad_selector">Selector no válido: %1$s</string>
+    <string name="dialog_scrape_test_bad_pages">Páginas no válidas: %1$s</string>
+    <string name="sources_url_type_scrape">Tipo: %1$s · selectores</string>
+    <!-- Internet Archive (fuentes ia://, el visor de ZIP, la sesión de archive.org) -->
+    <string name="scrape_listing_ia">Leyendo el ítem %1$s de Internet Archive…</string>
+    <string name="scrape_ia_invalid_source">Fuente de Internet Archive no válida ‘%1$s’ (se esperaba ia://&lt;ítem&gt;)</string>
+    <string name="check_against_ia">Internet Archive</string>
+    <string name="nav_ia_login">Entrar en Internet Archive</string>
+    <string name="settings_ia_session">Internet Archive</string>
+    <string name="settings_ia_session_none">Sin sesión · para ítems que piden cuenta</string>
+    <string name="settings_ia_session_as">Sesión de %1$s</string>
+    <string name="ia_login_intro">Inicia sesión en archive.org. Dogmatix guarda solo la sesión, nunca la contraseña</string>
+    <string name="ia_login_done">Sesión iniciada en Internet Archive</string>
+    <string name="ia_login_outside_blocked">El inicio de sesión con Google no funciona dentro de la app. Usa tu email y contraseña; si tu cuenta se creó con Google, pide antes una contraseña en archive.org («Forgot password»)</string>
+    <string name="ia_session_check">Comprobar</string>
+    <string name="ia_session_valid">Sesión válida · %1$s</string>
+    <string name="ia_session_expired">La sesión de Internet Archive caducó; vuelve a entrar en Ajustes</string>
+    <string name="ia_session_check_failed">No se pudo contactar con archive.org</string>
+    <string name="ia_logout">Cerrar sesión</string>
+    <string name="ia_logout_message">Dogmatix olvidará la sesión de archive.org en este dispositivo</string>
+    <string name="search_kw_ia_session">cuenta, sesión, iniciar sesión, restringido, archive.org</string>
     <plurals name="game_discs">
         <item quantity="one">%d disco</item>
         <item quantity="other">%d discos</item>
@@ -525,6 +573,7 @@
     <string name="scan_kind_auto">Automático</string>
     <string name="scan_kind_retry">Reintento de las fallidas</string>
     <string name="scan_kind_new_sources">Fuentes nuevas incluidas</string>
+    <string name="scan_kind_sources">Fuentes reactivadas</string>
     <string name="scan_status_updated">Actualizada</string>
     <string name="scan_status_unchanged">Sin cambios</string>
     <string name="scan_status_failed">Fallida</string>
@@ -534,6 +583,7 @@
     <string name="scan_failure_server">Error del servidor</string>
     <string name="scan_failure_timeout">El servidor tardó demasiado en responder</string>
     <string name="scan_failure_connection">Se cortó la conexión</string>
+    <string name="scan_failure_unreachable">No se pudo conectar con el servidor (puede que esté apagado)</string>
     <string name="scan_failure_offline">No se encontró el servidor, o no hay conexión</string>
     <string name="scan_failure_secure">Falló la conexión segura</string>
     <string name="scan_failure_not_found">La dirección ya no existe</string>
@@ -588,6 +638,11 @@
     <string name="scan_notification_text">Lo ha encontrado el escaneo automático</string>
     <!-- dl-motor -->
     <string name="failure_wrong_content">El servidor envió una página web, no el fichero</string>
+    <!-- 1.4-almacen -->
+    <string name="failure_extraction">No se pudo descomprimir (comprimido dañado o no compatible)</string>
+    <string name="failure_extraction_no_space">No hay espacio para descomprimirlo</string>
+    <string name="failure_permission_lost">Se perdió el acceso a la carpeta de descargas</string>
+    <string name="failure_storage_gone">Almacenamiento no disponible (¿tarjeta SD retirada?)</string>
     <string name="check_checking">Comprobando…</string>
     <string name="check_verified">Verificado · %1$s</string>
     <string name="check_verified_partial">Verificado · %1$s (%2$d/%3$d)</string>
@@ -1158,6 +1213,22 @@
         <item quantity="one">%1$d no se pudo hacer</item>
         <item quantity="other">%1$d no se pudieron hacer</item>
     </plurals>
+    <!-- 1.4-almacen -->
+    <string name="collection_problem_no_space">no hay espacio suficiente</string>
+    <string name="collection_problem_permission">se perdió el acceso a una carpeta de la biblioteca (vuelve a elegirla en Ajustes)</string>
+    <string name="collection_problem_volume">almacenamiento no disponible (¿tarjeta SD retirada?)</string>
+    <plurals name="collection_unverified">
+        <item quantity="one">%1$d copia no coincidía con su original (conservado)</item>
+        <item quantity="other">%1$d copias no coincidían con sus originales (conservados)</item>
+    </plurals>
+    <plurals name="collection_delete_files_with_tracks">
+        <item quantity="one">%1$d fichero (incluidas %2$d pistas y listas de los discos)</item>
+        <item quantity="other">%1$d ficheros (incluidas %2$d pistas y listas de los discos)</item>
+    </plurals>
+    <plurals name="collection_delete_rewrites">
+        <item quantity="one">%d lista .m3u se reescribe sin los discos borrados</item>
+        <item quantity="other">%d listas .m3u se reescriben sin los discos borrados</item>
+    </plurals>
     <!-- coleccion-gestion -->
     <string name="details_collection">Colección</string>
     <!-- History and trash -->
@@ -1249,6 +1320,13 @@
     <string name="move_abandon">Dejarlo así</string>
     <string name="move_abandon_title">¿Dejar el movimiento como está?</string>
     <string name="move_abandon_message">Lo ya movido se queda en el sitio nuevo y los ajustes no cambian, así que esos juegos no se encontrarán hasta que se vuelva a hacer el movimiento.</string>
+    <!-- 1.4-almacen -->
+    <string name="move_permission_lost">Se perdió el acceso a una carpeta del movimiento: vuelve a elegirla en Ajustes y reanúdalo</string>
+    <string name="move_volume_gone">El almacenamiento del movimiento no está disponible (¿tarjeta SD retirada?): vuelve a ponerla y reanúdalo</string>
+    <plurals name="move_unverified">
+        <item quantity="one">%d copia no coincidía con su original, así que el original se quedó</item>
+        <item quantity="other">%d copias no coincidían con sus originales, así que los originales se quedaron</item>
+    </plurals>
     <!-- Smart storage -->
     <string name="storage_volumes">Almacenamiento</string>
     <string name="storage_intro">Elige una carpeta de la tarjeta SD como segunda biblioteca. Cada consola tiene su carpeta en una de las dos; las consolas grandes pueden ir a la SD, y una descarga que no cabe va a la otra.</string>
@@ -1380,4 +1458,5 @@
     <string name="update_error_bad_apk">El fichero descargado no es un APK válido de Dogmatix. Vuelve a intentarlo más tarde.</string>
     <string name="update_error_signature">Esta actualización está firmada con otra clave que la app instalada, así que Android no la instalará encima. Consulta la página de la versión en GitHub.</string>
     <string name="update_error_storage">No hay espacio libre suficiente para descargar la actualización.</string>
+    <string name="update_error_older">El APK descargado no es más nuevo que la versión instalada, así que no puede actualizarla. Consulta la página de la versión en GitHub.</string>
 </resources>

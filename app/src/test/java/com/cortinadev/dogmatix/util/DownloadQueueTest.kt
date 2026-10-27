@@ -1,6 +1,7 @@
 package com.cortinadev.dogmatix.util
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -159,6 +160,79 @@ class DownloadQueueTest {
         assertEquals(listOf("b", "c"), queue.grant().names())
         queue.slots = 0
         assertEquals(1, queue.slots)
+    }
+
+    @Test
+    fun aFullServerDoesNotHoldUpAnotherOne() {
+        // Two servers, one download each at a time, three slots.
+        val queue = DownloadQueue(slots = 3, perHost = 1)
+        queue.enqueue("a1", "a.example")
+        queue.enqueue("a2", "a.example")
+        queue.enqueue("a3", "a.example")
+        queue.enqueue("b1", "b.example")
+        queue.enqueue("b2", "b.example")
+        assertEquals(listOf("a1", "b1"), queue.grant().names())
+        // The third slot stays free rather than going to a server that is already busy.
+        assertEquals(2, queue.runningCount)
+        assertEquals(listOf("a2", "a3", "b2"), queue.names())
+        queue.finish("b1")
+        // b's turn comes although a2 and a3 are ahead of it in line.
+        assertEquals(listOf("b2"), queue.grant().names())
+        queue.finish("a1")
+        assertEquals(listOf("a2"), queue.grant().names())
+    }
+
+    @Test
+    fun cancelledWhileWaitingItNeverCountsAsRunning() {
+        val queue = DownloadQueue(slots = 1)
+        listOf("a", "b").forEach { queue.enqueue(it, null) }
+        assertEquals(listOf("a"), queue.grant().names())
+        // b is paused while it waits: it leaves the line and frees nothing.
+        assertEquals("b", queue.remove("b")?.name)
+        assertFalse(queue.finish("b"))
+        assertEquals(1, queue.runningCount)
+        queue.finish("a")
+        assertTrue(queue.grant().isEmpty())
+        assertEquals(0, queue.runningCount)
+    }
+
+    @Test
+    fun aSlotIsGivenBackOnceAndOnlyByItsOwnStart() {
+        val queue = DownloadQueue(slots = 1)
+        val first = queue.enqueue("a", null)!!
+        queue.grant()
+        assertTrue(queue.finish("a", first.serial))
+        assertFalse(queue.finish("a", first.serial))
+        // Started again: the first job ending late cannot free the slot of the second one.
+        val second = queue.enqueue("a", null)!!
+        queue.enqueue("b", null)
+        assertEquals(listOf("a"), queue.grant().names())
+        assertFalse(queue.finish("a", first.serial))
+        assertTrue(queue.grant().isEmpty())
+        assertTrue(queue.finish("a", second.serial))
+        assertEquals(listOf("b"), queue.grant().names())
+        // Leaving the line works the same way: only that entry.
+        val waiting = queue.enqueue("c", null)!!
+        assertNull(queue.remove("c", waiting.serial + 100))
+        assertEquals("c", queue.remove("c", waiting.serial)?.name)
+    }
+
+    @Test
+    fun aRestartBringsBackOrderAndHoldsAndTheRestGoesAfter() {
+        // Saved by the previous run: c held at the front, then a, then b.
+        val saved = mapOf("a" to 4L, "b" to 9L, "c" to -2L)
+        val queue = DownloadQueue(slots = 2).apply { seed(saved.values) }
+        // Resumed in history order, not line order.
+        listOf("b", "a", "c").forEach { queue.enqueue(it, null, saved.getValue(it), held = it == "c") }
+        assertEquals(listOf("c", "a", "b"), queue.names())
+        assertTrue(queue.entry("c")!!.held)
+        // The held row keeps its place but does not start (nor need the service).
+        assertEquals(listOf("a", "b"), queue.grant().names())
+        // Started after the restart: behind everything saved.
+        assertTrue(queue.enqueue("d", null)!!.order > 9L)
+        queue.finish("a")
+        queue.setHeld("c", false)
+        assertEquals(listOf("c"), queue.grant().names())
     }
 
     @Test

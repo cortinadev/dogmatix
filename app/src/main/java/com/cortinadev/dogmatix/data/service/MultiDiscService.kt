@@ -1,7 +1,6 @@
 package com.cortinadev.dogmatix.data.service
 
 import android.content.Context
-import android.provider.DocumentsContract
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
@@ -12,6 +11,8 @@ import com.cortinadev.dogmatix.util.DiscRef
 import com.cortinadev.dogmatix.util.FileParsingUtils
 import com.cortinadev.dogmatix.util.MultiDisc
 import com.cortinadev.dogmatix.util.StorageHelper
+import com.cortinadev.dogmatix.util.StorageProblem
+import com.cortinadev.dogmatix.util.StorageProblems
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,7 +35,17 @@ data class DiscSetOutcome(
     /** `<game>.m3u` when the download's discs now sit in that folder. */
     val setFolder: String? = null,
     /** A disc of a set that will be gathered once its other discs arrive. */
-    val waitingForDiscs: Boolean = false
+    val waitingForDiscs: Boolean = false,
+    /**
+     * Files of the set that could not go into its folder (a different file of that name already
+     * inside, a copy that did not match, a folder that cannot be written): the playlist names only
+     * the discs that are inside, and Collection → Health offers to finish the set.
+     */
+    val left: List<String> = emptyList(),
+    /** Why [left] could not be moved, when that can be told. */
+    val problem: StorageProblem? = null,
+    /** What the sets' sheets name that is not on disk (reported, the playlist is still written). */
+    val missingReferences: List<String> = emptyList()
 )
 
 /**
@@ -42,6 +53,9 @@ data class DiscSetOutcome(
  * `<console>/<game>.m3u/` next to a `<game>.m3u` playlist (ES-DE shows the folder as one game and
  * the emulator swaps discs from the playlist). Only for systems whose emulators read `.m3u`; a
  * disc that arrives later (re-download) joins the existing folder and the playlist is rewritten.
+ * Nothing in the folder is ever replaced, and a disc copied between folders is checked before its
+ * original goes; a set cut short (a crash between two discs) is finished by the next arrival, since
+ * the plan looks at the loose discs and the ones already inside.
  */
 @Singleton
 class MultiDiscService @Inject constructor(
@@ -104,17 +118,39 @@ class MultiDiscService @Inject constructor(
             expectedDiscs = expected
         ) { sheet -> sheetFiles(looseFiles[sheet] ?: inSetFiles[sheet]) }
             ?: return DiscSetOutcome(fileName, waitingForDiscs = maxOf(expected, disc.total ?: 0) >= 2)
+        if (plan.missing.isNotEmpty()) Log.w(TAG, "$folderName: the sheets name files that are not there: ${plan.missing}")
 
         // An older playlist with the folder's name would make the provider rename the folder.
         plan.conflictingFile?.let { looseFiles[it]?.delete() }
-        val target = setDir ?: dir.createDirectory(folderName) ?: return none
+        val target = setDir ?: dir.createDirectory(folderName)
+            ?: return none.copy(left = plan.moves, problem = SafDocs.problemOf(context, dir.uri.toString()))
+        val left = ArrayList<String>()
+        val problems = ArrayList<StorageProblem?>()
         for (name in plan.moves) {
             val file = looseFiles[name] ?: continue
-            if (!move(file, dir, target)) Log.w(TAG, "Could not move $name into $folderName")
+            val placed = SafDocs.moveFile(context, SafDocs.Doc(file.uri, name, false, file.length()), dir.uri, target.uri)
+            when (placed.placement) {
+                SafDocs.Placement.MOVED, SafDocs.Placement.ALREADY_THERE -> Unit
+                else -> {
+                    Log.w(TAG, "Could not move $name into $folderName (${placed.placement}${placed.problem?.let { ", $it" }.orEmpty()})")
+                    left += name
+                    problems += placed.problem
+                }
+            }
         }
-        StorageHelper.writeTextSafely(context, target, "", plan.name, plan.content)
-        Log.i(TAG, "Wrote $folderName with ${plan.entries.size} discs")
-        return DiscSetOutcome(fileName, setFolder = folderName)
+        val problem = StorageProblems.worst(problems)
+        // The playlist names what really is in the folder: a disc left outside never shows up as a
+        // broken entry, and the folder always has something to launch (Health offers the rest).
+        val playlist = plan.inFolder(SafDocs.list(context, target.uri)?.map { it.name }.orEmpty())
+        if (playlist.entries.isEmpty()) {
+            // Nothing made it in: the folder this run made goes again.
+            if (setDir == null && SafDocs.list(context, target.uri)?.isEmpty() == true) SafDocs.delete(context, target.uri)
+            return DiscSetOutcome(fileName, left = left, problem = problem, missingReferences = plan.missing)
+        }
+        StorageHelper.writeTextSafely(context, target, "", playlist.name, playlist.content)
+        if (left.isEmpty()) Log.i(TAG, "Wrote $folderName with ${playlist.entries.size} discs")
+        else Log.w(TAG, "Wrote $folderName with ${playlist.entries.size} of ${plan.entries.size} discs; left outside: $left")
+        return DiscSetOutcome(fileName, setFolder = folderName, left = left, problem = problem, missingReferences = plan.missing)
     }
 
     /** Discs the catalogue lists for this release (same game, same name save for the disc tag). */
@@ -135,29 +171,5 @@ class MultiDiscService @Inject constructor(
             "gdi" -> MultiDisc.gdiFiles(text)
             else -> emptyList()
         }
-    }
-
-    /**
-     * Moves within the volume (no copy) when the provider can; otherwise copies and deletes the
-     * original. A file of the same name already in [to] is replaced.
-     */
-    private fun move(file: DocumentFile, from: DocumentFile, to: DocumentFile): Boolean {
-        val name = file.name ?: return false
-        to.findFile(name)?.takeIf { it.isFile }?.delete()
-        val moved = runCatching { DocumentsContract.moveDocument(context.contentResolver, file.uri, from.uri, to.uri) != null }
-            .onFailure { Log.w(TAG, "moveDocument failed for $name: ${it.message}") }
-            .getOrDefault(false)
-        if (moved) return true
-        val copy = to.createFile("application/octet-stream", name) ?: return false
-        val copied = runCatching {
-            context.contentResolver.openInputStream(file.uri)!!.use { input ->
-                context.contentResolver.openOutputStream(copy.uri)!!.use { input.copyTo(it, 1 shl 20) }
-            }
-        }.isSuccess
-        if (!copied) {
-            copy.delete()
-            return false
-        }
-        return file.delete()
     }
 }

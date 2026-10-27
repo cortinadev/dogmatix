@@ -31,6 +31,9 @@ import com.cortinadev.dogmatix.ui.screens.sources.components.AddConsoleDialog
 import com.cortinadev.dogmatix.ui.screens.sources.components.AddUrlDialog
 import com.cortinadev.dogmatix.ui.screens.sources.components.ConfirmDialog
 import com.cortinadev.dogmatix.ui.screens.sources.components.ConsoleCard
+import com.cortinadev.dogmatix.ui.screens.sources.components.EmptyManufacturerCard
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import com.cortinadev.dogmatix.ui.components.DialogButton
 import com.cortinadev.dogmatix.ui.components.closeOnGamepadB
 import com.cortinadev.dogmatix.ui.components.rememberInitialFocus
@@ -123,6 +126,38 @@ fun SourcesScreen(
         reveal = target
     }
 
+    // Deleting an empty manufacturer: the focus goes to its neighbour (the next one, else the one
+    // before, else the last console, else "Add console"), never left on a card that has gone.
+    val addConsoleFocus = remember { FocusRequester() }
+    val lastConsoleFocus = remember { FocusRequester() }
+    val manufacturerFocus = remember { mutableMapOf<String, FocusRequester>() }
+    /** The manufacturer being deleted and the empty one that takes the focus after it (null = none left). */
+    var refocus by remember { mutableStateOf<Pair<String, String?>?>(null) }
+    LaunchedEffect(manufacturers) {
+        val (deleted, neighbour) = refocus ?: return@LaunchedEffect
+        if (manufacturers.any { it.id == deleted }) return@LaunchedEffect
+        refocus = null
+        val consoles = sortedConsoles(manufacturers)
+        val empties = emptyManufacturers(manufacturers)
+        // Same items above the cards as the search jump; the empty ones follow the consoles (or the "no sources" card).
+        val firstCard = 2 + (if (isLandscape) 0 else 1) + (if (isRescanning || lastReport != null) 1 else 0)
+        val firstEmpty = firstCard + maxOf(consoles.size, 1)
+        val next = neighbour?.let { id -> empties.indexOfFirst { it.id == id } }?.takeIf { it >= 0 }
+        val (index, requester) = when {
+            next != null -> firstEmpty + next to manufacturerFocus.getOrPut(empties[next].id) { FocusRequester() }
+            consoles.isNotEmpty() -> firstCard + consoles.size - 1 to lastConsoleFocus
+            else -> 0 to addConsoleFocus
+        }
+        if (listState.layoutInfo.visibleItemsInfo.none { it.index == index }) listState.scrollToItem(index)
+        // The dialog's window has just gone: give the screen's window a couple of frames to take the focus back.
+        withFrameNanos { }
+        withFrameNanos { }
+        repeat(5) {
+            if (runCatching { requester.requestFocus() }.isSuccess) return@LaunchedEffect
+            withFrameNanos { }
+        }
+    }
+
     LazyColumn(
         state = listState,
         modifier = Modifier.fillMaxSize(),
@@ -136,6 +171,7 @@ fun SourcesScreen(
                 isRescanning = isRescanning,
                 isLandscape = isLandscape,
                 onAddConsole = { viewModel.showAddConsoleDialog() },
+                addConsoleFocus = addConsoleFocus,
                 onRescan = { viewModel.rescanAllSources() },
                 onFullRescan = { viewModel.rescanAllSources(force = true) },
                 onExport = { viewModel.exportSources(::shareExport) },
@@ -163,7 +199,9 @@ fun SourcesScreen(
             )
         }
 
-        if (manufacturers.isEmpty()) {
+        // Flat, alphabetical console list; the manufacturer is only a subtitle on each card.
+        val consoles = sortedConsoles(manufacturers)
+        if (consoles.isEmpty()) {
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -192,10 +230,9 @@ fun SourcesScreen(
                 }
             }
         } else {
-            // Flat, alphabetical console list; the manufacturer is only a subtitle on each card.
-            val consoles = sortedConsoles(manufacturers)
             items(consoles, key = { (_, c) -> c.id }) { (manufacturer, console) ->
                 ConsoleCard(
+                    focusTarget = lastConsoleFocus.takeIf { console.id == consoles.last().second.id },
                     reveal = reveal?.takeIf { it.consoleId == console.id },
                     onRevealed = { reveal = null },
                     console = console,
@@ -216,11 +253,22 @@ fun SourcesScreen(
                 )
             }
         }
+
+        // Manufacturers left without consoles: invisible in a list of consoles, so they get a card
+        // of their own, after them, with the one thing left to do (delete it).
+        items(emptyManufacturers(manufacturers), key = { "manufacturer:${it.id}" }) { manufacturer ->
+            EmptyManufacturerCard(
+                name = manufacturer.name,
+                onDelete = { viewModel.confirmDeleteManufacturer(manufacturer) },
+                focusRequester = manufacturerFocus.getOrPut(manufacturer.id) { FocusRequester() }
+            )
+        }
     }
 
     val dialog by viewModel.dialog.collectAsState()
 
     val rommPlatforms by viewModel.rommPlatforms.collectAsState()
+    val scrapeTest by viewModel.scrapeTest.collectAsState()
     val importMessage by viewModel.importMessage.collectAsState()
 
     val mergeConsoleId by viewModel.mergeConsoleId.collectAsState()
@@ -247,8 +295,8 @@ fun SourcesScreen(
         SourcesDialog.AddConsole -> AddConsoleDialog(
             manufacturers = manufacturers,
             onDismiss = { viewModel.dismissDialog() },
-            onConfirmWithManufacturer = { manufacturerName, values -> viewModel.addConsoleUnderNewManufacturer(manufacturerName, values.name, values.shortName, values.aliases, values.color) },
-            onConfirmExisting = { manufacturerId, values -> viewModel.addConsole(manufacturerId, values.name, values.shortName, values.aliases, values.color) }
+            onConfirmWithManufacturer = { manufacturerName, values -> viewModel.addConsoleUnderNewManufacturer(manufacturerName, values.name, values.shortName, values.aliases, values.color, values.key) },
+            onConfirmExisting = { manufacturerId, values -> viewModel.addConsole(manufacturerId, values.name, values.shortName, values.aliases, values.color, values.key) }
         )
         is SourcesDialog.EditConsole -> AddConsoleDialog(
             existing = d.console,
@@ -257,14 +305,20 @@ fun SourcesScreen(
         )
         is SourcesDialog.AddUrl -> AddUrlDialog(
             rommPlatforms = rommPlatforms,
+            scrapeTest = scrapeTest,
+            onTestScrape = viewModel::testScrape,
+            onResetScrapeTest = viewModel::resetScrapeTest,
             onDismiss = { viewModel.dismissDialog() },
-            onConfirm = { url, contentType, mirrors -> viewModel.addUrl(d.consoleId, url, contentType, mirrors) }
+            onConfirm = { v -> viewModel.addUrl(d.consoleId, v.url, v.contentType, v.mirrors, v.scrape) }
         )
         is SourcesDialog.EditUrl -> AddUrlDialog(
             existing = d.entry,
             rommPlatforms = rommPlatforms,
+            scrapeTest = scrapeTest,
+            onTestScrape = viewModel::testScrape,
+            onResetScrapeTest = viewModel::resetScrapeTest,
             onDismiss = { viewModel.dismissDialog() },
-            onConfirm = { url, contentType, mirrors -> viewModel.updateUrl(d.consoleId, d.index, url, contentType, mirrors) }
+            onConfirm = { v -> viewModel.updateUrl(d.consoleId, d.index, v.url, v.contentType, v.mirrors, v.scrape) }
         )
         is SourcesDialog.ConfirmDeleteConsole -> ConfirmDialog(
             title = stringResource(R.string.sources_delete_console_title, d.name),
@@ -278,6 +332,18 @@ fun SourcesScreen(
             message = stringResource(R.string.sources_delete_url_message, d.url.take(80)),
             confirmText = stringResource(R.string.dialog_delete),
             onConfirm = { viewModel.deleteUrl(d.consoleId, d.index) },
+            onDismiss = { viewModel.dismissDialog() }
+        )
+        is SourcesDialog.ConfirmDeleteManufacturer -> ConfirmDialog(
+            title = stringResource(R.string.sources_delete_manufacturer_title, d.name),
+            message = stringResource(R.string.sources_delete_manufacturer_message),
+            confirmText = stringResource(R.string.dialog_delete),
+            onConfirm = {
+                val empties = emptyManufacturers(manufacturers)
+                val at = empties.indexOfFirst { it.id == d.manufacturerId }
+                refocus = d.manufacturerId to (empties.getOrNull(at + 1) ?: empties.getOrNull(at - 1))?.id
+                viewModel.deleteManufacturer(d.manufacturerId)
+            },
             onDismiss = { viewModel.dismissDialog() }
         )
         SourcesDialog.ConfirmImport -> ConfirmDialog(
@@ -318,6 +384,11 @@ fun SourcesScreen(
 private fun sortedConsoles(manufacturers: List<Manufacturer>) = manufacturers
     .flatMap { m -> m.consoles.map { m to it } }
     .sortedBy { (_, c) -> c.name.lowercase() }
+
+/** Manufacturers without a console, alphabetical: they go after the consoles, each with its delete button. */
+private fun emptyManufacturers(manufacturers: List<Manufacturer>) = manufacturers
+    .filter { it.consoles.isEmpty() }
+    .sortedBy { it.name.lowercase() }
 
 /**
  * Root download directory. Per-console folders (see each console's "Download path")
@@ -382,6 +453,7 @@ private fun SourcesHeader(
     isRescanning: Boolean,
     isLandscape: Boolean,
     onAddConsole: () -> Unit,
+    addConsoleFocus: FocusRequester,
     onRescan: () -> Unit,
     onFullRescan: () -> Unit,
     onExport: () -> Unit,
@@ -398,7 +470,7 @@ private fun SourcesHeader(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onAddConsole) {
+            IconButton(onClick = onAddConsole, modifier = Modifier.focusRequester(addConsoleFocus)) {
                 Icon(painterResource(R.drawable.ic_add), contentDescription = stringResource(R.string.sources_add_console))
             }
             IconButton(onClick = onExport) {

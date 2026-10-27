@@ -283,11 +283,16 @@ object CollectionHealth {
         if (parents.any { it != parentUri && it != setFolderUri }) return null
         val looseNames = byParent[parentUri].orEmpty().map { it.name }
         val existingFolder = setFolderUri ?: setFolderOf(parentUri)?.uri
-        val inSetNames = existingFolder?.let { uri -> byParent[uri].orEmpty().map { it.name } }.orEmpty()
-        // A playlist already in place (a loose one next to the discs, or inside the folder) is fine.
-        if (looseNames.any { it.equals(playlistName, ignoreCase = true) } || inSetNames.any { it.equals(playlistName, ignoreCase = true) }) return null
-        val sheets = (byParent[parentUri].orEmpty() + existingFolder?.let { byParent[it] }.orEmpty()).associateBy { it.name }
+        val inSetFiles = existingFolder?.let { uri -> byParent[uri].orEmpty() }.orEmpty()
+        val inSetNames = inSetFiles.map { it.name }
+        // A loose playlist next to the discs is fine.
+        if (looseNames.any { it.equals(playlistName, ignoreCase = true) }) return null
+        val sheets = (byParent[parentUri].orEmpty() + inSetFiles).associateBy { it.name }
         val plan = MultiDisc.plan(setStem, looseNames, inSetNames, expected) { sheet -> sheets[sheet]?.references.orEmpty() } ?: return null
+        // One inside the folder is fine when it names every disc (unread: taken as fine); one that
+        // lists only part of the set (a disc that could not go in) is offered to be finished.
+        val inside = inSetFiles.firstOrNull { it.name.equals(playlistName, ignoreCase = true) }
+        if (inside != null && (inside.references == null || plan.coveredBy(inside.references))) return null
         val first = discs.first()
         val moving = byParent[parentUri].orEmpty().filter { it.name in plan.moves }
         return HealthFinding(

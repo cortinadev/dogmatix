@@ -48,6 +48,7 @@ fun rememberCheckResult(fileName: String): CheckResult? {
 private fun againstLabel(against: String?): String = when {
     against == null -> ""
     against == DownloadCheck.ROMM -> stringResource(R.string.check_against_romm)
+    against == DownloadCheck.IA -> stringResource(R.string.check_against_ia)
     against == DownloadCheck.NO_INTRO -> stringResource(R.string.check_against_no_intro)
     against == DownloadCheck.REDUMP -> stringResource(R.string.check_against_redump)
     against.startsWith(DownloadCheck.IMPORTED_PREFIX) -> stringResource(R.string.check_against_imported)

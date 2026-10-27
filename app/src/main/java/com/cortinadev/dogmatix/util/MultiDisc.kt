@@ -22,9 +22,28 @@ data class DiscPlaylist(
     /** Files next to the folder that belong to the set (images, tracks, sheets) and move into it. */
     val moves: List<String>,
     /** A loose file already called [name] (an older playlist) that is in the folder's way. */
-    val conflictingFile: String?
+    val conflictingFile: String?,
+    /** What the sheets name that is neither loose nor in the folder: reported, it does not hold the playlist back. */
+    val missing: List<String> = emptyList()
 ) {
     val content: String get() = entries.joinToString("\n", postfix = "\n")
+
+    /**
+     * The playlist for what really is in the set folder ([inFolder]: its file names) once the
+     * moves are done: the entries that made it in, in disc order and under their names there. A
+     * disc that could not go in (a different file of its name inside, a copy that did not match)
+     * stays out, so the playlist never names a file the folder lacks; Health offers the rest.
+     */
+    fun inFolder(inFolder: Collection<String>): DiscPlaylist {
+        val byKey = inFolder.associateBy { it.lowercase() }
+        return copy(entries = entries.mapNotNull { byKey[it.lowercase()] })
+    }
+
+    /** True when [listed] (what a playlist already there names) holds every entry of this one. */
+    fun coveredBy(listed: Collection<String>): Boolean {
+        val keys = listed.mapTo(HashSet()) { it.trim().replace('\\', '/').substringAfterLast('/').lowercase() }
+        return entries.all { it.lowercase() in keys }
+    }
 }
 
 object MultiDisc {
@@ -80,9 +99,14 @@ object MultiDisc {
 
     /**
      * Plans the set folder for [setStem]. [loose] are the file names next to it (the console
-     * folder), [inSet] the ones already inside `<set>.m3u/`. [expectedDiscs] is how many discs the
-     * catalogue lists for this release. [sheetFiles] returns what a `.cue` / `.gdi` refers to.
-     * Null until every disc from 1 to the expected count is on disk (and there are at least two).
+     * folder), [inSet] the ones already inside `<set>.m3u/` (a set cut short between two discs is
+     * finished from both). [expectedDiscs] is how many discs the catalogue lists for this release.
+     * [sheetFiles] returns what a `.cue` / `.gdi` refers to, matched without case (FAT, exFAT).
+     * Null until every disc from 1 to the expected count is on disk (and there are at least two),
+     * and when a sheet names a track that sits in another folder (moving the sheet would break it;
+     * a nested name whose file is loose next to the sheet moves along, as before). Names a sheet
+     * has but the disk has not end up in [DiscPlaylist.missing]. Half-copied `.dogmatix-part`
+     * files are never part of a set.
      */
     fun plan(
         setStem: String,
@@ -92,7 +116,9 @@ object MultiDisc {
         sheetFiles: (String) -> List<String> = { emptyList() }
     ): DiscPlaylist? {
         val name = "$setStem.m3u"
-        val ofSet = (loose + inSet).mapNotNull { file -> discOf(file)?.takeIf { it.setStem.equals(setStem, ignoreCase = true) }?.let { file to it } }
+        val looseNames = loose.filterNot { it.endsWith(PART_SUFFIX) }
+        val inSetNames = inSet.filterNot { it.endsWith(PART_SUFFIX) }
+        val ofSet = (looseNames + inSetNames).mapNotNull { file -> discOf(file)?.takeIf { it.setStem.equals(setStem, ignoreCase = true) }?.let { file to it } }
         val best = sortedMapOf<Int, String>()
         for ((file, disc) in ofSet) {
             if (!isDiscImage(file)) continue
@@ -105,27 +131,64 @@ object MultiDisc {
         if (required < 2 || (1..required).any { it !in best }) return null
 
         val entries = best.values.toList()
-        val looseSet = loose.toSet()
+        val looseByKey = looseNames.associateBy { it.lowercase() }
+        val inSetKeys = inSetNames.mapTo(HashSet()) { it.lowercase() }
         val moves = LinkedHashSet<String>()
+        val missing = LinkedHashSet<String>()
         for (entry in entries) {
             val stem = stripExtension(entry)
-            loose.filterTo(moves) { it == entry || it.startsWith("$stem.") || it.startsWith("$stem (") }
-            sheetFiles(entry).map { it.replace('\\', '/').substringAfterLast('/') }.filterTo(moves) { it in looseSet }
+            looseNames.filterTo(moves) { it == entry || it.startsWith("$stem.", ignoreCase = true) || it.startsWith("$stem (", ignoreCase = true) }
+            for (ref in sheetFiles(entry)) {
+                val local = sheetReference(ref) ?: continue
+                val leaf = local.substringAfterLast('/')
+                val hit = looseByKey[leaf.lowercase()]
+                when {
+                    // Out of the sheet's folder, or into one below it: moving the sheet would break the reference.
+                    local.split('/').any { it == ".." } -> return null
+                    '/' in local && hit == null -> return null
+                    hit != null -> moves += hit
+                    leaf.lowercase() !in inSetKeys -> missing += local
+                }
+            }
         }
-        return DiscPlaylist(name, entries, moves.toList(), conflictingFile = loose.firstOrNull { it.equals(name, ignoreCase = true) })
+        return DiscPlaylist(name, entries, moves.toList(), conflictingFile = looseNames.firstOrNull { it.equals(name, ignoreCase = true) }, missing = missing.toList())
     }
 
-    /** Files a cue sheet names: `FILE "Game (Track 1).bin" BINARY`. */
-    fun cueFiles(text: String): List<String> =
-        Regex("""(?im)^\s*FILE\s+(?:"([^"]+)"|(\S+))""").findAll(text)
-            .map { it.groupValues[1].ifEmpty { it.groupValues[2] }.trim() }
-            .filter { it.isNotEmpty() }.distinct().toList()
+    /**
+     * A sheet's reference relative to the sheet's own folder (`track01.bin`, `Disc 1/track01.bin`,
+     * `../track01.bin`), `./` and `\` normalised; null for an absolute path (already broken wherever
+     * the sheet sits: Health reports it).
+     */
+    fun sheetReference(ref: String): String? {
+        val clean = ref.trim().trim('"').replace('\\', '/')
+        if (clean.isEmpty() || clean.startsWith("/") || Regex("^[A-Za-z]:").containsMatchIn(clean) || "://" in clean) return null
+        return clean.split('/').filter { it.isNotEmpty() && it != "." }.joinToString("/").ifEmpty { null }
+    }
 
-    /** Files a Dreamcast gdi names: a track count, then `1 0 4 2352 track01.bin 0` per track. */
+    /**
+     * Files a cue sheet names: `FILE "Game (Track 1).bin" BINARY`, and unquoted (`FILE Game Track 1.bin
+     * BINARY`: everything up to the file type). A byte-order mark is skipped.
+     */
+    fun cueFiles(text: String): List<String> =
+        text.removePrefix("\uFEFF").lineSequence().mapNotNull { line ->
+            val rest = cueFileLine.find(line)?.groupValues?.get(1)?.trim() ?: return@mapNotNull null
+            if (rest.startsWith('"')) rest.substring(1).substringBefore('"') else rest.replace(cueFileType, "")
+        }.map { it.trim() }.filter { it.isNotEmpty() }.distinct().toList()
+
+    private val cueFileLine = Regex("""^\s*FILE\s+(.+)$""", RegexOption.IGNORE_CASE)
+    private val cueFileType = Regex("""\s+(BINARY|MOTOROLA|AIFF|WAVE|MP3|FLAC|OGG)\s*$""", RegexOption.IGNORE_CASE)
+
+    /**
+     * Files a Dreamcast gdi names: a track count, then `1 0 4 2352 track01.bin 0` per track (the
+     * name in quotes when it has spaces). Blank lines and a byte-order mark are skipped.
+     */
     fun gdiFiles(text: String): List<String> =
-        text.lineSequence().drop(1).map { it.trim() }.filter { it.isNotEmpty() }.mapNotNull { line ->
+        text.removePrefix("\uFEFF").lineSequence().map { it.trim() }.filter { it.isNotEmpty() }.drop(1).mapNotNull { line ->
             Regex(""""([^"]+)"""").find(line)?.groupValues?.get(1) ?: line.split(Regex("\\s+")).getOrNull(4)
         }.distinct().toList()
+
+    /** Suffix of a half-copied file (a move, an unpack, a download in progress). */
+    private const val PART_SUFFIX = ".dogmatix-part"
 
     fun extensionOf(fileName: String): String? = extension.find(fileName)?.groupValues?.get(1)?.lowercase()
 

@@ -1408,4 +1408,5 @@
     <string name="update_error_bad_apk">Die heruntergeladene Datei ist kein gültiges Dogmatix-APK. Versuche es später erneut.</string>
     <string name="update_error_signature">Dieses Update ist mit einem anderen Schlüssel signiert als die installierte App, daher installiert Android es nicht darüber. Siehe die Release-Seite auf GitHub.</string>
     <string name="update_error_storage">Nicht genug freier Speicher, um das Update herunterzuladen.</string>
+    <string name="update_error_older">Das heruntergeladene APK ist nicht neuer als die installierte Version und kann sie daher nicht aktualisieren. Siehe die Release-Seite auf GitHub.</string>
 </resources>

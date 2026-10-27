@@ -10,8 +10,12 @@ package com.cortinadev.dogmatix.util
  */
 class DownloadQueue(slots: Int = 3, perHost: Int = 0) {
 
-    /** [order]: smaller starts first; unique while every order comes from this queue's counters. */
-    data class Entry(val name: String, val host: String?, val order: Long, val held: Boolean = false)
+    /**
+     * [order]: smaller starts first; unique while every order comes from this queue's counters.
+     * [serial]: this entry and no other (a row put in line again gets a new one), so a job that
+     * ends late can never free the slot of the one that came after it.
+     */
+    data class Entry(val name: String, val host: String?, val order: Long, val held: Boolean = false, val serial: Long = 0)
 
     var slots: Int = slots.coerceAtLeast(1)
         set(value) { field = value.coerceAtLeast(1) }
@@ -22,10 +26,11 @@ class DownloadQueue(slots: Int = 3, perHost: Int = 0) {
 
     /** Sorted by [Entry.order]; equal orders keep their arrival order. */
     private val entries = ArrayList<Entry>()
-    /** Started and not finished yet: name → host. */
-    private val running = HashMap<String, String?>()
+    /** Started and not finished yet, by name. */
+    private val running = HashMap<String, Entry>()
     private var lowest = 0L
     private var highest = 0L
+    private var serials = 0L
 
     val waiting: List<Entry> get() = entries.toList()
     val runningCount: Int get() = running.size
@@ -47,22 +52,28 @@ class DownloadQueue(slots: Int = 3, perHost: Int = 0) {
      */
     fun enqueue(name: String, host: String?, order: Long? = null, held: Boolean = false): Entry? {
         if (isWaiting(name)) return null
-        val entry = Entry(name, host?.lowercase(), order ?: ++highest, held)
+        val entry = Entry(name, host?.lowercase(), order ?: ++highest, held, ++serials)
         seed(listOf(entry.order))
         val at = entries.indexOfFirst { it.order > entry.order }
         if (at < 0) entries += entry else entries.add(at, entry)
         return entry
     }
 
-    /** Leaves the line without starting (stopped, paused or deleted while waiting). */
-    fun remove(name: String): Entry? {
-        val index = entries.indexOfFirst { it.name == name }
+    /** Leaves the line without starting (stopped, paused or deleted while waiting); [serial]: only that entry. */
+    fun remove(name: String, serial: Long? = null): Entry? {
+        val index = entries.indexOfFirst { it.name == name && (serial == null || it.serial == serial) }
         return if (index < 0) null else entries.removeAt(index)
     }
 
-    /** A started download ended, whatever the outcome: its slot is free again. */
-    fun finish(name: String) {
+    /**
+     * A started download ended, whatever the outcome: its slot is free again. With [serial], only
+     * when that entry is the one running. Returns whether a slot was freed (once per start).
+     */
+    fun finish(name: String, serial: Long? = null): Boolean {
+        val current = running[name] ?: return false
+        if (serial != null && current.serial != serial) return false
         running.remove(name)
+        return true
     }
 
     /**
@@ -77,14 +88,14 @@ class DownloadQueue(slots: Int = 3, perHost: Int = 0) {
             val entry = iterator.next()
             if (entry.held || entry.name in running || hostFull(entry.host)) continue
             iterator.remove()
-            running[entry.name] = entry.host
+            running[entry.name] = entry
             started += entry
         }
         return started
     }
 
     private fun hostFull(host: String?): Boolean =
-        perHost > 0 && host != null && running.values.count { it == host } >= perHost
+        perHost > 0 && host != null && running.values.count { it.host == host } >= perHost
 
     /** One place earlier; returns the entries whose order changed (empty when nothing moved). */
     fun moveUp(name: String): List<Entry> = swap(name, -1)

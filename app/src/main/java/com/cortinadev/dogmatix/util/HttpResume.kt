@@ -17,7 +17,13 @@ object HttpResume {
     data class ContentRange(val start: Long?, val end: Long?, val total: Long?)
 
     /** What came back, as far as the decision goes ([contentLength] -1 = not given). */
-    data class Response(val code: Int, val contentRange: String?, val contentLength: Long, val contentType: String?)
+    data class Response(
+        val code: Int,
+        val contentRange: String?,
+        val contentLength: Long,
+        val contentType: String?,
+        val acceptRanges: String? = null
+    )
 
     sealed interface Plan {
         /** A 206 that continues the partial exactly: append its body. */
@@ -64,6 +70,28 @@ object HttpResume {
     fun isWebPage(contentType: String?, fileName: String): Boolean {
         val type = contentType?.substringBefore(';')?.trim()?.lowercase() ?: return false
         return type in pageTypes && fileName.substringAfterLast('.', "").lowercase() !in pageExtensions
+    }
+
+    /**
+     * A body that ended before the length it announced ([total], null or negative = unknown):
+     * the connection dropped early. It is never called complete; the partial stays for the next try.
+     */
+    fun isTruncated(received: Long, total: Long?): Boolean = total != null && total > 0 && received < total
+
+    /**
+     * Whether a later attempt can carry on what this answer starts (a pause, a stop, a dropped
+     * connection). A 206 or `Accept-Ranges: bytes` say yes and `Accept-Ranges: none` says no.
+     * Otherwise a length counts as a yes (many servers that honour `Range` leave the header out),
+     * and a body with neither, streamed as it is made (archive.org's ZIP viewer extracts each
+     * file on the fly and ignores `Range`), as a no: its partial is no use, the next attempt
+     * starts from zero.
+     */
+    fun canResume(response: Response): Boolean {
+        if (response.code == 206) return true
+        val units = response.acceptRanges?.split(',')?.map { it.trim().lowercase() }.orEmpty()
+        if ("bytes" in units) return true
+        if ("none" in units) return false
+        return response.contentLength >= 0
     }
 
     /**

@@ -43,7 +43,8 @@ sealed interface UpdateState {
     data class Failed(val release: AppRelease?, val error: UpdateError) : UpdateState
 }
 
-enum class UpdateError { NETWORK, BAD_APK, SIGNATURE, STORAGE }
+/** [OLDER]: the APK downloaded is not newer than the installed app. */
+enum class UpdateError { NETWORK, BAD_APK, SIGNATURE, STORAGE, OLDER }
 
 /**
  * New versions: checks the GitHub releases of the fork (on start, at most every 6 h, and on
@@ -276,22 +277,35 @@ class VersionCheckerService @Inject constructor(
     }
 
     /**
-     * The file is a Dogmatix APK of the expected size and, when it updates this very package,
-     * signed like it (Android would refuse it after the download otherwise). A debug build
-     * downloads the release, which is another package: only the name is checked there.
+     * The file is a Dogmatix APK of the expected size, newer than this app and, when it updates
+     * this very package, signed like it (Android would refuse it after the download otherwise).
+     * A debug build downloads the release, which is another package: only the name and the
+     * version are checked there. The rules are [AppUpdates.checkApk].
      */
     private fun verify(file: File, release: AppRelease): UpdateError? {
-        if (release.apkSize > 0 && file.length() != release.apkSize) return UpdateError.BAD_APK
         val pm = context.packageManager
         val flags = PackageManager.GET_SIGNING_CERTIFICATES
-        val archive = pm.getPackageArchiveInfo(file.path, flags) ?: return UpdateError.BAD_APK
-        if (archive.packageName != context.packageName.removeSuffix(".debug")) return UpdateError.BAD_APK
-        if (archive.packageName == context.packageName) {
-            val theirs = archive.signingInfo?.apkContentsSigners?.toSet()
-            val ours = runCatching { pm.getPackageInfo(context.packageName, flags).signingInfo?.apkContentsSigners?.toSet() }.getOrNull()
-            if (theirs != null && ours != null && theirs != ours) return UpdateError.SIGNATURE
+        val archive = pm.getPackageArchiveInfo(file.path, flags)
+        val ours = runCatching { pm.getPackageInfo(context.packageName, flags) }.getOrNull()
+        val apk = AppUpdates.ApkFacts(
+            fileSize = file.length(),
+            packageName = archive?.packageName,
+            versionName = archive?.versionName,
+            versionCode = archive?.longVersionCode ?: 0L,
+            signers = archive?.signingInfo?.apkContentsSigners?.mapTo(HashSet()) { it.toCharsString() }
+        )
+        val installed = AppUpdates.InstalledApp(
+            packageName = context.packageName,
+            versionName = currentVersion,
+            versionCode = ours?.longVersionCode ?: 0L,
+            signers = ours?.signingInfo?.apkContentsSigners?.mapTo(HashSet()) { it.toCharsString() }
+        )
+        return when (AppUpdates.checkApk(release.apkSize, apk, installed)) {
+            null -> null
+            AppUpdates.ApkProblem.SIZE, AppUpdates.ApkProblem.NOT_AN_APK, AppUpdates.ApkProblem.OTHER_APP -> UpdateError.BAD_APK
+            AppUpdates.ApkProblem.NOT_NEWER -> UpdateError.OLDER
+            AppUpdates.ApkProblem.SIGNATURE -> UpdateError.SIGNATURE
         }
-        return null
     }
 
     private fun updatesDir() = File(context.cacheDir, UPDATES_DIR)

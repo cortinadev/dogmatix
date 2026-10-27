@@ -26,7 +26,8 @@ android {
         versionCode = 13
         versionName = "1.3.1"
 
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        // Runs every instrumented test in a sandboxed Hilt test application (see app/src/androidTest/.../testing).
+        testInstrumentationRunner = "com.cortinadev.dogmatix.testing.DogmatixTestRunner"
 
         buildConfigField("String", "RAWG_API_KEY", "\"${secret("RAWG_API_KEY")}\"")
         buildConfigField("String", "THEGAMESDB_API_KEY", "\"${secret("THEGAMESDB_API_KEY")}\"")
@@ -82,7 +83,10 @@ android {
     }
 
     lint {
-        abortOnError = false
+        // lint-baseline.xml holds the issues lint already reported on 1.3.1, so lintDebug fails
+        // only on new errors. Refresh it with ./gradlew updateLintBaseline after fixing old ones.
+        baseline = file("lint-baseline.xml")
+        abortOnError = true
         checkReleaseBuilds = false
         disable += setOf("MissingTranslation", "ExtraTranslation")
     }
@@ -131,10 +135,15 @@ dependencies {
     ksp(libs.hilt.compiler)
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.core)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.hilt.android.testing)
+    kspAndroidTest(libs.hilt.compiler)
     debugImplementation(libs.androidx.compose.ui.tooling)
     debugImplementation(libs.androidx.compose.ui.test.manifest)
 }

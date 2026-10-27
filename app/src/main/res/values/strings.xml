@@ -286,6 +286,7 @@
     <string name="download_started">Download of "%1$s" has been started</string>
     <string name="download_speed">%1$.2f MB/s</string>
     <string name="download_started_at">Started %1$s</string>
+    <string name="download_restarts_from_zero">Will restart from the beginning</string>
     <string name="download_finished_at">%1$s</string>
     <string name="download_size">Size: %1$s</string>
     <string name="download_cancel">Cancel Download</string>
@@ -388,6 +389,10 @@
     <string name="sources_delete_console_message">The console, its sources and its indexed games will be removed. Downloaded files are kept.</string>
     <string name="sources_delete_url_title">Delete source?</string>
     <string name="sources_delete_url_message">%1$s will be removed from this console. Rescan to drop its games from the library.</string>
+    <string name="sources_manufacturer_no_consoles">No consoles</string>
+    <string name="sources_delete_manufacturer">Delete manufacturer</string>
+    <string name="sources_delete_manufacturer_title">Delete %1$s?</string>
+    <string name="sources_delete_manufacturer_message">It has no consoles left: only the manufacturer is removed.</string>
     <string name="dialog_delete">Delete</string>
     <string name="dialog_save">Save</string>
     <string name="dialog_ok">OK</string>
@@ -406,10 +411,10 @@
 
     <!-- Sources: dialogs -->
     <string name="dialog_add_source">Add Source</string>
-    <string name="dialog_add_source_hint">Enter a URL, magnet link, upload a .torrent file, or pick a RomM platform:</string>
+    <string name="dialog_add_source_hint">Enter a URL (an Internet Archive item or ZIP too), magnet link, upload a .torrent file, or pick a RomM platform:</string>
     <string name="dialog_from_romm">From your RomM server:</string>
     <string name="dialog_url_label">URL / Magnet</string>
-    <string name="dialog_url_placeholder">https://…, magnet:? or romm://psp</string>
+    <string name="dialog_url_placeholder">https://…, magnet:?, romm://psp or archive.org/details/…</string>
     <string name="dialog_upload_torrent">Upload .torrent</string>
     <string name="dialog_content_type">Content type:</string>
     <string name="dialog_add">Add</string>
@@ -419,6 +424,7 @@
     <string name="dialog_name">Name</string>
     <string name="dialog_manufacturer">Manufacturer:</string>
     <string name="dialog_new_manufacturer">Or a new manufacturer</string>
+    <string name="dialog_known_consoles">Pick a console or type its name below:</string>
 
     <!-- Library errors -->
     <string name="error_download_dir_missing">Download directory not configured. Please set a download folder in settings.</string>
@@ -489,6 +495,7 @@
 
     <!-- Download retries and failures, per-server limit, mirrors, multi-disc, game versions -->
     <string name="status_retry_at">Retry at %1$s</string>
+    <string name="status_retry_when_open">Retry when the app is open</string>
     <string name="failure_network">No connection</string>
     <string name="failure_timeout">Timed out</string>
     <string name="failure_server">Server error</string>
@@ -527,6 +534,47 @@
     <string name="region_australia">Australia</string>
     <string name="dialog_mirrors_label">Reserve addresses (one per line)</string>
     <string name="dialog_mirrors_hint">The same folder on other servers: tried in turn when a download from the main address fails</string>
+    <string name="dialog_scrape_toggle">Page with CSS selectors</string>
+    <string name="dialog_scrape_toggle_hint">For sites whose game list is not a folder listing</string>
+    <string name="dialog_scrape_item">Element (required)</string>
+    <string name="dialog_scrape_item_hint">table.list tr · ul.roms li · a.rom</string>
+    <string name="dialog_scrape_link">Link</string>
+    <string name="dialog_scrape_link_hint">a@href · empty = the element’s link</string>
+    <string name="dialog_scrape_name">Name</string>
+    <string name="dialog_scrape_name_hint">td.title · a@title · empty = link text</string>
+    <string name="dialog_scrape_size">Size</string>
+    <string name="dialog_scrape_size_hint">span.s · td:nth-child(3) · empty = none</string>
+    <string name="dialog_scrape_pages">Pages for {page}</string>
+    <string name="dialog_scrape_pages_hint">1-50 · A-Z · 0,A-Z · empty = 1-100</string>
+    <string name="dialog_scrape_ext">Extension</string>
+    <string name="dialog_scrape_ext_hint">zip (when the link has none)</string>
+    <plurals name="dialog_scrape_test_items">
+        <item quantity="one">%d item · first page</item>
+        <item quantity="other">%d items · first page</item>
+    </plurals>
+    <string name="dialog_scrape_test_none">Nothing matched the element selector</string>
+    <string name="dialog_scrape_test_no_links">%1$d elements matched, none with a file link</string>
+    <string name="dialog_scrape_test_bad_selector">Invalid selector: %1$s</string>
+    <string name="dialog_scrape_test_bad_pages">Invalid pages: %1$s</string>
+    <string name="sources_url_type_scrape">Type: %1$s · selectors</string>
+    <!-- Internet Archive (ia:// sources, the ZIP viewer, the archive.org session) -->
+    <string name="scrape_listing_ia">Reading item %1$s on Internet Archive…</string>
+    <string name="scrape_ia_invalid_source">Invalid Internet Archive source ‘%1$s’ (expected ia://&lt;item&gt;)</string>
+    <string name="check_against_ia">Internet Archive</string>
+    <string name="nav_ia_login">Internet Archive sign-in</string>
+    <string name="settings_ia_session">Internet Archive</string>
+    <string name="settings_ia_session_none">Not signed in · for items that need an account</string>
+    <string name="settings_ia_session_as">Signed in as %1$s</string>
+    <string name="ia_login_intro">Sign in on archive.org. Dogmatix keeps only the session, never your password</string>
+    <string name="ia_login_done">Signed in to Internet Archive</string>
+    <string name="ia_login_outside_blocked">Google sign-in does not work inside the app. Use your email and password; if your account was created with Google, request a password on archive.org first (“Forgot password”)</string>
+    <string name="ia_session_check">Check</string>
+    <string name="ia_session_valid">Session valid · %1$s</string>
+    <string name="ia_session_expired">The Internet Archive session has expired; sign in again in Settings</string>
+    <string name="ia_session_check_failed">Couldn’t reach archive.org</string>
+    <string name="ia_logout">Sign out</string>
+    <string name="ia_logout_message">Dogmatix will forget the archive.org session on this device</string>
+    <string name="search_kw_ia_session">account, sign in, session, restricted, archive.org</string>
     <plurals name="game_discs">
         <item quantity="one">%d disc</item>
         <item quantity="other">%d discs</item>
@@ -556,6 +604,7 @@
     <string name="scan_kind_auto">Automatic</string>
     <string name="scan_kind_retry">Retry of failed sources</string>
     <string name="scan_kind_new_sources">New bundled sources</string>
+    <string name="scan_kind_sources">Sources switched on</string>
     <string name="scan_status_updated">Updated</string>
     <string name="scan_status_unchanged">No changes</string>
     <string name="scan_status_failed">Failed</string>
@@ -565,6 +614,7 @@
     <string name="scan_failure_server">Server error</string>
     <string name="scan_failure_timeout">The server took too long to answer</string>
     <string name="scan_failure_connection">The connection was cut</string>
+    <string name="scan_failure_unreachable">Could not connect to the server (it may be switched off)</string>
     <string name="scan_failure_offline">Server not found, or no connection</string>
     <string name="scan_failure_secure">The secure connection failed</string>
     <string name="scan_failure_not_found">The address no longer exists</string>
@@ -619,6 +669,11 @@
     <string name="scan_notification_text">Found by the automatic scan</string>
     <!-- dl-motor -->
     <string name="failure_wrong_content">The server sent a web page, not the file</string>
+    <!-- 1.4-almacen -->
+    <string name="failure_extraction">Could not unpack it (damaged or unsupported archive)</string>
+    <string name="failure_extraction_no_space">Not enough space to unpack it</string>
+    <string name="failure_permission_lost">Lost access to the download folder</string>
+    <string name="failure_storage_gone">Storage not available (SD card removed?)</string>
     <string name="check_checking">Checking…</string>
     <string name="check_verified">Verified · %1$s</string>
     <string name="check_verified_partial">Verified · %1$s (%2$d/%3$d)</string>
@@ -1189,6 +1244,22 @@
         <item quantity="one">%1$d could not be done</item>
         <item quantity="other">%1$d could not be done</item>
     </plurals>
+    <!-- 1.4-almacen -->
+    <string name="collection_problem_no_space">not enough space</string>
+    <string name="collection_problem_permission">lost access to a library folder (pick it again in Settings)</string>
+    <string name="collection_problem_volume">storage not available (SD card removed?)</string>
+    <plurals name="collection_unverified">
+        <item quantity="one">%1$d copy did not match its original (kept)</item>
+        <item quantity="other">%1$d copies did not match their originals (kept)</item>
+    </plurals>
+    <plurals name="collection_delete_files_with_tracks">
+        <item quantity="one">%1$d file (including %2$d disc tracks and playlists)</item>
+        <item quantity="other">%1$d files (including %2$d disc tracks and playlists)</item>
+    </plurals>
+    <plurals name="collection_delete_rewrites">
+        <item quantity="one">%d playlist is rewritten without the deleted discs</item>
+        <item quantity="other">%d playlists are rewritten without the deleted discs</item>
+    </plurals>
     <!-- coleccion-gestion -->
     <string name="details_collection">Collection</string>
     <!-- History and trash -->
@@ -1280,6 +1351,13 @@
     <string name="move_abandon">Leave it</string>
     <string name="move_abandon_title">Leave the move as it is?</string>
     <string name="move_abandon_message">What was moved stays in the new place and the settings are not changed, so those games will not be found until the move is done again.</string>
+    <!-- 1.4-almacen -->
+    <string name="move_permission_lost">Lost access to a folder of the move: pick it again in Settings, then resume</string>
+    <string name="move_volume_gone">The storage of the move is not available (SD card removed?): put it back, then resume</string>
+    <plurals name="move_unverified">
+        <item quantity="one">%d copy did not match its original, so the original stayed</item>
+        <item quantity="other">%d copies did not match their originals, so the originals stayed</item>
+    </plurals>
     <!-- Smart storage -->
     <string name="storage_volumes">Storage</string>
     <string name="storage_intro">Pick a folder on the SD card as a second library. Each console keeps its folder on one of the two; big consoles can go to the SD card, and a download that does not fit goes to the other one.</string>
@@ -1411,4 +1489,5 @@
     <string name="update_error_bad_apk">The downloaded file isn’t a valid Dogmatix APK. Try again later.</string>
     <string name="update_error_signature">This update is signed with a different key than the installed app, so Android won’t install it over this one. See the release page on GitHub.</string>
     <string name="update_error_storage">Not enough free space to download the update.</string>
+    <string name="update_error_older">The downloaded APK isn’t newer than the installed version, so it can’t update it. See the release page on GitHub.</string>
 </resources>

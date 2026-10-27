@@ -215,6 +215,8 @@ fun legendFor(route: String): List<LegendEntry> {
             LegendEntry("A", stringResource(R.string.pad_change)),
             LegendEntry("◀ ▶", stringResource(R.string.pad_adjust)), back, section
         )
+        // The archive.org sign-in page: a web page, its own fields and buttons; B leaves without saving.
+        NavRoutes.IaLogin.route -> listOf(LegendEntry("A", stringResource(R.string.pad_select)), back, section)
         else -> listOf(back)
     }
 }

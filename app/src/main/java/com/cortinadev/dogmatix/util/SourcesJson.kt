@@ -6,6 +6,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.cortinadev.dogmatix.data.model.ContentType
+import com.cortinadev.dogmatix.data.model.ScrapeRecipe
 import com.cortinadev.dogmatix.data.model.UrlEntry
 
 /** A manufacturer as read from (or written to) a sources JSON document. */
@@ -41,6 +42,9 @@ data class SourceConsole(
  *                                      "aliases": ["gba", "gameboyadvance"], "color": "#8FCF3C",
  *                                      "urls": [ { "url": "…", "contentType": "GAME", "folders": ["…"] } ] } } }
  * ```
+ * A URL entry may also carry `enabled` (only when false), `mirrors` (web sources) and `scrape`, the
+ * recipe of a web page that is not a folder listing: `{"item": "ul.roms li", "size": "span.s",
+ * "pages": "1-50", "ext": "zip"}` (`item` always, the other fields only when set; see [ScrapeRecipe]).
  * `short` is the chip label in the library / downloads; `aliases` are the folder names the
  * download-path resolver accepts for the console (besides its own name and `short`); `color`
  * (optional) is the console's chip colour, written only when the user picked one;
@@ -142,8 +146,25 @@ object SourcesJson {
                 ?.let { runCatching { ContentType.valueOf(it.uppercase()) }.getOrNull() }
                 ?: ContentType.GAME
             val enabled = obj.get("enabled")?.takeIf { it.isJsonPrimitive }?.asJsonPrimitive?.let { runCatching { it.asBoolean }.getOrNull() } ?: true
-            UrlEntry(url = url, contentType = contentType, folders = parseStrings(obj.get("folders")), enabled = enabled, mirrors = parseStrings(obj.get("mirrors")))
+            UrlEntry(
+                url = url, contentType = contentType, folders = parseStrings(obj.get("folders")), enabled = enabled,
+                mirrors = parseStrings(obj.get("mirrors")), scrape = parseScrape(obj.get("scrape"))
+            )
         }
+    }
+
+    /** A page recipe; one without a usable `item` selector is no recipe at all. */
+    private fun parseScrape(element: JsonElement?): ScrapeRecipe? {
+        val obj = element as? JsonObject ?: return null
+        fun field(key: String) = obj.stringOrNull(key)?.trim().orEmpty()
+        val item = field("item").ifEmpty { return null }
+        return ScrapeRecipe(item = item, link = field("link"), name = field("name"), size = field("size"), pages = field("pages"), ext = field("ext"))
+    }
+
+    private fun scrapeToJson(recipe: ScrapeRecipe): JsonObject = JsonObject().apply {
+        addProperty("item", recipe.item)
+        listOf("link" to recipe.link, "name" to recipe.name, "size" to recipe.size, "pages" to recipe.pages, "ext" to recipe.ext)
+            .forEach { (key, value) -> if (value.isNotBlank()) addProperty(key, value.trim()) }
     }
 
     private fun urlEntriesToJson(entries: List<UrlEntry>): JsonArray {
@@ -155,6 +176,7 @@ object SourcesJson {
             if (entry.folders.isNotEmpty()) obj.add("folders", stringsToJson(entry.folders))
             if (!entry.enabled) obj.addProperty("enabled", false)
             if (entry.mirrors.isNotEmpty()) obj.add("mirrors", stringsToJson(entry.mirrors))
+            entry.scrape?.let { obj.add("scrape", scrapeToJson(it)) }
             array.add(obj)
         }
         return array

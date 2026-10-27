@@ -75,8 +75,8 @@ object SmartStorage {
 
 /**
  * Moving library folders (the whole root, chosen consoles, or one console for smart storage):
- * each file is copied under a temporary name, checked by size, renamed, and only then is the
- * original deleted. A rerun after an interruption carries on. Pure JVM.
+ * each file is copied under a temporary name, checked by size and sampled bytes ([CopyCheck]),
+ * renamed, and only then is the original deleted. A rerun after an interruption carries on. Pure JVM.
  */
 object LibraryMoveRules {
     private const val MB = 1024L * 1024
@@ -104,6 +104,33 @@ object LibraryMoveRules {
      */
     fun existing(sourceSize: Long, targetSize: Long?): Existing =
         if (sourceSize >= 0 && targetSize == sourceSize) Existing.SAME else Existing.CONFLICT
+
+    /** What one file of a move does. */
+    enum class FileStep {
+        /** A `.dogmatix-part` an interrupted run left in the source: deleted, never moved. */
+        DROP_PART,
+        /** Nothing of its name in the target: moved (or copied, checked and renamed; a stale part of it there is replaced). */
+        MOVE,
+        /** The same file is in the target (an earlier run renamed it into place, then stopped): the original goes. */
+        ALREADY_THERE,
+        /** Something else of its name is in the target: both stay where they are. */
+        CONFLICT
+    }
+
+    /**
+     * The step for the file [sourceName] ([sourceSize] bytes) when the target holds [existingSize]
+     * under its name (null: nothing; -1: a folder). [sameBytes]: the sampled blocks of both match
+     * ([CopyCheck.verdict] is SAME); only asked when the sizes agree.
+     */
+    fun fileStep(sourceName: String, sourceSize: Long, existingSize: Long?, sameBytes: () -> Boolean): FileStep = when {
+        isPart(sourceName) -> FileStep.DROP_PART
+        existingSize == null -> FileStep.MOVE
+        existing(sourceSize, existingSize) == Existing.SAME && sameBytes() -> FileStep.ALREADY_THERE
+        else -> FileStep.CONFLICT
+    }
+
+    /** Parts in the target ([targetNames]) a rerun replaces before copying [name] again. */
+    fun staleParts(targetNames: Collection<String>, name: String): List<String> = targetNames.filter { it == partName(name) }
 
     /** True/false when the free space is known; unknown space refuses nothing. */
     fun fits(totalBytes: Long, freeBytes: Long?): Boolean = freeBytes == null || freeBytes - RESERVE_BYTES >= totalBytes

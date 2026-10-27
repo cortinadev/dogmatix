@@ -54,6 +54,12 @@ object CollectionRepair {
     /** How many of [actions] there are of each kind, in run order: the confirmation's preview. */
     fun counts(actions: List<RepairAction>): List<Pair<RepairKind, Int>> =
         actions.groupingBy { it.kind }.eachCount().toList().sortedBy { it.first.ordinal }
+
+    /** The repairs that delete files (the others move them or remove empty folders). */
+    private val deleting = setOf(RepairKind.DELETE_EMPTY_FILE, RepairKind.DELETE_PARTIAL, RepairKind.DELETE_EXTRACTED_ARCHIVE)
+
+    /** The files the deleting repairs of [actions] remove: what [DiscSetCleanup.plan] is asked about. */
+    fun deletions(actions: List<RepairAction>): List<DiskFile> = actions.filter { it.kind in deleting }.flatMap { it.finding.files }
 }
 
 enum class ReclaimKind { DUPLICATE, EXTRACTED_ARCHIVE, PARTIAL_DOWNLOAD, TORRENT_CACHE, IMAGE_CACHE }
@@ -117,4 +123,11 @@ object CollectionReclaim {
     }
 
     fun total(candidates: List<ReclaimCandidate>, ids: Set<String>): Long = candidates.filter { it.id in ids }.sumOf { it.bytes }
+
+    /** The candidates that are files on disk (the caches aside). */
+    fun onDisk(candidates: List<ReclaimCandidate>): List<ReclaimCandidate> =
+        candidates.filter { it.kind == ReclaimKind.DUPLICATE || it.kind == ReclaimKind.EXTRACTED_ARCHIVE || it.kind == ReclaimKind.PARTIAL_DOWNLOAD }
+
+    /** The files [candidates] delete: what [DiscSetCleanup.plan] is asked about. */
+    fun files(candidates: List<ReclaimCandidate>): List<DiskFile> = onDisk(candidates).flatMap { it.files }
 }

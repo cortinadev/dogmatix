@@ -45,7 +45,9 @@ fun ConsoleCard(
     onMergeFolders: () -> Unit = {},
     /** A library search result for this console: unfold it and focus it, or one of its addresses. */
     reveal: SearchTarget.Source? = null,
-    onRevealed: () -> Unit = {}
+    onRevealed: () -> Unit = {},
+    /** Lets the screen hand the focus to this card (its unfold arrow), e.g. after the card below it went away. */
+    focusTarget: FocusRequester? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
     // busqueda
@@ -122,7 +124,10 @@ fun ConsoleCard(
                     IconButton(onClick = onDeleteConsole) {
                         Icon(painterResource(R.drawable.ic_trash), contentDescription = stringResource(R.string.sources_delete_console))
                     }
-                    IconButton(onClick = { expanded = !expanded }, modifier = Modifier.focusRequester(toggleFocus)) {
+                    IconButton(
+                        onClick = { expanded = !expanded },
+                        modifier = Modifier.focusRequester(toggleFocus).then(focusTarget?.let { Modifier.focusRequester(it) } ?: Modifier)
+                    ) {
                         Icon(
                             painterResource(if (expanded) R.drawable.ic_arrow_up else R.drawable.ic_arrow_down),
                             contentDescription = stringResource(if (expanded) R.string.sources_collapse else R.string.sources_expand)
@@ -224,8 +229,11 @@ private fun UrlItem(
                     style = MaterialTheme.typography.bodySmall
                 )
                 Text(
-                    text = if (urlEntry.enabled) stringResource(R.string.sources_url_type, urlEntry.contentType.name.lowercase())
-                           else stringResource(R.string.sources_url_disabled),
+                    text = when {
+                        !urlEntry.enabled -> stringResource(R.string.sources_url_disabled)
+                        urlEntry.scrape != null -> stringResource(R.string.sources_url_type_scrape, urlEntry.contentType.name.lowercase())
+                        else -> stringResource(R.string.sources_url_type, urlEntry.contentType.name.lowercase())
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

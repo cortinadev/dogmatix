@@ -68,6 +68,8 @@ fun MoveProgressBlock(
                 MoveProblem.NO_ROOM -> stringResource(R.string.move_no_room, formatBytes(progress.needBytes), formatBytes(progress.freeBytes))
                 MoveProblem.OVERLAP -> stringResource(R.string.move_overlap)
                 MoveProblem.BUSY -> stringResource(R.string.move_busy)
+                MoveProblem.PERMISSION_LOST -> stringResource(R.string.move_permission_lost)
+                MoveProblem.VOLUME_GONE -> stringResource(R.string.move_volume_gone)
                 MoveProblem.CANNOT_OPEN, null -> stringResource(R.string.move_failed)
             }
         }
@@ -85,6 +87,13 @@ fun MoveProgressBlock(
                 color = scheme.error
             )
         }
+        if (progress.unverified > 0) {
+            Text(
+                pluralStringResource(R.plurals.move_unverified, progress.unverified, progress.unverified),
+                style = MaterialTheme.typography.bodySmall,
+                color = scheme.error
+            )
+        }
         if (progress.running) {
             Text(stringResource(R.string.move_downloads_paused), style = MaterialTheme.typography.bodySmall, color = scheme.onSurfaceVariant)
         }
@@ -92,7 +101,8 @@ fun MoveProgressBlock(
     ToolButtons {
         when {
             progress.running -> ToolButton(stringResource(R.string.dialog_cancel), onCancel, focusRequester = firstAction)
-            progress.phase == MovePhase.INTERRUPTED || progress.phase == MovePhase.FAILED && progress.problem == MoveProblem.CANNOT_OPEN -> {
+            progress.phase == MovePhase.INTERRUPTED ||
+                progress.phase == MovePhase.FAILED && (progress.problem == MoveProblem.CANNOT_OPEN || progress.canResume) -> {
                 ToolButton(stringResource(R.string.move_resume), onResume, focusRequester = firstAction)
                 ToolButton(stringResource(R.string.move_abandon), { confirmAbandon = true })
             }

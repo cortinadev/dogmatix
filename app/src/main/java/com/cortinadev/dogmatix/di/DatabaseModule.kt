@@ -36,7 +36,7 @@ object DatabaseModule {
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): DogmatixDatabase =
         Room.databaseBuilder(context, DogmatixDatabase::class.java, "dogmatix_db")
-            .addMigrations(DogmatixDatabase.MIGRATION_1_2, DogmatixDatabase.MIGRATION_2_3, DogmatixDatabase.MIGRATION_3_4, DogmatixDatabase.MIGRATION_4_5, DogmatixDatabase.MIGRATION_5_6, DogmatixDatabase.MIGRATION_6_7, DogmatixDatabase.MIGRATION_7_8, DogmatixDatabase.MIGRATION_8_9, DogmatixDatabase.MIGRATION_9_10, DogmatixDatabase.MIGRATION_10_11, DogmatixDatabase.MIGRATION_11_12, DogmatixDatabase.MIGRATION_12_13, DogmatixDatabase.MIGRATION_13_14, DogmatixDatabase.MIGRATION_14_15, DogmatixDatabase.MIGRATION_15_16, DogmatixDatabase.MIGRATION_16_17, DogmatixDatabase.MIGRATION_17_18, DogmatixDatabase.MIGRATION_18_19)
+            .addMigrations(*DogmatixDatabase.ALL_MIGRATIONS)
             .build()
 
     @Provides

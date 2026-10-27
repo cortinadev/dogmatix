@@ -12,8 +12,10 @@ import javax.net.ssl.SSLException
  * Why a download failed. [transient] failures may go away on their own (the network, the server,
  * a torrent without peers yet), so they are worth an automatic retry; the rest need the user
  * (a file gone from the server, a full disk, a folder without access, a debrid account problem).
+ * [local] failures are the device's side (its storage, unpacking what arrived whole): they say
+ * nothing about the origin the file came from.
  */
-enum class DownloadFailure(val transient: Boolean) {
+enum class DownloadFailure(val transient: Boolean, val local: Boolean = false) {
     NETWORK(true),
     TIMEOUT(true),
     SERVER(true),
@@ -21,8 +23,8 @@ enum class DownloadFailure(val transient: Boolean) {
     NOT_FOUND(false),
     DENIED(false),
     HTTP(false),
-    NO_SPACE(false),
-    STORAGE(false),
+    NO_SPACE(false, local = true),
+    STORAGE(false, local = true),
     INCOMPLETE(true),
     TORRENT_METADATA(true),
     TORRENT(false),
@@ -30,7 +32,15 @@ enum class DownloadFailure(val transient: Boolean) {
     DEBRID(true),
     UNKNOWN(true),
     /** The server sent something else (a web page, an error document) where the file was expected. */
-    WRONG_CONTENT(false)
+    WRONG_CONTENT(false),
+    /** The archive arrived but could not be unpacked (damaged, unsupported, unsafe paths); it is kept, and a retry unpacks it again. */
+    EXTRACTION(false, local = true),
+    /** Unpacking ran out of room (in the app's cache or in the folder); the archive is kept. */
+    EXTRACTION_NO_SPACE(false, local = true),
+    /** The app lost its grant to the folder (revoked, or the folder was deleted or moved away). */
+    PERMISSION_LOST(false, local = true),
+    /** The storage holding the folder is not available (SD card removed, unmounted or failing). */
+    STORAGE_GONE(false, local = true)
 }
 
 /** Works out a [DownloadFailure] from what the download code throws (its messages are ours or the JDK's). */
@@ -53,6 +63,7 @@ object DownloadFailures {
         val message = e.message.orEmpty()
         return when {
             e is UnexpectedContentException -> DownloadFailure.WRONG_CONTENT
+            e is ArchiveExtractionException -> e.failure
             e.javaClass.simpleName == "DebridAuthException" || message.contains("premium", ignoreCase = true) ->
                 DownloadFailure.DEBRID_ACCOUNT
             message.contains("ENOSPC") || message.contains("No space left", ignoreCase = true) -> DownloadFailure.NO_SPACE
@@ -60,6 +71,8 @@ object DownloadFailures {
             e is UnknownHostException || e is ConnectException || e is NoRouteToHostException ||
                 e is SSLException || e is SocketException -> DownloadFailure.NETWORK
             else -> httpCode.find(message)?.groupValues?.get(1)?.toIntOrNull()?.let(::fromHttpStatus)
+                // SAF and the kernel: a grant lost, a card pulled out (network errors were told apart above).
+                ?: StorageProblems.problemOf(e)?.let(::fromStorageProblem)
                 ?: when {
                     message.contains("Download directory", ignoreCase = true) ||
                         message.contains("Failed to create", ignoreCase = true) ||
@@ -71,6 +84,12 @@ object DownloadFailures {
                     else -> null
                 }
         }
+    }
+
+    fun fromStorageProblem(problem: StorageProblem): DownloadFailure = when (problem) {
+        StorageProblem.NO_SPACE -> DownloadFailure.NO_SPACE
+        StorageProblem.PERMISSION_LOST -> DownloadFailure.PERMISSION_LOST
+        StorageProblem.VOLUME_GONE -> DownloadFailure.STORAGE_GONE
     }
 
     fun fromHttpStatus(code: Int): DownloadFailure = when (code) {

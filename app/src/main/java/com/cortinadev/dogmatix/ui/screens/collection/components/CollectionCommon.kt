@@ -54,9 +54,21 @@ import com.cortinadev.dogmatix.ui.screens.collection.CollectionAnalysis
 import com.cortinadev.dogmatix.ui.screens.collection.CollectionNav
 import com.cortinadev.dogmatix.ui.screens.collection.CollectionViewModel
 import com.cortinadev.dogmatix.util.ConsoleFormatter
+import com.cortinadev.dogmatix.util.DiscSetCleanup
 import com.cortinadev.dogmatix.util.HealthSeverity
 import com.cortinadev.dogmatix.util.VolumeKind
 import com.cortinadev.dogmatix.util.VolumeUsage
+
+/**
+ * The confirmation's lines for what a deletion takes along, when it takes anything: the files in
+ * all (tracks of the sheets, playlists left without discs included) and the playlists rewritten.
+ * What the dialog says is what [plan] deletes.
+ */
+@Composable
+internal fun takenAlongLines(plan: DiscSetCleanup.Plan): List<String> = listOfNotNull(
+    plan.extra.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.collection_delete_files_with_tracks, plan.delete.size, plan.delete.size, it) },
+    plan.rewrites.size.takeIf { it > 0 }?.let { pluralStringResource(R.plurals.collection_delete_rewrites, it, it) }
+)
 
 /**
  * Publishes [entries] as the button legend while [active] (the zone holding the focus); clears

@@ -75,6 +75,53 @@ object AppUpdates {
         return VersionUtils.compareVersions(latest, installed) > 0
     }
 
+    /** What the system read from a downloaded APK; null / 0 where it could not tell. */
+    data class ApkFacts(
+        val fileSize: Long,
+        /** Null when the file is not an APK the system can parse. */
+        val packageName: String?,
+        val versionName: String?,
+        val versionCode: Long,
+        /** Signing certificates (any stable encoding); null when unknown. */
+        val signers: Set<String>?
+    )
+
+    /** The app that is checking for updates. */
+    data class InstalledApp(val packageName: String, val versionName: String, val versionCode: Long, val signers: Set<String>?)
+
+    enum class ApkProblem {
+        /** Not the size the release announced (truncated or replaced). */
+        SIZE,
+        /** The system cannot read it as an APK. */
+        NOT_AN_APK,
+        /** Another app's APK. */
+        OTHER_APP,
+        /** Not newer than what is installed: there is nothing to update. */
+        NOT_NEWER,
+        /** Same package, other signing key: Android would refuse it. */
+        SIGNATURE
+    }
+
+    /**
+     * Whether the APK downloaded for an update can install over [installed]; null when it can.
+     * It must be the announced size ([expectedSize] 0 = unknown), a Dogmatix APK and newer by
+     * name. A debug build downloads the release, which is another package (the same id without
+     * `.debug`): there only the name and the version name count. Over the same package, a lower
+     * version code (Android refuses a downgrade) or another signing key are refused too.
+     */
+    fun checkApk(expectedSize: Long, apk: ApkFacts, installed: InstalledApp): ApkProblem? {
+        if (expectedSize > 0 && apk.fileSize != expectedSize) return ApkProblem.SIZE
+        val pkg = apk.packageName ?: return ApkProblem.NOT_AN_APK
+        if (pkg != installed.packageName.removeSuffix(DEBUG_SUFFIX)) return ApkProblem.OTHER_APP
+        if (apk.versionName != null && !isNewer(apk.versionName, installed.versionName)) return ApkProblem.NOT_NEWER
+        val samePackage = pkg == installed.packageName
+        if (samePackage && apk.versionCode > 0 && installed.versionCode > 0 && apk.versionCode < installed.versionCode) return ApkProblem.NOT_NEWER
+        if (samePackage && apk.signers != null && installed.signers != null && apk.signers != installed.signers) return ApkProblem.SIGNATURE
+        return null
+    }
+
+    private const val DEBUG_SUFFIX = ".debug"
+
     /** An automatic check is due: never checked, the interval has passed, or the clock went back. */
     fun checkDue(now: Long, lastCheckedAt: Long): Boolean =
         lastCheckedAt <= 0L || now < lastCheckedAt || now - lastCheckedAt >= CHECK_INTERVAL_MS

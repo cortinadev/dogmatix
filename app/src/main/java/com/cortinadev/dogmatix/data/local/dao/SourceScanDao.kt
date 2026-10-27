@@ -8,6 +8,9 @@ import androidx.room.Transaction
 import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
 import com.cortinadev.dogmatix.data.local.entity.FileTagEntity
 import com.cortinadev.dogmatix.data.local.entity.SourceScanEntity
+import com.cortinadev.dogmatix.data.model.DownloadStatus
+import com.cortinadev.dogmatix.util.ListingRenames
+import com.cortinadev.dogmatix.util.SourceKind
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -32,6 +35,10 @@ interface SourceScanDao {
 
     @Query("DELETE FROM source_scans WHERE consoleId = :consoleId AND sourceUrl = :sourceUrl")
     suspend fun delete(consoleId: String, sourceUrl: String)
+
+    /** The results of every source of a console (the console was deleted). */
+    @Query("DELETE FROM source_scans WHERE consoleId = :consoleId")
+    suspend fun deleteConsole(consoleId: String)
 
     /** Every source of the latest scan run, with its console's name (the "Last scan" report). */
     @Query("""
@@ -85,16 +92,31 @@ interface SourceScanDao {
         deleteSourceFiles(consoleId, sourceUrl)
     }
 
+    /** A source deleted: its rows and its last scan result, in one transaction. */
+    @Transaction
+    suspend fun forgetSource(consoleId: String, sourceUrl: String) {
+        deleteSource(consoleId, sourceUrl)
+        delete(consoleId, sourceUrl)
+    }
+
     /**
      * Replaces the rows of one source with [files] (tags parallel to them) in one transaction, so
      * the library never shows the source half-written. Legacy rows of the console with the same
      * file names go too (they were this source's before it was tracked). A file counts as new
      * when the source (or the legacy rows) did not list it; on a source's first scan nothing does.
+     * A web row whose name changed with the listing parser keeps its ★ and its Downloads row
+     * ([moveRenamedKeys]) and does not count as new.
      */
     @Transaction
     suspend fun replaceSource(consoleId: String, sourceUrl: String, files: List<DownloadableFileEntity>, tags: List<List<String>>): SourceRowsWritten {
         val known = HashMap<String, String>()
         sourceNames(consoleId, sourceUrl).forEach { known[it.fileName] = it.groupKey }
+        if (SourceKind.of(sourceUrl) == SourceKind.WEB) {
+            // Web rows once named after their whole link: what is keyed by that name follows them (once).
+            val renames = ListingRenames.pairs(known.keys, files.map { it.fileName })
+            moveRenamedKeys(consoleId, renames)
+            renames.forEach { (from, to) -> known[to] = known.getValue(from) }
+        }
         if (hasLegacyRows(consoleId)) {
             files.map { it.fileName }.distinct().chunked(SQL_CHUNK).forEach { chunk ->
                 legacyNames(consoleId, chunk).forEach { known.putIfAbsent(it.fileName, it.groupKey) }
@@ -117,9 +139,78 @@ interface SourceScanDao {
     @Query("SELECT DISTINCT consoleId, sourceUrl FROM downloadable_files")
     suspend fun indexedSources(): List<IndexedSource>
 
+    // ---- File names that changed (see ListingRenames) -----------------------------------------
+    // Covers are not moved: they are a cache, looked up again under the new name (the old look-up
+    // used the whole link as the name). Collections and game traits go by game, not by file name.
+
+    @Query("SELECT fileName FROM favourites WHERE consoleId = :consoleId AND fileName IN (:names)")
+    suspend fun favouriteNamesAmong(consoleId: String, names: List<String>): List<String>
+
+    @Query("""
+        UPDATE favourites SET fileName = :newName WHERE consoleId = :consoleId AND fileName = :oldName
+        AND NOT EXISTS (SELECT 1 FROM favourites WHERE consoleId = :consoleId AND fileName = :newName)
+    """)
+    suspend fun renameFavourite(consoleId: String, oldName: String, newName: String)
+
+    @Query("SELECT fileName, consoleId, status FROM download_history WHERE fileName IN (:names)")
+    suspend fun downloadsAmong(names: List<String>): List<DownloadNameRow>
+
+    @Query("""
+        UPDATE download_history SET fileName = :newName WHERE fileName = :oldName AND consoleId = :consoleId
+        AND NOT EXISTS (SELECT 1 FROM download_history WHERE fileName = :newName)
+    """)
+    suspend fun renameDownload(consoleId: String, oldName: String, newName: String)
+
+    @Query("""
+        UPDATE download_resume SET fileName = :newName WHERE fileName = :oldName
+        AND NOT EXISTS (SELECT 1 FROM download_resume WHERE fileName = :newName)
+    """)
+    suspend fun renameResume(oldName: String, newName: String)
+
+    @Query("""
+        UPDATE download_checks SET fileName = :newName WHERE fileName = :oldName
+        AND NOT EXISTS (SELECT 1 FROM download_checks WHERE fileName = :newName)
+    """)
+    suspend fun renameCheck(oldName: String, newName: String)
+
+    @Query("""
+        UPDATE storage_redirects SET fileName = :newName WHERE fileName = :oldName AND consoleId = :consoleId
+        AND NOT EXISTS (SELECT 1 FROM storage_redirects WHERE fileName = :newName)
+    """)
+    suspend fun renameRedirect(consoleId: String, oldName: String, newName: String)
+
+    @Query("UPDATE romm_uploads SET downloadFileName = :newName WHERE downloadFileName = :oldName AND consoleId = :consoleId")
+    suspend fun renameUploadSource(consoleId: String, oldName: String, newName: String)
+
+    /**
+     * Moves what is keyed by the old file names of [renames] (old → new, one console) to the new
+     * ones: the ★ always (unless the new name has one already), the Downloads row with its resume
+     * state, checksum verdict, storage redirect and RomM upload when [ListingRenames.forDownloads]
+     * allows it. Runs inside [replaceSource]'s transaction.
+     */
+    suspend fun moveRenamedKeys(consoleId: String, renames: Map<String, String>) {
+        if (renames.isEmpty()) return
+        val olds = renames.keys.toList()
+        olds.chunked(SQL_CHUNK).flatMap { favouriteNamesAmong(consoleId, it) }
+            .forEach { renameFavourite(consoleId, it, renames.getValue(it)) }
+        val history = (olds + renames.values).distinct().chunked(SQL_CHUNK).flatMap { downloadsAmong(it) }
+            .associate { it.fileName to ListingRenames.Download(it.consoleId, it.status) }
+        ListingRenames.forDownloads(renames, consoleId, history, BUSY_DOWNLOADS).forEach { (from, to) ->
+            renameDownload(consoleId, from, to)
+            renameResume(from, to)
+            renameCheck(from, to)
+            renameRedirect(consoleId, from, to)
+            renameUploadSource(consoleId, from, to)
+        }
+    }
+
     companion object {
         /** Bound variables per IN (…): SQLite before 3.32 (Android 10) allows 999. */
         const val SQL_CHUNK = 500
+
+        /** Downloads with a job writing their row under its name right now. */
+        val BUSY_DOWNLOADS: Set<String> = setOf(DownloadStatus.QUEUED, DownloadStatus.DOWNLOADING, DownloadStatus.COPYING, DownloadStatus.UNZIPPING)
+            .mapTo(HashSet()) { it.name }
     }
 }
 
@@ -144,6 +235,9 @@ data class SourceRowCount(val consoleId: String, val sourceUrl: String, val rowC
 data class FileNameKey(val fileName: String, val groupKey: String)
 
 data class IndexedSource(val consoleId: String, val sourceUrl: String)
+
+/** A Downloads row by name, for [SourceScanDao.moveRenamedKeys]. */
+data class DownloadNameRow(val fileName: String, val consoleId: String, val status: String)
 
 /** What [SourceScanDao.replaceSource] wrote: tag rows, files the source did not list before and the games they add. */
 data class SourceRowsWritten(val tags: Int, val newFiles: Int, val newGames: Int)

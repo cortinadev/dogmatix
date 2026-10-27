@@ -22,6 +22,8 @@ import com.cortinadev.dogmatix.util.CollectionReclaim
 import com.cortinadev.dogmatix.util.CollectionRepair
 import com.cortinadev.dogmatix.util.CollectionStats
 import com.cortinadev.dogmatix.util.ConsoleUsage
+import com.cortinadev.dogmatix.util.DiscSetCleanup
+import com.cortinadev.dogmatix.util.DiskFile
 import com.cortinadev.dogmatix.util.DiskGame
 import com.cortinadev.dogmatix.util.DuplicateGroup
 import com.cortinadev.dogmatix.util.FileParsingUtils
@@ -34,6 +36,7 @@ import com.cortinadev.dogmatix.util.ReclaimKind
 import com.cortinadev.dogmatix.util.RepairAction
 import com.cortinadev.dogmatix.util.RepairKind
 import com.cortinadev.dogmatix.util.SourcesJson
+import com.cortinadev.dogmatix.util.StorageProblem
 import com.cortinadev.dogmatix.util.TagCount
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -89,8 +92,16 @@ data class SummaryExtras(val favourites: Int, val favouritesOnDisk: Int, val rec
 
 /** The outcome of an action, for the snackbar. */
 sealed interface CollectionMessage {
-    data class Deleted(val done: Int, val failed: Int, val bytes: Long) : CollectionMessage
-    data class Repaired(val done: Int, val failed: Int) : CollectionMessage
+    val done: Int
+    val failed: Int
+    val unverified: Int
+
+    /** Something was left as it was: the snackbar stays longer, so its reason can be read. */
+    val troubled: Boolean get() = failed > 0 || unverified > 0
+
+    /** [problem]: why some failed, when known; [unverified]: copies that did not match, their originals kept. */
+    data class Deleted(override val done: Int, override val failed: Int, val bytes: Long, val problem: StorageProblem? = null, override val unverified: Int = 0) : CollectionMessage
+    data class Repaired(override val done: Int, override val failed: Int, val problem: StorageProblem? = null, override val unverified: Int = 0) : CollectionMessage
 }
 
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
@@ -113,7 +124,7 @@ class CollectionViewModel @Inject constructor(
     @Volatile private var chosenAt = 0L
     val tool: StateFlow<CollectionTool> = merge(
         settingsRepository.collectionTool
-            .map { saved -> CollectionTool.entries.firstOrNull { it.name == saved } ?: CollectionTool.SUMMARY }
+            .map { saved -> CollectionTool.fromSaved(saved) }
             .filter { System.currentTimeMillis() - chosenAt > TOOL_SAVE_DELAY_MS * 2 }
             .distinctUntilChanged(),
         chosenTool.onEach { chosenAt = System.currentTimeMillis() }
@@ -129,6 +140,15 @@ class CollectionViewModel @Inject constructor(
 
     fun analyze() = scanService.analyze()
     fun cancelAnalysis() = scanService.cancel()
+
+    /**
+     * Opening Collection: a library folder that can no longer be read (deleted, grant lost, card
+     * out) leaves the cached analysis, so no tool offers to delete or move what is not there;
+     * Health shows the folder instead.
+     */
+    fun checkFolders() {
+        viewModelScope.launch(Dispatchers.IO) { scanService.forgetUnreachable() }
+    }
 
     /** X: stops a whole-library analysis under way, or starts one. */
     fun toggleAnalysis() = if (progress.value?.partial == false) cancelAnalysis() else analyze()
@@ -233,12 +253,23 @@ class CollectionViewModel @Inject constructor(
 
     fun chooseKeep(group: DuplicateGroup, game: DiskGame) = _keepChoices.update { it + (group.id to game.id) }
 
-    /** Deletes every copy but the kept one in [groups]. */
-    fun deleteDuplicates(groups: List<DuplicateGroup>) = run {
-        val games = groups.flatMap { group -> group.removable(keepOf(group)) }
+    /**
+     * What deleting [files] takes along (the tracks of a sheet, playlists emptied or rewritten):
+     * the confirmation shows it, and the deletion then gets this very plan, so what goes is what
+     * was shown.
+     */
+    fun deletionPlan(files: List<DiskFile>): DiscSetCleanup.Plan = fileOps.cleanupPlan(files)
+
+    /** The copies [deleteDuplicates] removes from [groups] with the kept ones as they are now. */
+    fun duplicatesToDelete(groups: List<DuplicateGroup>): List<DiskGame> = groups.flatMap { group -> group.removable(keepOf(group)) }
+
+    /** Deletes every copy but the kept one in [groups]; [plan] is what the confirmation showed. */
+    fun deleteDuplicates(groups: List<DuplicateGroup>, plan: DiscSetCleanup.Plan? = null) = run {
+        val games = duplicatesToDelete(groups)
         if (games.isEmpty()) return@run null
-        val result = fileOps.delete(games.flatMap { it.files }, games.mapNotNull { it.setFolderUri }, ActionTypes.DUPLICATES)
-        CollectionMessage.Deleted(result.done, result.failed, result.bytes)
+        val deletion = plan ?: deletionPlan(games.flatMap { it.files })
+        val result = fileOps.delete(deletion.delete, games.mapNotNull { it.setFolderUri }, ActionTypes.DUPLICATES, rewrites = deletion.rewrites)
+        CollectionMessage.Deleted(result.done, result.failed, result.bytes, result.problem, result.unverified)
     }
 
     // Repair: every fix ticked until the user unticks it.
@@ -265,11 +296,15 @@ class CollectionViewModel @Inject constructor(
         _repairUnticked.value = analysis.value?.repairs.orEmpty().map { it.id }.filterNot { it == id }.toSet()
     }
 
+    /** The files the deleting repairs of [actions] remove (what [deletionPlan] is asked about). */
+    fun repairDeletions(actions: List<RepairAction>): List<DiskFile> = CollectionRepair.deletions(actions)
+
     /**
      * Runs [actions] in their order (playlists move discs before folders are cleared), batched so
      * every move to one console and all the deletions go through one call each. Counts files.
+     * [plan]: what the confirmation showed for the deletions ([repairDeletions]).
      */
-    fun applyRepairs(actions: List<RepairAction>) = run {
+    fun applyRepairs(actions: List<RepairAction>, plan: DiscSetCleanup.Plan? = null) = run {
         if (actions.isEmpty()) return@run null
         val byKind = actions.groupBy { it.kind }
         var result = CollectionFileOps.Result(0, 0)
@@ -277,16 +312,19 @@ class CollectionViewModel @Inject constructor(
             val finding = action.finding
             val parent = finding.playlistParentUri
             val playlist = finding.playlist
-            val ok = parent != null && playlist != null && fileOps.createPlaylist(parent, finding.setFolderUri, playlist, finding.moves, finding.consoleId)
-            result += CollectionFileOps.Result(if (ok) 1 else 0, if (ok) 0 else 1)
+            result += if (parent != null && playlist != null) fileOps.createPlaylist(parent, finding.setFolderUri, playlist, finding.moves, finding.consoleId)
+            else CollectionFileOps.Result(0, 1)
         }
         byKind[RepairKind.MOVE_TO_CONSOLE].orEmpty().groupBy { it.finding.targetConsoleId }.forEach { (target, moves) ->
             if (target != null) result += fileOps.moveToConsole(moves.flatMap { it.finding.files }, target)
         }
-        val deletions = listOf(RepairKind.DELETE_EMPTY_FILE, RepairKind.DELETE_PARTIAL, RepairKind.DELETE_EXTRACTED_ARCHIVE).flatMap { byKind[it].orEmpty() }
-        if (deletions.isNotEmpty()) result += fileOps.delete(deletions.flatMap { it.finding.files }, type = ActionTypes.REPAIR)
+        val deletions = repairDeletions(actions)
+        if (deletions.isNotEmpty()) {
+            val deletion = plan ?: deletionPlan(deletions)
+            result += fileOps.delete(deletion.delete, type = ActionTypes.REPAIR, rewrites = deletion.rewrites)
+        }
         byKind[RepairKind.DELETE_EMPTY_FOLDER]?.let { folders -> result += fileOps.deleteEmptyFolders(folders.mapNotNull { it.finding.folder }) }
-        CollectionMessage.Repaired(result.done, result.failed)
+        CollectionMessage.Repaired(result.done, result.failed, result.problem, result.unverified)
     }
 
     // Free up space: nothing ticked until the user ticks it.
@@ -316,18 +354,27 @@ class CollectionViewModel @Inject constructor(
         _reclaimTicked.update { if (ids.isNotEmpty() && it.containsAll(ids)) emptySet() else ids }
     }
 
-    /** Deleted for good, not to the trash: in the same volume the trash would free nothing until emptied. */
-    fun deleteReclaim(candidates: List<ReclaimCandidate>) = run {
+    /** The files the Free up space [candidates] delete (what [deletionPlan] is asked about); the caches aside. */
+    fun reclaimFiles(candidates: List<ReclaimCandidate>): List<DiskFile> = CollectionReclaim.files(candidates)
+
+    /**
+     * Deleted for good, not to the trash: in the same volume the trash would free nothing until
+     * emptied. [plan]: what the confirmation showed for the files ([reclaimFiles]).
+     */
+    fun deleteReclaim(candidates: List<ReclaimCandidate>, plan: DiscSetCleanup.Plan? = null) = run {
         if (candidates.isEmpty()) return@run null
         var done = 0
         var failed = 0
         var bytes = 0L
-        val files = candidates.filter { it.kind == ReclaimKind.DUPLICATE || it.kind == ReclaimKind.EXTRACTED_ARCHIVE || it.kind == ReclaimKind.PARTIAL_DOWNLOAD }
+        var problem: StorageProblem? = null
+        val files = CollectionReclaim.onDisk(candidates)
         if (files.isNotEmpty()) {
-            val result = fileOps.deleteForGood(files.flatMap { it.files }, files.mapNotNull { it.setFolderUri })
+            val deletion = plan ?: deletionPlan(reclaimFiles(candidates))
+            val result = fileOps.deleteForGood(deletion.delete, files.mapNotNull { it.setFolderUri }, deletion.rewrites)
             done += result.done
             failed += result.failed
             bytes += result.bytes
+            problem = result.problem
         }
         if (candidates.any { it.kind == ReclaimKind.TORRENT_CACHE }) fileOps.clearTorrentCache().let { bytes += it; done++ }
         if (candidates.any { it.kind == ReclaimKind.IMAGE_CACHE }) fileOps.clearImageCache().let { bytes += it; done++ }
@@ -335,7 +382,7 @@ class CollectionViewModel @Inject constructor(
         fileOps.recordFreed(candidates.singleOrNull()?.title.orEmpty(), done, bytes)
         _reclaimTicked.update { it - candidates.map { c -> c.id }.toSet() }
         refreshCaches()
-        CollectionMessage.Deleted(done, failed, bytes)
+        CollectionMessage.Deleted(done, failed, bytes, problem)
     }
 
     /** Opens the Library on [consoleId], searching for [title] without its tags when given. */

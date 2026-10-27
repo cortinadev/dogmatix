@@ -1,6 +1,7 @@
 package com.cortinadev.dogmatix.data.service
 
 import org.libtorrent4j.TorrentInfo
+import java.io.File
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -33,6 +34,21 @@ class TorrentMetadataFetcher @Inject constructor(
             }
         }
         return block(fetch(magnet))
+    }
+
+    /**
+     * As [withInfo], but never from the swarm and without starting the session: a handle already
+     * in it, the metadata cache on disk or a local `.torrent` read directly. Null when the file list
+     * is not at hand.
+     */
+    fun <T : Any> withLocalInfo(magnet: String, block: (TorrentInfo) -> T): T? {
+        registry.getCachedInfo(magnet)?.let { return block(it) }
+        val info = if (magnet.startsWith("magnet:")) {
+            metadataCache.load(magnet)
+        } else {
+            runCatching { TorrentInfo(File(magnet)) }.getOrNull()
+        } ?: return null
+        return try { block(info) } finally { info.swig().delete() }
     }
 
     /** The file list is at hand without the swarm: a session handle, the disk cache or a local .torrent. */

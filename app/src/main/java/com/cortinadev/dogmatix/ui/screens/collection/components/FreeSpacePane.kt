@@ -96,18 +96,26 @@ fun FreeSpacePane(viewModel: CollectionViewModel, active: Boolean, entryFocus: F
         }
 
         confirm?.let { chosen ->
+            // What really goes (tracks and playlists of these discs included): shown, then deleted as it is.
+            val plan = remember(chosen) { viewModel.deletionPlan(viewModel.reclaimFiles(chosen)) }
+            val caches = chosen.filter { it.kind == ReclaimKind.TORRENT_CACHE || it.kind == ReclaimKind.IMAGE_CACHE }.sumOf { it.bytes }
             ConfirmDialog(
                 title = pluralStringResource(R.plurals.collection_free_space_confirm_title, chosen.size, chosen.size),
                 lines = listOf(stringResource(R.string.collection_free_space_permanent)) +
-                    chosen.take(6).map { "${candidateTitle(it)}  ·  ${formatBytes(it.bytes)}" } +
-                    listOfNotNull(
-                        (chosen.size - 6).takeIf { it > 0 }?.let { stringResource(R.string.collection_and_more, it) },
-                        stringResource(R.string.collection_frees, formatBytes(chosen.sumOf { it.bytes }))
-                    ),
+                    chosen.take(6).map { candidate ->
+                        // A copy of several files (a sheet and its tracks, a set) says so: they all go.
+                        listOfNotNull(
+                            candidateTitle(candidate), formatBytes(candidate.bytes),
+                            candidate.files.size.takeIf { it > 1 }?.let { pluralStringResource(R.plurals.collection_files, it, it) }
+                        ).joinToString("  ·  ")
+                    } +
+                    listOfNotNull((chosen.size - 6).takeIf { it > 0 }?.let { stringResource(R.string.collection_and_more, it) }) +
+                    takenAlongLines(plan) +
+                    stringResource(R.string.collection_frees, formatBytes(plan.bytes + caches)),
                 confirmLabel = stringResource(R.string.collection_delete),
                 onConfirm = {
                     confirm = null
-                    viewModel.deleteReclaim(chosen)
+                    viewModel.deleteReclaim(chosen, plan)
                 },
                 onDismiss = { confirm = null }
             )
@@ -124,9 +132,23 @@ private fun candidateTitle(candidate: ReclaimCandidate): String = when (candidat
 
 @Composable
 private fun candidateDetail(candidate: ReclaimCandidate): String = when (candidate.kind) {
-    ReclaimKind.DUPLICATE -> stringResource(R.string.collection_reclaim_duplicate, location(candidate.files.firstOrNull()), candidate.kept?.title.orEmpty())
+    ReclaimKind.DUPLICATE -> stringResource(R.string.collection_reclaim_duplicate, location(candidate.files.firstOrNull()), keptLabel(candidate))
     ReclaimKind.EXTRACTED_ARCHIVE -> stringResource(R.string.collection_reclaim_archive, location(candidate.files.firstOrNull()))
     ReclaimKind.PARTIAL_DOWNLOAD -> stringResource(R.string.collection_reclaim_partial, location(candidate.files.firstOrNull()))
     ReclaimKind.TORRENT_CACHE -> stringResource(R.string.collection_reclaim_torrent_cache_hint)
     ReclaimKind.IMAGE_CACHE -> stringResource(R.string.collection_reclaim_image_cache_hint)
+}
+
+/**
+ * The copy that stays: its name, and where it is when that name is the same (a copy in another
+ * folder or console). A `<game>.m3u/` folder already ends in the game's name.
+ */
+@Composable
+private fun keptLabel(candidate: ReclaimCandidate): String {
+    val kept = candidate.kept ?: return ""
+    return when {
+        kept.title != candidate.title -> kept.title
+        kept.setFolderUri != null -> location(kept.files.first())
+        else -> location(kept.files.first()) + "/" + kept.title
+    }
 }

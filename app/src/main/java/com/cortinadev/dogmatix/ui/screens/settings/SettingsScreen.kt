@@ -99,6 +99,7 @@ import com.cortinadev.dogmatix.ui.theme.AccentPresets
 import com.cortinadev.dogmatix.util.TagColorKind
 import com.cortinadev.dogmatix.util.Constants
 import com.cortinadev.dogmatix.util.TorrentConstants
+import com.cortinadev.dogmatix.ui.screens.settings.ia.IaSessionRow
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
 import com.cortinadev.dogmatix.ui.theme.ThemeMode
 import androidx.appcompat.app.AppCompatDelegate
@@ -710,6 +711,10 @@ fun SettingsScreen(
                 ) {
                     Text("›", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
+            },
+            // The archive.org session, for items that need an account (ia/IaSessionSettings.kt)
+            SettingsRow(key = SettingsRowKeys.IA_SESSION) {
+                IaSessionRow(onSignIn = { openScreen(NavRoutes.IaLogin, SettingsRowKeys.IA_SESSION) })
             }
         )
     )

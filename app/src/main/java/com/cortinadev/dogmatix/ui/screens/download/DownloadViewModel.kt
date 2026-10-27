@@ -61,6 +61,9 @@ class DownloadViewModel @Inject constructor(
     /** Why each failed row failed (shown under its name). */
     val failures: StateFlow<Map<String, DownloadFailure>> = progressTracker.failures
 
+    /** Rows whose server cannot carry them on: paused, they say they will start again from zero. */
+    val restartsFromZero: StateFlow<Set<String>> = progressTracker.restartsFromZero
+
     /** When each failed row will be retried on its own, if it will. */
     val nextRetryAt: StateFlow<Map<String, Long>> = autoRetry.nextRetryAt
 

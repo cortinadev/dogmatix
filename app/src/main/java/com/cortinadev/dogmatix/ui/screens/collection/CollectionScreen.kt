@@ -85,10 +85,18 @@ import com.cortinadev.dogmatix.ui.screens.collection.librarymove.LibraryMovePane
 import com.cortinadev.dogmatix.ui.screens.collection.smartstorage.SmartStoragePane
 import com.cortinadev.dogmatix.ui.screens.collection.components.scanningLabel
 import com.cortinadev.dogmatix.util.HealthSeverity
+import com.cortinadev.dogmatix.util.StorageProblem
 import kotlinx.coroutines.launch
 
 /** The tools of the Collection section, in the order they are listed. */
-enum class CollectionTool { SUMMARY, HEALTH, DUPLICATES, REPAIR, FREE_SPACE, SMART_STORAGE, LIBRARY_MOVE, HISTORY, COLLECTIONS }
+enum class CollectionTool {
+    SUMMARY, HEALTH, DUPLICATES, REPAIR, FREE_SPACE, SMART_STORAGE, LIBRARY_MOVE, HISTORY, COLLECTIONS;
+
+    companion object {
+        /** The tool saved in `collection_tool`; one that no longer exists (the old statistics tool) opens Summary. */
+        fun fromSaved(name: String?): CollectionTool = entries.firstOrNull { it.name == name } ?: SUMMARY
+    }
+}
 
 /** Title of each tool (`collection_tool_<id>`, also what the app-wide search indexes). */
 @get:StringRes
@@ -196,9 +204,11 @@ fun CollectionScreen(
     LaunchedEffect(Unit) {
         viewModel.messages.collect { message ->
             snackbar.currentSnackbarData?.dismiss()
-            snackbar.showSnackbar(messages(message), duration = SnackbarDuration.Short)
+            snackbar.showSnackbar(messages(message), duration = if (message.troubled) SnackbarDuration.Long else SnackbarDuration.Short)
         }
     }
+    // A library folder gone since the last analysis stops being offered (Health shows it instead).
+    LaunchedEffect(Unit) { viewModel.checkFolders() }
 
     // The tools publish their own legend while they hold the focus; the list's is this one.
     val listLegend = buildList {
@@ -459,16 +469,27 @@ private fun AnalyzeBar(viewModel: CollectionViewModel) {
 @Composable
 private fun collectionMessages(): (CollectionMessage) -> String {
     val res = LocalResources.current
+    // Why some could not be done, when that is known: the folder lost, the card out, no room, copies that did not match.
+    fun reasons(failed: Int, problem: StorageProblem?, unverified: Int): List<String> = listOfNotNull(
+        res.getQuantityString(R.plurals.collection_failed, failed, failed).takeIf { failed > 0 },
+        when (problem) {
+            StorageProblem.NO_SPACE -> res.getString(R.string.collection_problem_no_space)
+            StorageProblem.PERMISSION_LOST -> res.getString(R.string.collection_problem_permission)
+            StorageProblem.VOLUME_GONE -> res.getString(R.string.collection_problem_volume)
+            null -> null
+        }?.takeIf { failed > 0 },
+        res.getQuantityString(R.plurals.collection_unverified, unverified, unverified).takeIf { unverified > 0 }
+    )
     return { message ->
+        // Nothing done and something failed: the failure and its reason lead ("0 deleted" says nothing).
+        val nothingDone = message.done == 0 && message.failed > 0
         when (message) {
-            is CollectionMessage.Deleted -> {
-                val base = res.getQuantityString(R.plurals.collection_deleted, message.done, message.done, formatBytes(message.bytes))
-                if (message.failed > 0) base + " · " + res.getQuantityString(R.plurals.collection_failed, message.failed, message.failed) else base
-            }
-            is CollectionMessage.Repaired -> {
-                val base = res.getQuantityString(R.plurals.collection_repaired, message.done, message.done)
-                if (message.failed > 0) base + " · " + res.getQuantityString(R.plurals.collection_failed, message.failed, message.failed) else base
-            }
+            is CollectionMessage.Deleted ->
+                (listOfNotNull(res.getQuantityString(R.plurals.collection_deleted, message.done, message.done, formatBytes(message.bytes)).takeUnless { nothingDone }) +
+                    reasons(message.failed, message.problem, message.unverified)).joinToString(" · ")
+            is CollectionMessage.Repaired ->
+                (listOfNotNull(res.getQuantityString(R.plurals.collection_repaired, message.done, message.done).takeUnless { nothingDone }) +
+                    reasons(message.failed, message.problem, message.unverified)).joinToString(" · ")
         }
     }
 }

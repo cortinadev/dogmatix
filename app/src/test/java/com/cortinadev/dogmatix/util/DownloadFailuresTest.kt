@@ -37,6 +37,30 @@ class DownloadFailuresTest {
     }
 
     @Test
+    fun `unpacking and the folder's own trouble`() {
+        assertEquals(DownloadFailure.EXTRACTION, DownloadFailures.classify(ArchiveExtractionException(DownloadFailure.EXTRACTION, "Entry x: CRCERROR")))
+        assertEquals(
+            DownloadFailure.EXTRACTION_NO_SPACE,
+            DownloadFailures.classify(Exception("wrapped", ArchiveExtractionException(DownloadFailure.EXTRACTION_NO_SPACE, "no room")))
+        )
+        assertEquals(DownloadFailure.PERMISSION_LOST, DownloadFailures.classify(SecurityException("Permission Denial: … requires that you obtain access using ACTION_OPEN_DOCUMENT")))
+        assertEquals(DownloadFailure.PERMISSION_LOST, DownloadFailures.classify(java.io.FileNotFoundException("open failed: EACCES (Permission denied)")))
+        assertEquals(
+            DownloadFailure.STORAGE_GONE,
+            DownloadFailures.classify(IllegalArgumentException("Failed to determine if 6A3B-BB88:ROMS/snes is child of 6A3B-BB88:ROMS: java.io.FileNotFoundException: Missing file"))
+        )
+        assertEquals(DownloadFailure.STORAGE_GONE, DownloadFailures.classify(IOException("write failed: EIO (I/O error)")))
+        // A socket refused by the system is the network, not the folder.
+        assertEquals(DownloadFailure.NETWORK, DownloadFailures.classify(java.net.SocketException("socket failed: EACCES (Permission denied)")))
+        // None of them is worth an automatic retry, and none counts against the source.
+        listOf(DownloadFailure.EXTRACTION, DownloadFailure.EXTRACTION_NO_SPACE, DownloadFailure.PERMISSION_LOST, DownloadFailure.STORAGE_GONE).forEach {
+            assertFalse(AutoRetryPolicy.shouldRetry(it, attemptsDone = 0, maxAttempts = 3))
+            assertFalse(SourceReliability.countsAgainstOrigin(it))
+        }
+        assertTrue(SourceReliability.countsAgainstOrigin(DownloadFailure.NETWORK))
+    }
+
+    @Test
     fun `debrid account problems are not retried`() {
         val failure = DownloadFailures.classify(Exception("Real-Debrid: premium account required"))
         assertEquals(DownloadFailure.DEBRID_ACCOUNT, failure)

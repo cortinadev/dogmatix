@@ -84,6 +84,7 @@ fun DownloadScreen(
     val uploads by viewModel.uploads.collectAsState()
     val failures by viewModel.failures.collectAsState()
     val retries by viewModel.nextRetryAt.collectAsState()
+    val restartsFromZero by viewModel.restartsFromZero.collectAsState()
     val selection by viewModel.selection.collectAsState()
     val showDeleteConfirmation by viewModel.showDeleteConfirmation.collectAsState()
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -271,7 +272,8 @@ fun DownloadScreen(
         // A row: what A does to it, then the rest; a queued row trades the section hint for START.
         else -> listOfNotNull(
             LegendEntry("A", primaryLabel(liveRow, queue)),
-            LegendEntry("X", stringResource(R.string.pad_delete)),
+            // X deletes paused, stopped, failed and completed rows; a transfer is paused or stopped first.
+            if (liveRow == null || liveRow.status.canDelete) LegendEntry("X", stringResource(R.string.pad_delete)) else null,
             if (rowQueued) LegendEntry("START", stringResource(R.string.pad_order)) else null,
             search,
             LegendEntry("SELECT", stringResource(R.string.pad_tick)),
@@ -388,6 +390,7 @@ fun DownloadScreen(
                         showCover = showCovers,
                         failure = failures[item.fileName],
                         retryAt = retries[item.fileName],
+                        restartsFromZero = item.fileName in restartsFromZero,
                         compact = isLandscape,
                         viewModel = viewModel,
                         modifier = (if (index == firstVisibleRow) Modifier.focusRequester(firstRowFocus) else Modifier)

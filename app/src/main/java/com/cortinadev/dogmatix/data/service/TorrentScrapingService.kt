@@ -5,6 +5,7 @@ import android.util.Log
 import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
 import com.cortinadev.dogmatix.data.model.Console
+import com.cortinadev.dogmatix.data.model.TorrentFileEntry
 import com.cortinadev.dogmatix.data.model.UrlEntry
 import com.cortinadev.dogmatix.data.state.RescanStateHolder
 import com.cortinadev.dogmatix.util.FileParsingUtils
@@ -12,6 +13,7 @@ import com.cortinadev.dogmatix.util.ScanProgressMath
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.libtorrent4j.TorrentInfo
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -37,24 +39,31 @@ class TorrentScrapingService @Inject constructor(
     /**
      * Indexes the torrent's files and hands them to [sink], which writes them only if they
      * changed. The file list comes from a session handle, the metadata cache on disk or the
-     * swarm (see [TorrentMetadataFetcher.withInfo]).
+     * swarm (see [TorrentMetadataFetcher.withInfo]); without [swarm], only from what is at hand
+     * ([TorrentMetadataFetcher.withLocalInfo]), and null when it is not.
      */
-    suspend fun scrapeAndInsert(urlEntry: UrlEntry, console: Console, sink: SourceRowsSink): SourceWrite =
+    suspend fun scrapeAndInsert(urlEntry: UrlEntry, console: Console, sink: SourceRowsSink, swarm: Boolean = true): SourceWrite? =
         withContext(Dispatchers.IO) {
             val magnet = urlEntry.url
             val key = RescanStateHolder.sourceKey(console.id, magnet)
 
             rescanStateHolder.setTorrentFetchProgress(context.getString(R.string.scrape_fetching_torrent, console.name))
 
+            val index: (TorrentInfo) -> List<TorrentFileEntry> = { info ->
+                rescanStateHolder.sourceProgress(key, ScanProgressMath.PHASE_TORRENT_METADATA)
+                rescanStateHolder.setTorrentFetchProgress(context.getString(R.string.scrape_indexing_torrent, console.name))
+                fileIndexer.index(info, magnet, urlEntry.folders)
+            }
             val entries = try {
-                metadataFetcher.withInfo(magnet) { info ->
-                    rescanStateHolder.sourceProgress(key, ScanProgressMath.PHASE_TORRENT_METADATA)
-                    rescanStateHolder.setTorrentFetchProgress(context.getString(R.string.scrape_indexing_torrent, console.name))
-                    fileIndexer.index(info, magnet, urlEntry.folders)
-                }
+                if (swarm) metadataFetcher.withInfo(magnet, index) else metadataFetcher.withLocalInfo(magnet, index)
             } catch (e: Exception) {
                 rescanStateHolder.setTorrentFetchProgress("")
                 throw e
+            }
+            if (entries == null) {
+                rescanStateHolder.setTorrentFetchProgress("")
+                Log.i(TAG, "File list of ${console.id} not at hand; not asking the swarm")
+                return@withContext null
             }
             if (entries.isEmpty()) Log.w(TAG, "No files found in torrent")
 

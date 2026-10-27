@@ -117,6 +117,23 @@ data class LibrarySnapshot(
     val scannedAt: Long,
     val version: Int = VERSION
 ) {
+    /**
+     * This analysis once the trees in [unreachable] can no longer be used (the folder deleted or
+     * moved, its grant lost, the card out): what was found through them is no longer offered to
+     * any tool, and each of them reads as not accessible (Health says so), as the next analysis
+     * would show it. Analyze again to see them once they are back.
+     */
+    fun withoutRoots(unreachable: Set<String>): LibrarySnapshot {
+        if (unreachable.isEmpty()) return this
+        val known = roots.mapTo(HashSet()) { it.uri }
+        return copy(
+            files = files.filterNot { it.rootUri in unreachable },
+            folders = folders.filterNot { it.rootUri in unreachable },
+            roots = roots.map { if (it.uri in unreachable) it.copy(accessible = false) else it } +
+                unreachable.filterNot { it in known }.map { LibraryRoot(it, consoleId = null, accessible = false, permission = true) }
+        )
+    }
+
     companion object {
         /** Bumped whenever the shape changes: an older cached snapshot is then thrown away. */
         const val VERSION = 1
@@ -194,17 +211,44 @@ object CollectionGames {
                 setFolderUri = folderUri
             )
         }
-        others.groupBy { it.parentUri + "|" + entryKey(it.name) }.forEach { (_, group) ->
+        val joined = sheetTracks(others)
+        others.groupBy { joined[it.uri] ?: keyOf(it) }.forEach { (key, group) ->
             // A playlist alone points at discs counted elsewhere (or nowhere): not a game of its own.
             if (group.all { it.extension == "m3u" }) return@forEach
-            val first = group.first()
+            // The files named like the game give its name and key (a sheet's tracks may be `track01.bin`).
+            val named = group.filter { keyOf(it) == key }.ifEmpty { group }
+            val first = named.first()
             games += DiskGame(
                 consoleId = first.consoleId,
                 groupKey = first.groupKey,
-                title = titleOf(group),
+                title = titleOf(named),
                 files = group.sortedBy { it.name.lowercase(Locale.ROOT) }
             )
         }
         return games
     }
+
+    private fun keyOf(file: DiskFile): String = file.parentUri + "|" + entryKey(file.name)
+
+    /**
+     * Tracks a `.cue` / `.gdi` names in its own folder whatever they are called (`track01.bin`,
+     * `Game Track 2.bin`): file URI → key of the sheet's game. A track the sheets of two different
+     * games name is left where its own name puts it, never pulled into either.
+     */
+    private fun sheetTracks(files: List<DiskFile>): Map<String, String> {
+        // Same folder only, compared without case (FAT, exFAT).
+        val inFolder = files.associateBy { it.parentUri + "|" + it.path.lowercase(Locale.ROOT) }
+        val owners = HashMap<String, MutableSet<String>>()
+        for (sheet in files) {
+            if (!isSheet(sheet)) continue
+            for (ref in sheet.references.orEmpty()) {
+                val path = CollectionHealth.resolve(sheet.folderPath, ref) ?: continue
+                val track = inFolder[sheet.parentUri + "|" + path.lowercase(Locale.ROOT)] ?: continue
+                if (!isSheet(track)) owners.getOrPut(track.uri) { HashSet() } += keyOf(sheet)
+            }
+        }
+        return owners.filterValues { it.size == 1 }.mapValues { it.value.single() }
+    }
+
+    private fun isSheet(file: DiskFile): Boolean = file.extension == "cue" || file.extension == "gdi"
 }

@@ -90,13 +90,17 @@ fun RepairPane(viewModel: CollectionViewModel, active: Boolean, entryFocus: Focu
         }
 
         confirm?.let { actions ->
+            // What the deletions really take (tracks and playlists of these discs included): shown, then done as it is.
+            val plan = remember(actions) { viewModel.deletionPlan(viewModel.repairDeletions(actions)) }
+            val takenAlong = takenAlongLines(plan)
             ConfirmDialog(
                 title = pluralStringResource(R.plurals.collection_repair_confirm_title, actions.size, actions.size),
-                lines = CollectionRepair.counts(actions).map { (kind, n) -> repairCountLine(kind, n, actions.filter { it.kind == kind }.sumOf { it.bytes }) },
+                lines = CollectionRepair.counts(actions).map { (kind, n) -> repairCountLine(kind, n, actions.filter { it.kind == kind }.sumOf { it.bytes }) } +
+                    takenAlong + listOfNotNull(stringResource(R.string.collection_frees, formatBytes(plan.bytes)).takeIf { takenAlong.isNotEmpty() }),
                 confirmLabel = stringResource(R.string.collection_repair),
                 onConfirm = {
                     confirm = null
-                    viewModel.applyRepairs(actions)
+                    viewModel.applyRepairs(actions, plan)
                 },
                 onDismiss = { confirm = null }
             )

@@ -18,7 +18,11 @@ import com.cortinadev.dogmatix.util.MoveJobCodec
 import com.cortinadev.dogmatix.util.MoveJobs
 import com.cortinadev.dogmatix.util.MoveSettings
 import com.cortinadev.dogmatix.util.MoveUndo
+import com.cortinadev.dogmatix.util.CopyCheck
 import com.cortinadev.dogmatix.util.StorageHelper
+import com.cortinadev.dogmatix.util.StorageProblem
+import com.cortinadev.dogmatix.util.StorageProblemException
+import com.cortinadev.dogmatix.util.StorageProblems
 import com.cortinadev.dogmatix.util.TrashRules
 import com.cortinadev.dogmatix.util.UndoKinds
 import com.cortinadev.dogmatix.util.DownloadBulk
@@ -46,7 +50,21 @@ import javax.inject.Singleton
 
 enum class MovePhase { PREPARING, MOVING, FINISHING, DONE, INTERRUPTED, FAILED }
 
-enum class MoveProblem { NO_ROOM, OVERLAP, CANNOT_OPEN, BUSY }
+enum class MoveProblem {
+    NO_ROOM, OVERLAP, CANNOT_OPEN, BUSY,
+    /** The app lost its grant to the source or the target folder (or it was deleted). */
+    PERMISSION_LOST,
+    /** The volume of the source or the target is not available (SD card out). */
+    VOLUME_GONE;
+
+    companion object {
+        fun of(problem: StorageProblem): MoveProblem = when (problem) {
+            StorageProblem.NO_SPACE -> NO_ROOM
+            StorageProblem.PERMISSION_LOST -> PERMISSION_LOST
+            StorageProblem.VOLUME_GONE -> VOLUME_GONE
+        }
+    }
+}
 
 data class MoveProgress(
     val job: MoveJob,
@@ -58,10 +76,15 @@ data class MoveProgress(
     val current: String = "",
     /** Same name, different size at the target: both kept where they are. */
     val conflicts: Int = 0,
+    /** Files left behind (copy failed or did not match), [unverified] included. */
     val failures: Int = 0,
+    /** Copies that did not match their original (size or sampled bytes): deleted, the original kept. */
+    val unverified: Int = 0,
     val problem: MoveProblem? = null,
     val needBytes: Long = 0,
-    val freeBytes: Long = 0
+    val freeBytes: Long = 0,
+    /** A failed move whose job is kept: Resume carries on from where it stopped. */
+    val canResume: Boolean = false
 ) {
     val running: Boolean get() = phase == MovePhase.PREPARING || phase == MovePhase.MOVING || phase == MovePhase.FINISHING
 }
@@ -69,8 +92,10 @@ data class MoveProgress(
 /**
  * Moves library folders: the whole library root to a new folder, chosen consoles to another
  * place, or one console between the two roots of smart storage. Every file is copied under a
- * temporary name, checked by size and renamed before its original is deleted; on the same
- * volume the provider moves whole folders at once. Downloads are paused (and new ones wait)
+ * temporary name, checked by size and sampled bytes ([CopyCheck]) and renamed before its original
+ * is deleted; on the same volume the provider moves whole folders at once. The folders are
+ * checked first, and a lost grant, a missing card or a full target stops the whole move with that
+ * reason (resumable) instead of failing file by file. Downloads are paused (and new ones wait)
  * while it runs, then resumed; the settings follow at the end, the library is re-indexed and
  * the move is recorded in the history, whose Undo moves everything back. The job is saved
  * first: after an interruption (cancel, a crash) it can be resumed and carries on.
@@ -224,6 +249,11 @@ class LibraryMoveService @Inject constructor(
             _state.value = MoveProgress(job, MovePhase.FAILED, problem = MoveProblem.OVERLAP)
             return
         }
+        // Both ends must be there and writable before anything is paused or touched.
+        withContext(Dispatchers.IO) { preflight(job) }?.let { problem ->
+            _state.value = MoveProgress(job, MovePhase.FAILED, problem = MoveProblem.of(problem), canResume = jobFile.exists())
+            return
+        }
         if (!router.fileOps.tryLock()) {
             _state.value = MoveProgress(job, MovePhase.FAILED, problem = MoveProblem.BUSY)
             return
@@ -273,7 +303,17 @@ class LibraryMoveService @Inject constructor(
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Move failed", e)
-            _state.update { it?.copy(phase = MovePhase.FAILED, problem = it.problem ?: MoveProblem.CANNOT_OPEN) }
+            val storage = StorageProblems.classify(e) ?: preflight(job)
+            val free = if (storage == StorageProblem.NO_SPACE) job.items.firstOrNull()?.let { StorageHelper.getFreeBytes(context, it.targetParent) } else null
+            _state.update {
+                it?.copy(
+                    phase = MovePhase.FAILED,
+                    problem = it.problem ?: storage?.let(MoveProblem::of) ?: MoveProblem.CANNOT_OPEN,
+                    needBytes = if (free != null) (it.bytesTotal - it.bytesDone).coerceAtLeast(0) else it.needBytes,
+                    freeBytes = free ?: it.freeBytes,
+                    canResume = keepJob
+                )
+            }
         } finally {
             withContext(NonCancellable) {
                 if (!keepJob) jobFile.delete()
@@ -282,6 +322,15 @@ class LibraryMoveService @Inject constructor(
                 resumeDownloads(job.pausedDownloads)
             }
         }
+    }
+
+    /**
+     * What keeps [job]'s folders from being used right now: the trees its items come from (not the
+     * items themselves, which a resumed run may have moved already) and the folders they go to.
+     */
+    private fun preflight(job: MoveJob): StorageProblem? {
+        val sourceTrees = job.items.mapNotNull { item -> SafDocs.docUri(item.source)?.let { SafDocs.treeRootOf(it).toString() } }
+        return StorageProblems.worst((sourceTrees + job.items.map { it.targetParent }).distinct().map { SafDocs.problemOf(context, it) })
     }
 
     private fun ids(item: MoveItem): Pair<String, String>? {
@@ -361,51 +410,62 @@ class LibraryMoveService @Inject constructor(
     }
 
     private suspend fun moveFile(doc: SafDocs.Doc, sourceParent: Uri?, target: Uri) {
-        if (LibraryMoveRules.isPart(doc.name)) {
-            SafDocs.delete(context, doc.uri)
-            return
-        }
-        _state.update { it?.copy(current = doc.name) }
         val existing = SafDocs.child(context, target, doc.name)
-        if (existing != null) {
-            // Never onto itself (a folder moved into its own place).
-            if (SafDocs.docId(existing.uri) == SafDocs.docId(doc.uri)) return
-            when (LibraryMoveRules.existing(doc.size, existing.size.takeIf { !existing.isDirectory })) {
-                // Copied by an earlier run (or the same file already there): the original can go.
-                LibraryMoveRules.Existing.SAME -> SafDocs.delete(context, doc.uri)
-                LibraryMoveRules.Existing.CONFLICT -> _state.update { it?.copy(conflicts = it.conflicts + 1) }
+        // Never onto itself (a folder moved into its own place).
+        if (existing != null && SafDocs.docId(existing.uri) == SafDocs.docId(doc.uri)) return
+        val step = LibraryMoveRules.fileStep(doc.name, doc.size, existing?.let { if (it.isDirectory) -1L else it.size }) {
+            SafDocs.compare(context, doc.uri, doc.size, existing!!.uri, existing.size) == CopyCheck.Verdict.SAME
+        }
+        when (step) {
+            LibraryMoveRules.FileStep.DROP_PART -> {
+                SafDocs.delete(context, doc.uri)
+                return
             }
-            advance(1, doc.size.coerceAtLeast(0), doc.name)
-            return
+            // Copied by an earlier run (or the same file already there): the original can go.
+            LibraryMoveRules.FileStep.ALREADY_THERE -> SafDocs.delete(context, doc.uri)
+            LibraryMoveRules.FileStep.CONFLICT -> _state.update { it?.copy(conflicts = it.conflicts + 1) }
+            LibraryMoveRules.FileStep.MOVE -> {
+                _state.update { it?.copy(current = doc.name) }
+                if (sourceParent != null && SafDocs.move(context, doc.uri, sourceParent, target) != null) {
+                    advance(1, doc.size.coerceAtLeast(0), doc.name)
+                    return
+                }
+                copyFile(doc, target)
+                return
+            }
         }
-        if (sourceParent != null && SafDocs.move(context, doc.uri, sourceParent, target) != null) {
-            advance(1, doc.size.coerceAtLeast(0), doc.name)
-            return
-        }
-        // Copy under a temporary name, check the size, rename, and only then delete the original.
-        SafDocs.child(context, target, LibraryMoveRules.partName(doc.name))?.let { SafDocs.delete(context, it.uri) }
-        val part = SafDocs.createFile(context, target, LibraryMoveRules.partName(doc.name)) ?: throw IllegalStateException("Cannot write to target")
+        advance(1, doc.size.coerceAtLeast(0), doc.name)
+    }
+
+    /**
+     * Copies [doc] into [target] under a temporary name, checks it against the original (size
+     * and sampled bytes), renames it and only then deletes the original. A copy that does not
+     * match is dropped and the original stays; a lost grant, a missing card or a full target
+     * stops the move ([StorageProblemException]): every other file would fail the same way.
+     */
+    private suspend fun copyFile(doc: SafDocs.Doc, target: Uri) {
         var copied = 0L
-        try {
-            SafDocs.copyInto(context, doc.uri, part) { n ->
+        val copy = try {
+            SafDocs.copyFileVerified(context, doc.uri, doc.size, target, doc.name, replaceStalePart = true) { n ->
                 copied += n
                 _state.update { it?.copy(bytesDone = it.bytesDone + n) }
             }
         } catch (e: Exception) {
-            withContext(NonCancellable) { SafDocs.delete(context, part) }
             _state.update { it?.copy(bytesDone = it.bytesDone - copied) }
             if (e is CancellationException) throw e
+            val problem = StorageProblems.classify(e)
+                ?: withContext(NonCancellable) { SafDocs.problemOfAny(context, listOf(target.toString(), doc.uri.toString())) }
+            if (problem != null) throw StorageProblemException(problem, "Copy of ${doc.name} failed: ${e.message}", e)
+            Log.w(TAG, "Copy of ${doc.name} failed: ${e.message}")
             _state.update { it?.copy(failures = it.failures + 1) }
             return
         }
-        val size = SafDocs.stat(context, part)?.size
-        val renamed = if (LibraryMoveRules.mayDeleteSource(doc.size, size)) SafDocs.rename(context, part, doc.name) else null
-        if (renamed == null) {
-            SafDocs.delete(context, part)
-            _state.update { it?.copy(failures = it.failures + 1) }
+        if (copy == null) {
+            Log.w(TAG, "Copy of ${doc.name} did not match its original; the original stays")
+            _state.update { it?.copy(bytesDone = it.bytesDone - copied, failures = it.failures + 1, unverified = it.unverified + 1) }
             return
         }
-        SafDocs.delete(context, doc.uri)
+        if (!SafDocs.delete(context, doc.uri)) Log.w(TAG, "Copied ${doc.name} but could not delete the original")
         _state.update { it?.copy(filesDone = it.filesDone + 1) }
     }
 

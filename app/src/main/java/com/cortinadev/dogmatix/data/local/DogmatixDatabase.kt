@@ -49,7 +49,7 @@ import com.cortinadev.dogmatix.util.VersionGrouping
     entities = [ManufacturerEntity::class, ConsoleEntity::class, DownloadableFileEntity::class, FileTagEntity::class, DownloadableFileFts::class, DownloadHistoryEntity::class, GameMetadataEntity::class, FavouriteEntity::class, CoverEntity::class, SourceScanEntity::class, SourceStatEntity::class, DownloadResumeEntity::class, DownloadCheckEntity::class, RommUploadEntity::class, GameTraitEntity::class, GameTraitSyncEntity::class, RommGameEntity::class, RommFavouriteBaseEntity::class,
         // coleccion-gestion
         ActionHistoryEntity::class, TrashItemEntity::class, CollectionEntity::class, CollectionGameEntity::class, StorageRedirectEntity::class],
-    version = 19,
+    version = 20,
     exportSchema = false
 )
 abstract class DogmatixDatabase : RoomDatabase() {
@@ -343,6 +343,15 @@ abstract class DogmatixDatabase : RoomDatabase() {
             }
         }
 
+        // dl-cola 1.4
+        /** Pending automatic retries survive a restart: when the next one is due and how many the chain spent. */
+        val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE download_history ADD COLUMN retryAt INTEGER DEFAULT NULL")
+                db.execSQL("ALTER TABLE download_history ADD COLUMN retryCount INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
         /** Generalises the TorBox resume ids to any debrid service (string ids); SQLite < 3.35 can't drop columns, so rebuild. */
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -451,5 +460,17 @@ abstract class DogmatixDatabase : RoomDatabase() {
                 )
             }
         }
+
+        /**
+         * Every migration, oldest first: the one list the app opens the database with
+         * (DatabaseModule) and the migration tests replay. A new migration goes here too
+         * (MigrationTest fails when one declared above is missing).
+         */
+        val ALL_MIGRATIONS: Array<Migration>
+            get() = arrayOf(
+                MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
+                MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
+                MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20
+            )
     }
 }

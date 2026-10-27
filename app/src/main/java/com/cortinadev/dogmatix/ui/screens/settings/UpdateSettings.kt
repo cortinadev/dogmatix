@@ -217,8 +217,8 @@ fun UpdateDialog(viewModel: AppUpdateViewModel = hiltViewModel()) {
                 confirmButton = {
                     val primary = rememberWindowInitialFocus()
                     when {
-                        // Signed with another key: Android would refuse it; the release page explains the way out.
-                        s.error == UpdateError.SIGNATURE && release != null && release.pageUrl.isNotBlank() ->
+                        // Signed with another key, or not newer: retrying won't help; the release page explains the way out.
+                        (s.error == UpdateError.SIGNATURE || s.error == UpdateError.OLDER) && release != null && release.pageUrl.isNotBlank() ->
                             DialogButton(stringResource(R.string.update_open_page), {
                                 viewModel.closeDialog()
                                 runCatching { uriHandler.openUri(release.pageUrl) }
@@ -264,4 +264,5 @@ private fun errorRes(error: UpdateError): Int = when (error) {
     UpdateError.BAD_APK -> R.string.update_error_bad_apk
     UpdateError.SIGNATURE -> R.string.update_error_signature
     UpdateError.STORAGE -> R.string.update_error_storage
+    UpdateError.OLDER -> R.string.update_error_older
 }

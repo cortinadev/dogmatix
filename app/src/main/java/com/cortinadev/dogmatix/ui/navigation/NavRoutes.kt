@@ -10,10 +10,11 @@ sealed class NavRoutes(val route: String, val labelRes: Int, val icon: Int) {
     object Settings : NavRoutes("settings", R.string.nav_settings, R.drawable.ic_settings)
     object Contact : NavRoutes("contact", R.string.nav_contact, R.drawable.ic_edit)
     object Romm : NavRoutes("romm", R.string.nav_romm, R.drawable.ic_arrow_up)
+    object IaLogin : NavRoutes("ia_login", R.string.nav_ia_login, R.drawable.ic_settings)
 
     companion object {
-        /** The sections shown as tabs; Contact and RomM are reached from Settings. */
+        /** The sections shown as tabs; Contact, RomM and the Internet Archive sign-in are reached from Settings. */
         val tabs by lazy { listOf(Home, Downloads, Collection, Sources, Settings) }
-        val allRoutes by lazy { tabs + Contact + Romm }
+        val allRoutes by lazy { tabs + Contact + Romm + IaLogin }
     }
 }

@@ -96,6 +96,9 @@ class SourceReliabilityTest {
         assertEquals("myrient.example", DownloadOrigins.forSourceUrl("https://www.myrient.example/files/No-Intro/", ""))
         assertEquals("192.168.1.10", DownloadOrigins.forSourceUrl("romm://psp", "http://192.168.1.10:8090"))
         assertNull(DownloadOrigins.forSourceUrl("romm://psp", ""))
+        // An item's files are downloaded from archive.org: its line matches what the downloads record.
+        assertEquals("archive.org", DownloadOrigins.forSourceUrl("ia://x", ""))
+        assertEquals(DownloadOrigins.forWeb(IaSource.downloadUrl("x", "a.zip")), DownloadOrigins.forSourceUrl("ia://x", ""))
         assertEquals("debrid:torbox", DownloadOrigins.forDebrid("TORBOX"))
         assertEquals("myrient.example", DownloadOrigins.forFile("https://myrient.example/a/b.zip", null))
         assertEquals(DownloadOrigins.forTorrent(magnet), DownloadOrigins.forFile(magnet, magnet))

@@ -49,9 +49,9 @@ import com.cortinadev.dogmatix.ui.components.focusRing
 import com.cortinadev.dogmatix.ui.components.rememberFocusSource
 import com.cortinadev.dogmatix.ui.components.rememberInitialFocus
 import com.cortinadev.dogmatix.ui.components.scanEtaText
+import com.cortinadev.dogmatix.ui.components.scanFailureText
 import com.cortinadev.dogmatix.ui.components.scanPercentText
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
-import com.cortinadev.dogmatix.util.ScanFailure
 import com.cortinadev.dogmatix.util.SourceLabels
 
 /**
@@ -246,28 +246,7 @@ private fun ReportRow(entry: ScanReportEntry) {
 }
 
 @Composable
-private fun failureText(entry: ScanReportEntry): String {
-    val reason = stringResource(
-        when (entry.failure) {
-            ScanFailure.RATE_LIMITED -> R.string.scan_failure_rate_limited
-            ScanFailure.SERVER -> R.string.scan_failure_server
-            ScanFailure.TIMEOUT -> R.string.scan_failure_timeout
-            ScanFailure.CONNECTION -> R.string.scan_failure_connection
-            ScanFailure.OFFLINE -> R.string.scan_failure_offline
-            ScanFailure.SECURE -> R.string.scan_failure_secure
-            ScanFailure.NOT_FOUND -> R.string.scan_failure_not_found
-            ScanFailure.DENIED -> R.string.scan_failure_denied
-            ScanFailure.HTTP -> R.string.scan_failure_http
-            ScanFailure.NO_LISTING -> R.string.scan_failure_no_listing
-            ScanFailure.EMPTY -> R.string.scan_failure_empty
-            ScanFailure.TORRENT_METADATA -> R.string.scan_failure_torrent_metadata
-            ScanFailure.OTHER, null -> R.string.scan_failure_other
-        }
-    )
-    val withCode = entry.httpCode?.let { stringResource(R.string.scan_failure_with_code, reason, it) } ?: reason
-    // Errors we have no words for (RomM set-up, odd answers) carry their own message.
-    return if ((entry.failure == ScanFailure.OTHER || entry.failure == null) && !entry.detail.isNullOrBlank()) "$withCode: ${entry.detail}" else withCode
-}
+private fun failureText(entry: ScanReportEntry): String = scanFailureText(entry.failure, entry.httpCode, entry.detail)
 
 @Composable
 private fun whenAndKind(report: ScanReport): String {
@@ -284,6 +263,7 @@ private fun whenAndKind(report: ScanReport): String {
             ScanKind.AUTO -> R.string.scan_kind_auto
             ScanKind.RETRY -> R.string.scan_kind_retry
             ScanKind.NEW_SOURCES -> R.string.scan_kind_new_sources
+            ScanKind.SOURCES -> R.string.scan_kind_sources
         }
     )
     return "$time · $kind"

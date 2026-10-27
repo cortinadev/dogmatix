@@ -81,6 +81,51 @@ class CollectionHealthTest {
     }
 
     @Test
+    fun `broken references cover cue tracks, gdi tracks and the discs of a set folder`() {
+        val files = listOf(
+            // Found whatever the case or the ".\" (FAT and exFAT ignore case), and unquoted names with spaces.
+            psx("Fine (USA).cue", 90, refs = MultiDisc.cueFiles("FILE \".\\FINE (USA) (TRACK 1).BIN\" BINARY\nFILE Fine (USA) (Track 2).bin BINARY\n")),
+            psx("Fine (USA) (Track 1).bin", 9_000),
+            psx("Fine (USA) (Track 2).bin", 9_000),
+            // A Dreamcast gdi with a track that is not there.
+            file("Crazy Taxi (USA).gdi", 60, console = PSX, top = "psx", refs = MultiDisc.gdiFiles("2\n1 0 4 2352 track01.bin 0\n2 600 0 2352 \"track 02.raw\" 0\n")),
+            psx("track01.bin", 9_000),
+            // A set folder whose playlist lists a disc that is gone.
+            psx("Riven (USA).m3u/Riven (USA).m3u", 60, refs = listOf("Riven (USA) (Disc 1).chd", "Riven (USA) (Disc 2).chd")),
+            psx("Riven (USA).m3u/Riven (USA) (Disc 1).chd", 9_000)
+        )
+        val broken = CollectionHealth.brokenReferences(files).associate { it.subject to it.missing }
+        assertEquals(mapOf("Crazy Taxi (USA).gdi" to listOf("track 02.raw"), "Riven (USA).m3u" to listOf("Riven (USA) (Disc 2).chd")), broken)
+    }
+
+    @Test
+    fun `a set cut short between two discs is offered to finish`() {
+        val files = listOf(psx("Parasite Eve (USA).m3u/Parasite Eve (USA) (Disc 1).chd"), psx("Parasite Eve (USA) (Disc 2).chd"))
+        val folders = listOf(folder("", PSX, "psx"), folder("Parasite Eve (USA).m3u", PSX, "psx"))
+        val finding = check(files, folders).of(HealthKind.MISSING_PLAYLIST).single()
+        assertEquals("root/psx/Parasite Eve (USA).m3u", finding.setFolderUri)
+        assertEquals(listOf("Parasite Eve (USA) (Disc 2).chd"), finding.moves.map { it.name })
+        assertEquals(2, finding.playlist!!.entries.size)
+    }
+
+    @Test
+    fun `a playlist that names only part of its set is offered to be finished`() {
+        val folders = listOf(folder("", PSX, "psx"), folder("Riven (USA).m3u", PSX, "psx"))
+        val inside = listOf(psx("Riven (USA).m3u/Riven (USA) (Disc 1).chd"), psx("Riven (USA).m3u/Riven (USA) (Disc 3).chd"))
+        val loose = psx("Riven (USA) (Disc 2).chd")
+        val partial = psx("Riven (USA).m3u/Riven (USA).m3u", 60, refs = listOf("Riven (USA) (Disc 1).chd", "Riven (USA) (Disc 3).chd"))
+        val finding = check(inside + loose + partial, folders).of(HealthKind.MISSING_PLAYLIST).single()
+        assertEquals(listOf("Riven (USA) (Disc 2).chd"), finding.moves.map { it.name })
+        assertEquals(3, finding.playlist!!.entries.size)
+        assertEquals("root/psx/Riven (USA).m3u", finding.setFolderUri)
+
+        // One that names them all, or one the analysis could not read, is left alone.
+        val full = partial.copy(references = listOf("Riven (USA) (Disc 1).chd", "Riven (USA) (Disc 2).chd", "Riven (USA) (Disc 3).chd"))
+        assertTrue(check(inside + loose + full, folders).of(HealthKind.MISSING_PLAYLIST).isEmpty())
+        assertTrue(check(inside + loose + partial.copy(references = null), folders).of(HealthKind.MISSING_PLAYLIST).isEmpty())
+    }
+
+    @Test
     fun `sets missing a disc, by the name or by the catalogue`() {
         val stated = check(listOf(psx("Policenauts (Japan) (Disc 1 of 3).cue"), psx("Policenauts (Japan) (Disc 3 of 3).cue")))
         val set = stated.of(HealthKind.INCOMPLETE_SET).single()

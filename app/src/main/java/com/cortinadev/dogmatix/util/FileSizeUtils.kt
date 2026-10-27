@@ -8,10 +8,14 @@ object FileSizeUtils {
     /** Apache index sizes: a bare unit letter in powers of 1024 (`66M`, `1.5K`), or plain bytes (`512`). */
     private val shortSizePattern = """(\d+(?:\.\d+)?)\s*([KMGTPE])?""".toRegex(RegexOption.IGNORE_CASE)
 
+    /** A number with commas between thousands: `1,234`, `12,345,678` (not `1,5`, a decimal comma). */
+    private val thousandsNumber = Regex("""(?<![\d.,])\d{1,3}(?:,\d{3})+(?![\d,])""")
+
     fun parseFileSize(sizeString: String): Long {
         if (sizeString.isBlank() || sizeString == "0") return 0L
 
-        val cleanString = sizeString.trim().replace(",", "")
+        // `1,234 KB` → 1234 KB; `1,5 MB` (a decimal comma) → 1.5 MB.
+        val cleanString = sizeString.trim().replace(thousandsNumber) { it.value.replace(",", "") }.replace(',', '.')
         val match = sizePattern.find(cleanString)
 
         if (match == null) return parseShortSize(cleanString)
