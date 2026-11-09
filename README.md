@@ -1,6 +1,6 @@
 # Dogmatix
 
-<img src="icon.png" width="110" align="right" alt="Dogmatix icon">
+<img src="app/src/main/ic_launcher-playstore.png" width="110" align="right" alt="Dogmatix icon">
 
 Dogmatix is an Android app for discovering, downloading, verifying and looking after a retro game collection, made for **Android handhelds** (Kinhank K56, Retroid, Anbernic, Odin and the like): every action works from a gamepad in landscape, and everything also works by touch, in portrait too.
 
