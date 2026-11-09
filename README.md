@@ -1,166 +1,194 @@
 # Dogmatix
 
-A fork of [Milou](https://github.com/santiifm/milou) — an Android app for discovering, downloading and managing retro games — focused on **UI/UX for handheld Android devices**, usable with a gamepad or with touch.
+<img src="icon.png" width="110" align="right" alt="Dogmatix icon">
 
-Milou indexes the contents of `.torrent` files and magnet links, tags every file automatically (console, region, languages, extension…) and handles downloads with automatic ZIP/7z extraction. Dogmatix keeps all of that logic intact and rebuilds the interface around it so the whole app can be driven from a D-pad and buttons, in landscape, on devices such as the Kinhank K56, Retroid or Anbernic Android handhelds.
+Dogmatix is an Android app for discovering, downloading, verifying and looking after a retro game collection, made for **Android handhelds** (Kinhank K56, Retroid, Anbernic, Odin and the like): every action works from a gamepad in landscape, and everything also works by touch, in portrait too.
 
-> The scraping, indexing, download and extraction engine is Milou's work. Credit for all of that goes to [santiifm](https://github.com/santiifm). Dogmatix only changes what you see and how you interact with it.
+It began in April 2026 as a fork of [Milou](https://github.com/santiifm/milou), by [santiifm](https://github.com/santiifm), and keeps its idea: point the app at torrents, magnets or web folders full of ROMs, let it index and tag every file (console, region, languages, revision, extension…) and download what you want, with archives extracted for you. Since then the interface has been rebuilt around the controller and most of the engine behind it has been rewritten or extended: a download queue that survives restarts, resumable and verified downloads, incremental parallel scans, new kinds of sources (RomM servers, Internet Archive, web pages described with CSS selectors, debrid services), a *Collection* section that looks after what is already on disk, and one-button integrations with ES-DE, iiSU, Daijishō and RomM. [Compared with Milou](#compared-with-milou) lists the differences side by side.
 
-## Why a fork
+## Download
 
-Milou was designed for phones and touch. On a handheld with a small landscape screen and a controller, that meant tapping a FAB to move between sections, opening full-screen overlays to filter, and reaching for the touchscreen for almost everything. The goal of this fork is:
+APKs are on the [releases page](https://github.com/cortinadev/dogmatix/releases). Android 10 or newer; arm64-v8a, armeabi-v7a and x86_64. Since 1.3.1 the app checks GitHub for a newer release when it starts and installs it in place (Settings → General → *Updates*).
 
-- **Gamepad first**: every action reachable from D-pad, A/B/X/Y and shoulder buttons, with a visible focus ring and an on-screen legend.
-- **Landscape first**: fixed filter panel next to the list, tabs on top, no wasted vertical space. Portrait still works, with a bottom bar and modal sheets.
-- **Flat, minimal look**: a single accent colour, light/dark theme, Manrope typeface, no cards-inside-cards.
-- **Works with or without a controller**: every flow is designed for D-pad/buttons first and then checked with touch.
+Dogmatix ships **without sources**. On first run, import a sources JSON exported from another device, or add manufacturers, consoles and URLs by hand in *Sources*. No sources file is part of this repository.
 
-## What changed from Milou
+## Highlights
 
-### First run (new)
-- Onboarding wizard: what Dogmatix does → pick the root ROMs folder → preferred versions (region and languages, see *Library*) → import a sources JSON → connect ES-DE (only when it is installed). Every step can be skipped; B goes one step back; it never shows again once finished.
-- The app ships **without default sources** (`consoles.json` is empty). Import a JSON (see *Sources*) or add consoles by hand.
+- **Gamepad first.** Every screen, dialog and setting is reachable with the D-pad and face buttons; a focus ring shows where you are and a legend at the bottom says what each button does right now. B always undoes one layer and never closes the app.
+- **One row per game.** Regions, revisions, demos and sources of the same game are grouped into one row with square box art and coloured chips; A downloads the version that fits your preferred region and languages, every disc of it, and the details popup lists all the others.
+- **Downloads you can trust.** A persistent queue you can reorder and hold, pause and resume for every kind of download, partial files that never pass for finished games, readable failure reasons, automatic retries that survive a restart, and a checksum against No-Intro / Redump DATs, RomM or Internet Archive when a download completes.
+- **Sources of every kind.** Torrents and magnets, plain web folders (Apache, nginx, IIS, h5ai…), pages described with CSS selectors, Internet Archive items and their per-system ZIPs, RomM servers, and TorBox / Real-Debrid in front of any torrent. Rescans are incremental, parallel and polite to servers.
+- **A Collection section** that analyses what is on disk: health checks, duplicates, repairs, free-up-space, a trash with undo, a second storage root (SD card) with smart routing, moving the whole library, and your own collections by hand or by rules.
+- **Frontend integrations.** Shortcuts, find rules and gamelist entries for ES-DE, an emulator entry for iiSU, values for Daijishō, favourites and covers kept in sync, and a *Check frontends* button that repairs what is missing.
+- **Six languages** (English, Spanish, German, French, Portuguese, Italian), light / dark / true-black themes, five accents, and button legends drawn the Xbox, Nintendo or PlayStation way.
 
-### Shell and navigation
-- The floating "Menu" button is gone. Landscape shows numbered tabs on top (Library · Downloads · Collection · Sources · Settings); portrait shows a bottom bar with a downloads badge.
-- Full-screen immersive mode with swipe-to-reveal system bars; status bar icons follow the theme.
-- Free space of the download volume shown in the shell; a rescan indicator next to the tabs, with the percentage and the time left.
+## Features
 
-### Gamepad support (new)
-- Controller detection via `InputManager`; the legend at the bottom only appears when a gamepad is connected and is contextual to the focused area.
-- **ZL / ZR** (L2/R2, button or axis — one press is one change, also on pads that send both) switch section · **LB / RB** switch panel (filters ⇄ list in the Library, chips ⇄ list in Downloads, tools ⇄ content in Collection, categories ⇄ rows in Settings) · **R3** folds / unfolds the filter panel (opens / closes the filter sheet in portrait) · **X** opens the game details popup on the focused row (B or X closes it) · **Y** focuses search · **START** on a queued download enters move mode · **◀ ▶** in the Library list jump to the next or previous letter · **A** confirms · **B** undoes one layer at a time (sheet/dropdown → search → text → filters → focus back to tabs) and never closes the app.
-- While selecting in Downloads, and in the Collection tools, A ticks or picks, Y ticks everything and X acts on what is ticked (in Downloads, X deletes).
-- The legend is kept short on the list and filter panels (B and LB / RB are left out) so it fits on one line even on 4:3 screens; it scrolls sideways if it still does not fit.
-- Every interactive control has a visible focus ring; when changing section the focus parks and the first D-pad press lands on the active tab.
+### First run
+
+An onboarding wizard explains what Dogmatix does, asks for the root ROMs folder, your preferred region and languages, a sources JSON to import, and, when ES-DE is installed, offers to configure it. Every step can be skipped, B goes back one step, and the wizard never shows again once finished.
 
 ### Library
-- Fixed filter panel (Console, Region, Language, Tag, Genre, Decade, Favourites, Source) with ◀ ▶ quick change and multi-select dropdowns; portrait uses console chips and a modal filter sheet. Whatever is filtered shows as a thin row of chips under the search box (A on a chip removes it; *Clear* appears with two or more).
-- The sort button, to the right of the search box, offers A → Z, Z → A, size in both directions, console (when more than one is in play) and decade in both directions; ties are broken by name, so paging never repeats a game.
-- The panel folds into a thin rail (arrow at its bottom-right corner, or R3) to give the list the full width; the slide is animated at 60 fps on the K56, with names, search box and focus ring following the panel edge and ellipses appearing progressively.
-- Rows show a short console chip (NES, SNES, PS2…), tags and file extension. When the list is narrower than 560 dp (4:3 screens, or the panel open on a narrow one) rows stack the name above the tags instead of the single-line table, so names are never squeezed out.
-- **Square covers** in front of every row (Settings → *Covers in the list*, on by default): box art from [libretro-thumbnails](https://github.com/libretro-thumbnails) — the covers RetroArch shows, no API key needed — found by the No-Intro / Redump file name, else an image the details popup already cached. Cropped to fill the square; games without a cover get a square in their console's colour with its short name. When the preferred version has no cover, up to three other versions are tried, and with a RomM server its covers come first. Lookups (misses included) are cached in Room and the images on disk, so each game costs at most one lookup. Downloads shows the same covers in front of its rows.
-- **Coloured chips**: the console chip takes its console's colour (picked per console in Sources, else a default per family — Nintendo red, PlayStation blue…) and tags are tinted by group — region, language, revision, demo / beta / hack — with colours you can change in Settings → *Tag colours*. Extensions and other tags stay neutral. The same colours apply in the details popup and in Downloads.
-- **One row per game**: the versions of a game (regions, revisions, demos, sources) are grouped into a single row, with a small `4+` badge saying how many more there are, and the discs of a multi-disc release travel together (`2 discs`, total size). A downloads the **preferred version** — every disc of it — picked from your *Preferred region* and favourite languages: releases before demos, betas, prototypes and bad dumps, then your region and its closest fallbacks (Spain → Europe → World → USA…), a version in one of your languages, the latest revision and verified `[!]` dumps. Nothing is hidden: the details popup lists every version, the preferred one first, in a box three rows tall that scrolls (LB / RB jump between it and the buttons, which always stay on screen), and A on any of them downloads it. Filters still apply (with *Region: Japan* the row downloads the best Japanese version), and *Load more* pages by game, so all of a game's versions arrive together.
-- ✓ mark on games that are already in the download folder (`LibraryIndexService`, matched by name with and without extension).
-- ★ **Favourites**: Select (or the ★ button in the details popup) stars a game; a "Favourites" filter row shows only starred games. Stored in their own Room table keyed by console + file name, so they survive rescans.
-- Lenient search: accents, punctuation and doubled letters are ignored, so "yugioh" finds *Yu-Gi-Oh!* and "virtual tenis" finds *Virtua Tennis* (`SearchNormalizer`). A small ✕ clears the box with touch; with a controller, B does.
-- **Search the whole app**: the same box also finds downloads, sources (console names, aliases, URLs and mirrors), settings, and Collection tools and collections, grouped under the games; "Also in: …" jumps to a group, A opens the result in its section and B comes back to the search.
-- **Recent searches**: the last ten searches that found something show under the empty search box — ▼ reaches them, A runs one, X removes it, *Clear history* empties the list.
-- Favorite languages (set in Settings or in the first-run tour) appear first in the language filter and, together with the preferred region, pick the version A downloads.
-- Game details popup (X on a row): cover art, year, developer, genres and synopsis from RAWG, falling back to TheGamesDB; results (hits and misses) are cached in Room. API keys go in a git-ignored `.env` (`RAWG_API_KEY`, `THEGAMESDB_API_KEY`); without them the popup just says "no data" (it still shows the library cover when there is one). The title is always the library name, and a hit is only taken when its sequel number matches. *Collection* adds the game to one of your collections.
-- **Similar games**: *Similar* in the details popup filters the library by the games similar to that one, on **every console**. First its franchise, found from the title — the words before the subtitle, weighted by how rare they are in your library, so *zelda* or *splinter cell* count and *super* or *world* do not — then related games (*Ghost Recon* for a *Splinter Cell*). When the franchise turns up fewer than eight games, games of the same genre follow: those whose details you looked up before and, with a RAWG key, the most popular games of that genre on your consoles. The region, language, tag, favourites and source filters still apply; a "Similar to …" chip sits under the search box, and A on it (or B) goes back to the full list.
-- **Recommendations**: with no search, filters or sort order, the Library opens on shelves picked from what you star, download and keep on disk — *For you* (the genres you play on the consoles you use, plus related games), *Complete the series*, *More for <console>* and, with a RAWG key, *Popular on your platforms*; with nothing to go on yet, *Highlights on <console>*. Games you already have, betas and BIOS files are left out, and games with a cover go first. A downloads the preferred version, X opens the details, Select stars; ▲ ▼ change shelf, ◀ ▶ move along it. *All games*, a search or a filter shows the list.
-- **Genre and Decade**: genres and release years come from libretro-database's DATs (cached for a month) and from the details you open (RAWG, TheGamesDB, RomM). Disc-based systems with no such DAT (PlayStation, PS2, Saturn, Dreamcast, GameCube, Wii, Xbox…) only count the games whose details were looked up.
-- **Jump by letter**: with the list sorted by name, ◀ ▶ jump to the next or previous letter (◀ on the first letter still goes to the filter panel), loading pages as needed.
+
+- **Filters and sort.** A fixed filter panel in landscape (Console, Region, Language, Tag, Genre, Decade, Favourites, Source) with ◀ ▶ quick change and multi-select dropdowns; console chips and a modal filter sheet in portrait. Active filters show as chips under the search box (A removes one, *Clear* removes all). The sort button offers A → Z, Z → A, size, console and decade. The panel folds into a thin rail (R3, or its arrow) so the list gets the full width.
+- **One row per game.** Versions are grouped with a `4+` badge and multi-disc releases travel together (`2 discs`, total size). A downloads the **preferred version**: releases before demos, betas, prototypes and bad dumps, then your region and its fallbacks (Spain → Europe → World → USA…), a version in one of your languages, the latest revision, verified `[!]` dumps. Nothing is hidden: the details popup lists every version, preferred first, and A on any of them downloads it.
+- **Covers and colours.** Square box art from [libretro-thumbnails](https://github.com/libretro-thumbnails) (the covers RetroArch shows, no API key) found by the No-Intro / Redump file name, with RomM's covers first when a server is configured and up to three other versions tried when the preferred one has none. The console chip takes its console's colour and tags are tinted by group (region, language, revision, demo / beta / hack), all editable.
+- **Marks.** ✓ on games already on disk, ★ on favourites (Select stars; favourites survive rescans), a server icon on games your RomM server already has.
+- **Search.** Lenient matching ("yugioh" finds *Yu-Gi-Oh!*, "virtual tenis" finds *Virtua Tennis*), the last ten searches that found something under the empty box, and results from the **whole app** under the games: downloads, sources, settings, Collection tools and collections, each opening in its section with B coming back to the search.
+- **Details popup** (X on a row): cover, year, developer, genres and synopsis from RAWG, falling back to TheGamesDB, cached on the device; RomM adds rating, play status and the server's collections. *Similar* filters the library by franchise and genre across every console; *Collection* adds the game to one of yours.
+- **Recommendations.** With no search, filter or sort, the Library opens on shelves built from what you star, download and keep on disk: *For you*, *Complete the series*, *More for <console>*, *Popular on your platforms* (with a RAWG key) or *Highlights* when there is nothing to go on yet. A downloads, X opens details, Select stars.
+- **Genre and Decade** filters fed by libretro-database's DATs and by the details you open; **jump by letter** with ◀ ▶ when sorted by name.
 
 ### Downloads
-- Each row shows the same tags (and colours) as the library, so repeated versions of a game can be told apart.
-- The downloads list is persisted in Room (`DownloadHistory`), so it survives app restarts, and **so does the queue**: whatever was downloading when the app or the device went down starts again on the next launch, in its queue order (web and debrid downloads continue from their partial file). A paused web download comes back paused.
-- **Queue**: START on a queued row enters move mode — ▲ ▼ move it, LB puts it next, Y holds it, A or B leave (with touch, the row's buttons do the same). A held download keeps its place but does not start until released. A search box and chips with counts (All · In progress · Queued · Held · Failed · Completed) narrow the list, and global buttons — *Pause all*, *Resume all*, *Retry failed*, *Clear completed* (the files stay) — appear when they have something to act on. *Retry failed* only retries the failed rows the list is showing (search and chip included).
-- **Notifications**: the download notification shows how many are running and queued, progress and speed, with *Pause all* / *Resume* / *Cancel all*; tapping it opens Downloads. *Notice when downloads finish* (on by default) says how many completed and failed once the queue empties.
-- Rows can also show the RomM upload state (*↑ RomM n%*, *Uploaded*, *failed* + retry).
-- **Multi-selection**: Select (long press with touch) ticks rows and turns the summary line into an action bar with only the actions the ticked rows accept — retry, pause, stop, delete — with a single confirmation for the lot. While selecting, A ticks, Y ticks/unticks everything, X deletes and B drops the selection.
-- **Pause / resume for every download**: the pause button (A on the row) parks it keeping its data — torrents their pieces, web and debrid downloads their partial file — and play resumes from there, even after the app was closed in between.
-- **Why it failed**: a failed row says why — no connection, timed out, server error, not on the server any more, not enough space, folder not accessible, no torrent metadata, debrid account problem… — and the reason survives a restart.
-- **Automatic retries** (Settings, default 3): failures that may go away on their own (network, server, rate limit, a torrent without peers yet) are retried after 1, 5 and 15 minutes; the row shows when. Missing files, full disks or account problems are left for you. A manual retry, stop or delete cancels the pending one.
-- **Downloads per server** (Settings, default no limit): caps how many web downloads talk to the same server at once, for servers that throttle or ban clients with many connections. A download waiting for its server never holds one of the global download slots.
-- **Multi-disc games**: once every disc of a release is in (as many as the source lists), they move into a `<Game>.m3u/` folder next to a `<Game>.m3u` playlist — ES-DE shows the folder as a single game and the emulator swaps discs from the playlist; a disc downloaded later joins the folder. Only for systems whose emulators read playlists (PlayStation, Saturn, Sega CD, Dreamcast, GameCube, PC Engine CD, 3DO, Neo Geo CD, Amiga, C64, MSX…; not PS2 or Xbox). Settings → *Multi-disc games (.m3u)* turns it off.
-- Direct HTTP and RomM downloads keep their partial file when they stop or fail and the retry continues it with a `Range` request instead of starting over — only when the server confirms it is the same file (`If-Range` with its ETag or date). A transfer cut short is never taken as complete, and a web page served instead of the file fails at once. *Download again* always starts from zero.
-- **Best address first**: Dogmatix keeps track of how each server, debrid service and torrent behaves (success rate and speed, older results counting less) and tries a source's main address and mirrors best first; a failure that will not go away by itself moves on to the next address.
-- **Verification**: finished downloads are hashed in the background (CRC32 and SHA-1, inside kept ZIPs too) and checked against RomM's hashes for games downloaded from RomM, or against the console's No-Intro / Redump DAT (fetched from libretro-database when needed, or imported in Settings → *DAT files*). The row says *Verified · No-Intro*, *Does not match* (with the detail) or *Not verified* and why. Nothing is deleted because of it.
-- Deleting a finished download moves its files to the trash (undo in Collection → *History*); partial files are deleted for good.
-- Archives keep their folder structure when extracted (`Disc 1/…`, `Disc 2/…`); unsafe paths are refused and clashing names renamed.
-- **Sturdier downloads (1.4)**: files are written as `<name>.dogmatix-part` and only get their final name when complete, so a partial file never looks like a game; *Download again* keeps the old copy until the new one is whole; a double press no longer starts a download twice; automatic retries survive a restart (*Retry when the app is open* when one comes due in the background). A failed extraction shows its reason (damaged, unsupported, no room, lost permission, SD card removed), keeps the archive and *Retry* unpacks it without downloading again; extraction never overwrites a file.
-- **Seed after download** (Settings, off by default): finished torrents keep uploading for 30 min, 1 hour, until a 1.0 ratio, or without limit; switching it off stops every seed in progress, and deleting a finished row stops its own.
 
-### Collection (new)
-A section between Downloads and Sources to look after the games already on disk. It analyses the download folders on demand (X, or *Analyse*), keeps the result and refreshes a console after each download.
-- **Summary**: games on disk, coverage of your catalogue, favourites on disk, storage volumes, per-console figures, latest downloads, the biggest games, regions and languages; A opens the Library filtered.
-- **Health**: twelve checks (lost folder permission, low space, empty files, broken `.cue` / `.m3u` / `.gdi` references, incomplete sets, games in another console's folder, leftover partial downloads, multi-disc sets without a playlist, archives already extracted, empty folders, foreign extensions, sources never scanned), each with its fix.
-- **Duplicates**: the same game twice — same files, different versions, or same size and content — with a suggestion of which copy to keep.
+- **Persistent queue.** The list and the queue live in the database: whatever was running when the app or the device went down starts again on the next launch, in order; paused downloads come back paused. START on a queued row enters move mode (▲ ▼ move, LB puts it next, Y holds it); a held download keeps its place but waits. Chips with counts (All · In progress · Queued · Held · Failed · Completed), a search box, and global *Pause all* / *Resume all* / *Retry failed* / *Clear completed*.
+- **Pause and resume everything**: torrents keep their pieces, web and debrid downloads their partial file, and a resume continues with a `Range` request only when the server confirms it is the same file (`If-Range`). Servers that cannot resume are told apart and the row says *Will restart from the beginning*.
+- **Partial files are partial.** Downloads are written as `<name>.dogmatix-part` and renamed only when whole, so a half file never shows up as a game in the Library, in Collection or in a frontend; *Download again* keeps the old copy until the new one is complete; a transfer cut short is never taken as finished, and a web page served instead of a file fails at once.
+- **Why it failed.** No connection, timed out, server error, not on the server any more, not enough space, folder permission lost, SD card removed, no torrent metadata, debrid account problem, damaged archive… shown on the row and kept across restarts.
+- **Automatic retries** (default 3) after 1, 5, 15, 30 and 60 minutes for failures that may go away on their own; they survive a restart and, when one comes due in the background, run as soon as the app is open again. **Downloads per server** caps how many web downloads talk to one host; **best address first** orders a source's main URL and mirrors by their measured success rate and speed.
+- **Verification.** Finished downloads are hashed in the background (CRC32 and SHA-1, inside kept ZIPs too) and checked against RomM's hashes, Internet Archive's hashes or the console's No-Intro / Redump DAT (fetched from libretro-database or imported in Settings). The row says *Verified · No-Intro*, *Does not match* or *Not verified* and why. Nothing is deleted because of it.
+- **Multi-disc games** move into a `<Game>.m3u/` folder with a `<Game>.m3u` playlist once every disc is in, for systems whose emulators read playlists (PlayStation, Saturn, Sega CD, Dreamcast, GameCube, PC Engine CD, 3DO, Neo Geo CD, Amiga, C64, MSX…; never PS2 or Xbox). A disc that arrives later joins the folder.
+- **Extraction** keeps folder structure, refuses unsafe paths, never overwrites (an identical file is reused, a different one becomes `name (2).ext`), reports why it failed, keeps the archive and unpacks it again on *Retry* without downloading twice.
+- **Notifications** with *Pause all* / *Resume* / *Cancel all*, progress and speed; a notice when the batch finishes with how many completed and failed.
+- **Multi-selection** (Select, or long press) with an action bar offering only what the ticked rows accept: retry, pause, stop, delete, *next*, hold, release.
+- **Seed after download** (off by default): 30 min, 1 hour, until ratio 1.0, or unlimited.
+- Rows show the same covers, tags and colours as the Library, the RomM upload state (*↑ RomM n%*) and the verification result. Deleting a finished download moves it to the trash (undo in Collection → *History*).
+
+### Collection
+
+A section between Downloads and Sources for the games already on disk. It analyses the download folders on demand (X, or *Analyse*), keeps the result and refreshes a console after each download.
+
+- **Summary**: games on disk, coverage of your catalogue, favourites on disk, storage volumes, per-console figures, latest downloads, biggest games, regions and languages; A opens the Library filtered.
+- **Health**: twelve checks (lost folder permission, low space, empty files, broken `.cue` / `.gdi` / `.m3u` references, incomplete sets, games in another console's folder, leftover partial downloads, sets without a playlist, archives already extracted, empty folders, foreign extensions, sources never scanned), each with its fix.
+- **Duplicates**: the same game twice (same files, different versions, or same size and content, cue/bin and multi-disc sets included, also across console folders) with a suggestion of which copy to keep.
 - **Repair**: create missing `.m3u` playlists, move games to their console's folder, delete empty folders, leftovers and archives already extracted, with a preview.
-- **Free up space**: the biggest items first, plus the torrent and cover caches; deletes for good.
-- **Safer file operations (1.4)**: copies and moves are checked (size and sampled blocks) before the original is deleted, storage problems say what is wrong (no space, permission lost, SD card removed), delete confirmations count the tracks and playlists that go with a `.cue` / `.gdi` / `.m3u`, a `.m3u` always lists the discs that are in its folder, and an interrupted trash batch no longer loses data.
-- **SD storage**: a second library folder (typically on the SD card). Consoles can live there, suggestions say which to move when internal space runs low, and a download that does not fit goes to the same console folder on the other one.
-- **Move library**: moves the whole library, or some consoles, to another folder, pausing downloads while it copies; it can be interrupted, resumed and undone.
-- **History**: what was deleted, repaired, moved or imported, with undo. Deletions from Downloads, the Library, Duplicates and Repair go to a hidden trash (`.dogmatix-trash`, which ES-DE skips) that empties itself after 7 or 30 days.
-- **Collections**: your own lists, by hand (*Collection* in the details popup) or by rules (console, region, language, tag, genre, decade, favourites, on disk, source, size, text), plus the RomM server's collections. A opens the Library showing the collection.
+- **Free up space**: the biggest items first, plus the torrent and cover caches. Deletes for good.
+- **SD storage**: a second library root. Consoles can live there, suggestions say which to move when internal space runs low, and a download that does not fit goes to the same console folder on the other root.
+- **Move library**: the whole library or some consoles to another folder, pausing downloads while it copies; it can be interrupted, resumed and undone. Every copy is verified (size and sampled blocks) before the original is deleted.
+- **History and trash**: what was deleted, repaired, moved or imported, with undo. Deletions go to a hidden `.dogmatix-trash` (which ES-DE skips) that empties itself after 7 or 30 days.
+- **Collections**: your own lists, by hand or by rules (console, region, language, tag, genre, decade, favourites, on disk, source, size, text), plus your RomM server's collections. A opens the Library showing the collection.
+- Storage problems are told apart (no space, permission lost, SD card removed), whatever cannot be reached is left alone, and delete confirmations count the tracks and playlists that go with a `.cue`, `.gdi` or `.m3u`.
 
 ### Sources
-- Same structure as Milou, restyled (flat cards, tonal buttons) and navigable with the controller: dialogs open with the field focused, B closes them, deleting a console or URL asks for confirmation (focus starts on *Cancel*).
-- **Add console** offers predefined manufacturers and consoles (name, chip label and folder aliases filled in for you), or you can type your own.
-- URLs can be edited in place, not only added and removed. Deleting a manufacturer also deletes its consoles.
-- **Reserve addresses (mirrors)**: a web source can list other addresses that serve the same folder (one per line in the URL dialog). When a download or a rescan of the main address fails, the attempts go round the mirrors with the same file path. They travel in the sources export as `mirrors`. Under each URL, its server's success rate and speed ("97% successful · 4.1 MB/s").
-- **Web pages with CSS selectors**: for sites whose game list is not a plain folder listing, switch on *Page with CSS selectors* in the URL dialog and describe the list: the *Element* selector (required, e.g. `ul.roms li`), and optionally where to find the *Link*, *Name* and *Size* inside each element (`a@title` reads an attribute; empty means the link's own text), a default *Extension* for links without one, and, when the address contains `{page}`, the *Pages* to fill it with (`1-50`, `A-Z`, `0,A-Z`; a numbered range stops by itself at the first empty page). *Test* reads the first page and shows how many elements matched and a sample of the files before you save. One level only: the links must point straight at files (no per-game detail pages, no POST downloads), and pages that build their list with JavaScript show no matches.
-- **Internet Archive**: add `ia://<item>`, or just paste an `archive.org/details/…` or `…/download/…` address, and Dogmatix reads the item's file list from Internet Archive's metadata API (thumbnails, `_meta.xml` and other generated files are left out; a sub-folder in the address narrows the source to it). A rescan first asks only whether the item changed. Finished downloads are checked against the hashes Internet Archive publishes (*Verified · Internet Archive*). For the big per-system ZIPs, paste the ZIP's address (`…/download/<item>/<file>.zip/`, or the `view_archive.php` address of its viewer): Dogmatix lists what is inside the ZIP through the archive's own viewer and downloads single files from it. Those downloads show progress but cannot be resumed — pausing starts over — and are verified against the console's DAT.
-- **Internet Archive account**: some items need a signed-in account to download. Settings → Integrations → *Internet Archive* opens archive.org's own sign-in page inside the app; Dogmatix keeps only the two session cookies, never your password, and sends them only to archive.org. *Check* tests the session, *Sign out* forgets it. Accounts created with Google cannot sign in there (Google blocks it inside embedded browsers): set a password on archive.org first. Many ROM sets on the Archive are restricted or get removed, and the site answers 503 under bursts of requests, which Dogmatix retries with growing waits. Requests to archive.org identify themselves as Dogmatix, as the Archive's automated-access page asks.
-- **Incremental rescans**: *Rescan all* only reads what changed — web listings ask the server first (ETag / Last-Modified), torrents already indexed with the same settings are not fetched again, and torrent file lists are cached on the device — and each source replaces only its own games, so one that fails keeps what it had. *Full rescan* reads everything again. Sources are scanned in parallel (two per server), busy servers are retried with growing waits (honouring `Retry-After`), mirrors stand in for a failing address, and an empty listing never wipes a source. The scan keeps going when you leave Sources.
-- **More listings, steadier scans (1.4)**: nginx, IIS and Apache listings made of plain links are read as well as tables, root-relative links resolve against the server, scans requested while one is running are queued and merged, a server that is down shows *Could not connect*, and switching a source off, deleting it or changing its address removes its games at once (switching it on rescans it). The first *Rescan* after updating to 1.4 re-reads every web source once.
-- **Scan report**: a *Last scan* card lists every source with its result and a readable reason, and *Retry failed* scans only those again.
-- **Automatic scan** (Settings, off by default): daily or weekly, on Wi-Fi only and, optionally, while charging; always incremental, with a notification of the new games it finds.
-- **Export / import**: the share icon writes a `dogmatix-sources.json` and opens the Android share sheet; the import icon picks a JSON, replaces every source, rescans everything and re-indexes the library (the last import can be undone from Collection → *History*). The format is the one of upstream's `consoles.json` plus display names, a `short` label, folder `aliases`, an optional chip `color` (`#RRGGBB`), the starred files as `favourites` (an import adds them to yours), a page's selectors as `scrape` and, for older consoles, their `id` per console — export from any device to get one; no sources file is shipped in this repository.
-- Each console stores its **short name** (the chip label: GBA, PS2…), its **folder aliases** (names that count as its download folder) and its **chip colour**. Empty values fall back to the built-in tables, and all three are editable in the console dialog (the colour with a gamepad-friendly picker), so imported or hand-made consoles behave like the built-in ones. A dot in each console card shows its colour.
-- If a newer build ships additions in `consoles.json`, they are merged into the existing sources (nothing the user changed is touched) and only the new entries are scraped.
-- Download-folder card with the resolved path per console.
-- When "separate subfolders by console" is on and the chosen directory already contains a folder used by popular frontends (`gb`, `psx`, `snes`… — ES-DE, RetroArch, Batocera, EmulationStation naming), Dogmatix reuses it instead of creating a new one (`ConsoleFolderAliases`, `ConsoleDownloadPathResolver`).
-- Merge folders dialog: when several folders for the same console live side by side (e.g. `gba` and `Gameboy Advance`), move everything into the one you pick.
 
-### Debrid services (TorBox, Real-Debrid)
-- Settings → *Debrid service* (Off / TorBox / Real-Debrid) + the matching *API key* row (with a *Test* button that reports the account). When a service is selected, torrent rows are handed to it: the magnet is submitted, the row shows *TorBox n%* / *Real-Debrid n%* while the service fetches it (cached torrents finish at once), then the file is downloaded over plain HTTP through the usual path (speed limit, per-console folder, auto-unzip). Cancelling deletes it from the account; the file is matched by name and size (`DebridMatcher`). Retrying a failed torrent re-reads the setting, so the service can be switched between attempts.
-- [TorBox](https://torbox.app): key from *Settings → API*. [Real-Debrid](https://real-debrid.com/apitoken): needs a **premium** account (free accounts can validate the key but `addMagnet` answers `permission_denied`, which the row reports as *Failed*); the wanted file is selected with `selectFiles` before the service fetches it, and the link goes through `unrestrict/link`.
-- **Resumable**: the service's torrent/file ids are kept in the download history, the partial file stays on disk, and a retry after the app was killed continues with an HTTP `Range` request instead of starting over.
-- **Limitation**: TorBox zips torrents with 100+ files and its cache is shared, so for the big Myrient/No-Intro sets it can only hand back one huge `.zip`, not single ROMs (`allow_zip=false` only affects torrents nobody has cached yet). When that happens Dogmatix removes the torrent from the account and silently falls back to the direct torrent download for that file, so the toggle is safe to leave on.
+- **Manufacturers → consoles → URLs**, each URL with its content type (games, miscellaneous, RetroAchievements), optional folder filter, mirrors and an on/off switch (off removes its games at once; on rescans it). *Add console* offers about 50 predefined consoles across 16 manufacturers with name, chip label and folder aliases filled in; everything stays editable, including the chip colour.
+- **Kinds of source**: `.torrent` files and magnets; web folder listings (Apache, nginx, IIS, h5ai…, tables or plain links); **pages with CSS selectors** (element, link, name, size, default extension, `{page}` ranges such as `1-50` or `A-Z`, with a *Test* button that shows what matched); **Internet Archive** items (`ia://<item>`, or any `archive.org/details/…` address; a ZIP's address lists the files inside it through the Archive's viewer, so per-system ZIPs can be browsed one game at a time); **RomM** platforms (`romm://<slug>`).
+- **Incremental rescans**: web listings ask the server first (ETag / Last-Modified), torrents already indexed with the same settings are not fetched again and their file lists are cached on the device, Internet Archive items are asked only whether they changed, and each source replaces only its own games, so one that fails keeps what it had. *Full rescan* reads everything again.
+- **Steady scans**: sources are read in parallel (two per server), busy servers are retried with growing waits honouring `Retry-After`, mirrors stand in for a failing address, an empty listing never wipes a source, scans requested while one runs are queued and merged, and the scan keeps going when you leave the screen. A *Last scan* card lists every source with a readable result and *Retry failed*. Under each URL, its server's success rate and speed.
+- **Automatic scan** (off by default): daily or weekly, on Wi-Fi only and optionally while charging, with a notification of the new games it finds.
+- **Export / import**: a `dogmatix-sources.json` carrying manufacturers, consoles (names, short labels, folder aliases, colours, favourites), URLs, mirrors and selector recipes. Import replaces every source, rescans and re-indexes; it can be undone from *History*.
+- **Folders**: per-console download paths (useful for frontends), reuse of folders named the way ES-DE, RetroArch, Batocera or EmulationStation name them (`gba`, `psx`, `snes`…), and a merge dialog when several folders of the same console sit side by side.
 
-### RomM
-- Settings → *RomM server*: URL, API token (`rmm_…` client token or `user:password`), *Test connection*, *Upload finished downloads*, and one stepper per console to pick the RomM platform it uploads to. Suggestions come from the same folder-alias table used for frontend folders (`gba`, `psx`, `snes`…); *Apply suggestions* maps every unmapped console at once.
-- Every download that finishes while the switch is on (and whose console is mapped) is uploaded with RomM's chunked API (`/api/roms/upload/start` → chunks → `complete`). Games made of several files (cue/bin, gdi, extracted folders, multi-disc `.m3u` folders) go up as one `<game>.zip`, built on the fly without compression or a copy on disk; a disc of an incomplete multi-disc game waits for the others. The Downloads row shows real progress (*↑ RomM n%*), *Uploaded* or *failed* with a retry button.
-- **Resumable uploads**: an upload continues from its last confirmed chunk after a failure or when the app opens again (while RomM keeps the session, about a day), and retries on its own with the downloads' *Automatic retries* setting.
-- **Self-signed HTTPS**: when *Test connection* fails because of the certificate, Dogmatix shows it (issued to, issued by, validity, SHA-256, whether the name matches) and *Trust this certificate* accepts it for that server and port only, for every request. A changed certificate is refused and shown again; *Trusted certificate* → *Forget* drops it. Plain `http://` servers are allowed too (cleartext traffic is enabled for the app).
-- **Server catalogue**: Dogmatix reads what the server has for the mapped consoles and marks those games in the library with a server icon next to ✓ and ★; its covers come first in the list and the details popup. Settings → RomM adds *Upload what's missing* (games on disk the server lacks), *Sync favourites with RomM* (★ and RomM's Favourites both ways; off by default) and *RomM covers to ES-DE*.
-- **In the details popup**: rating and genres, your play status (◀ ▶) and the RomM collections the game is in (A to add or remove it).
-- **RomM as a source**: in Sources → *Add URL*, pick one of the server's platforms (or type `romm://<slug>`) and the console indexes every ROM RomM has for it; downloads go through RomM's `/api/roms/{id}/content/…` with the account credentials, and files that came from RomM are never uploaded back.
-- RomM only lists a ROM once it has scanned it, and scanning is not exposed through its REST API: either run a scan from the RomM web UI after uploading, or start RomM with `ENABLE_RESCAN_ON_FILESYSTEM_CHANGE=true` so uploaded files are picked up automatically.
+### Integrations
+
+- **RomM** (Settings → Integrations → *RomM server*): URL and token, *Test connection*, self-signed HTTPS accepted per server after showing the certificate, a stepper per console to pick the platform. Finished downloads are **uploaded** with RomM's chunked API, resumable from the last confirmed chunk; games made of several files (cue/bin, gdi, extracted folders, multi-disc sets) go up as one uncompressed `<game>.zip` built on the fly. The **server catalogue** marks what RomM already has, provides covers, *Upload what's missing*, *Sync favourites with RomM* and *RomM covers to ES-DE*; the details popup shows rating, genres, play status and collections. RomM can also be a **source**: a console indexes everything RomM has for a platform and downloads it with the account credentials.
+- **Debrid services**: *TorBox* or *Real-Debrid* in front of any torrent. The magnet is handed to the service, the row shows its progress, and the file comes down over HTTP through the usual path, resumable. When TorBox can only return one big ZIP of a 100+ file torrent, Dogmatix removes it from the account and falls back to the direct torrent for that file. Real-Debrid needs a premium account.
+- **Internet Archive account**: some items need a signed-in account. Settings → Integrations → *Internet Archive* opens archive.org's own sign-in page inside the app; Dogmatix keeps only the two session cookies, never your password, sends them only to archive.org (data nodes included) and identifies itself with its own User-Agent, as the Archive's automated-access page asks. Accounts created with Google must set a password on archive.org first.
+- **Frontends**: *Frontend shortcuts* drops a `★ Search for more games....dgmtx` file into every console folder, which ES-DE, iiSU and Daijishō show as a game that opens Dogmatix filtered to that console; *Configure ES-DE* writes the find rule, system overrides, gamelist entries and preview banner in one button; *Configure iiSU* edits its emulator list; *Set up Daijishō* hands over the values its form needs; *Sync favourites with ES-DE* keeps ★ and `<favorite>` together both ways; *Check frontends* reads the whole setup back and repairs it. See [FRONTENDS.md](FRONTENDS.md).
 
 ### Settings
-- Organised in five categories — *General* (language, updates, gamepad; Settings opens here), *Library* (folder, sources, preferences), *Appearance* (colours, game list), *Downloads* (queue, when finished, torrents) and *Integrations* (frontends, servers) — with a panel on the left in landscape (LB / RB between the panel and the rows) and tabs on top in portrait. *About & contact* sits at the foot of the panel.
-- Theme (System / Light / Dark / **True black**, a pure `#000000` background for AMOLED screens) and accent colour (5 presets), persisted in DataStore.
-- *Covers in the list* switch and *Tag colours* (one colour per tag group, with *Reset*). The colour picker works with the D-pad: preset swatches (A takes one), hue / saturation / brightness rows that ◀ ▶ adjust, *Default* to go back to the built-in colour.
-- Language (System / English / Spanish / German / French / Portuguese / Italian).
-- **Updates**: Dogmatix looks for a new release on GitHub when it starts (at most every six hours; *Check for updates on start* turns it off) and announces it once per version. *Update* downloads the APK, checks it is a Dogmatix build signed like the installed one and opens Android's installer (the first time Android asks to allow installs from Dogmatix). The *Updates* row shows where things stand and checks on demand.
-- Download directory, concurrent downloads and speed limit (one budget shared by every download, torrents included, applied at once to running ones) as steppers (◀ ▶ with the controller), switches for auto-unzip and per-console subfolders, favorite languages picker, "About & contact".
-- *Maximum search results* stepper (50 / 100 / 250 / 500 / Unlimited, default 100): how many games a library search loads at once; *Load more* fetches the next batch, *Unlimited* lists everything the filters match.
-- *Metadata timeout* stepper (10–180 s, default 20): how long a rescan or a direct torrent download waits for a magnet's file list before giving up — raise it on slow trackers/DHT.
-- *Debrid service* stepper (Off / TorBox / Real-Debrid) with a single *API key* row for the selected service (dialog with *Test*); the key is masked in the row and stored only on the device.
-- *Automatic retries* (Off / 1 / 3 / 5, default 3), *Downloads per server* (Unlimited / 1–4), *Notice when downloads finish*, and the *Multi-disc games (.m3u)* and *Verify downloads* switches (both on by default).
-- *DAT files*: automatic download from libretro-database (on by default), the list of stored DATs, *Import DAT…* (.dat, .xml or .zip) and remove.
-- *Automatic scan* (Off / Daily / Weekly), with *on Wi-Fi only* and *while charging only*.
-- *Preferred region* stepper (Europe, Spain, France, Germany, Italy, United Kingdom, USA, Japan, Brazil, Korea, China, Australia; the default follows the device): with the favourite languages, it picks the version of a game that A downloads.
-- *Seed after download* stepper (Disabled / 30 min / 1 hour / Until ratio 1.0 / Unlimited).
-- *Gamepad layout* stepper (Xbox / Nintendo / PlayStation): draws the button legend the way your pad is printed — Xbox A/B/X/Y with `LB · RB` / `LT · RT`, Nintendo the same letters in Super Famicom colours (A red, B yellow, X blue, Y green) with `L · R` / `ZL · ZR`, PlayStation ✕ ○ □ △ each in its own colour with `L1 · R1` / `L2 · R2`. Names and colours only: A (✕) always accepts and B (○) always goes back.
-- *Swap A/B and X/Y* switch, for pads that report their face buttons the other way round: it moves the actions and leaves the legend untouched, dialogs and the filter sheet included.
-- **Frontends**: *Frontend shortcuts* drops a `.dgmtx` shortcut into every console folder; *Configure ES-DE* and *Configure iiSU* do the whole frontend setup in one button, and *Set up Daijishō* hands over the values its emulator form needs; *Sync favourites with ES-DE* keeps ★ and ES-DE's favourites together, and *Check frontends* reads the whole setup back and repairs what is missing — see [FRONTENDS.md](FRONTENDS.md) and the *Deep links* section below.
 
-### Under the hood
-- Package renamed to `com.cortinadev.dogmatix` (upstream: `com.santiifm.milou`); application class, database and theme renamed accordingly. The app id changed, so Dogmatix installs as a separate app and does not update over a Milou install.
-- Room schema at v20 (the 1.4 migration stores pending automatic retries) with explicit migrations (search key, download history, game metadata cache, per-console short name and folder aliases, favourites, debrid resume ids, per-console colour and the cover cache, an index on file names, the game grouping key and failure reasons, source scans, download resume / reliability / verification data, queue order, RomM uploads, genres and years, the RomM catalogue, and history, trash, collections and storage redirects). The v12 migration computes the grouping key of everything already indexed, so the library is grouped from the first launch.
-- All source handling lives in `SourcesRepository`; the JSON format is read and written by one pure `SourcesJson` object shared by the bundled asset, the Room `urls` column and export/import. Sources are routed by URL: `magnet:`/`.torrent` → libtorrent, `romm://` → the RomM API, anything else → HTML directory scraping. `SourceScanService` runs the scans in parallel, each source replacing only its own rows, and the automatic scan is a `JobScheduler` job.
-- Downloads are routed in `DownloadService.perform()`: debrid service (when selected; `DebridClient` implemented by `TorBoxClient` and `RealDebridClient`) → HTTP with resume; torrent → libtorrent; HTTP otherwise (with the RomM credentials and trusted certificate when the file comes from the RomM server, and the source's mirrors, best first, as fallback). Every job waits for its turn in `DownloadQueueService`. Integrations talk to their APIs with a tiny `JsonHttp` helper over `HttpURLConnection` + Gson; OkHttp only comes in with Coil.
-- Around it, small services of their own: `SourceMirrors`, `SourceStatsService` (reliability), `DownloadAutoRetry`, `MultiDiscService` (which listens to finished downloads), and the RomM upload, `DownloadVerifier` and the ES-DE favourites sync, which listen to `MultiDiscService` once the discs are in place.
-- Images (covers, details artwork) go through one Coil loader that keeps them on disk regardless of the servers' short cache headers. Cover lookups only read the first bytes of each libretro candidate; an offline or rate-limited lookup is retried later instead of being remembered as "no cover".
-- Secrets (TorBox / Real-Debrid keys, RomM token) live only in the app's DataStore; nothing is baked into the APK or the repository.
-- Unit tests for the pure logic (679 in 98 classes, plus 45 instrumented tests in 8 classes; see [TESTING.md](TESTING.md)): updates (`AppUpdates`), search and parsing (`SearchNormalizer`, `SearchIndex`, `RecentSearches`, `ConsoleFolderAliases`, `GameTitleCleaner`, `LibraryKeys`, `ListingSize`), sources and scanning (`SourcesJson`, `SourcesJsonMirrors`, `SourcesJsonFavourites`, `SourcesJsonScrape`, `ScrapeRecipes`, `ListingLinks`, `KnownConsoles`, `IaSource`, `IaFiles`, `IaCookies`, `IaAuthJson`, `AuthRedirects`, `IaAuth`, `SourceScanCheck`, `ScanRetry`, `ScanEta`, `ScanScheduleAndProgress`), deep links and shortcuts (`DeepLinkParser`, `DeepLinkResolver`, `DgmtxFile`), frontends (`EsdeXml`, `EsdeFindRules`, `EsdeFavouriteSync`, `FrontendCheck`, `IisuJson`, `DaijishoSetup`), debrid and RomM (`DebridMatcher`, `RommPlatformMapper`, `RommSource`, `CertPin`, `StoredZip`, `RommUploadResume`, `RommUploadSources`, `RommJson`, `RommMatching`, `RommPlayState`, `RommFavouritesMerge`, `RommCovers`), covers, similar games and recommendations (`LibretroThumbnails`, `SimilarGames`, `RawgCatalog`, `Recommender`), genres, years and letters (`LibraryGenre`, `LibretroMetadat`, `LetterJump`), chip colours (`ColorMath`, `TagColors`), seeding (`SeedingMode`), downloads (`DownloadFailures`, `MirrorUrls`, `MultiDisc`, `ArchivePaths`, `TokenBucket`, `HttpResume`, `SourceReliability`, `VersionOriginTieBreak`, `DownloadQueue`, `DownloadListFilter`, `DownloadNotices`), verification (`Checksums`, `DatParser`, `DownloadCheck`, `LibretroDats`), game versions (`VersionGrouping`), Collection (`CollectionGames`, `CollectionHealth`, `VolumeUsage`, `CollectionDuplicates`, `CollectionRepair`, `CollectionDeletionPlan`, `CollectionRules`, `GameTraitRules`, `SmartStorage`, `LibraryMoveJob`, `TrashRules`, `ActionHistoryRules`, `DocumentIds`) and the gamepad (`GamepadLayout`, `TriggerPress`).
-- Removed: FAB, `SearchSection`, old filter overlays/dropdowns, `RomList`, `SmallButtons`, `CommonButton`, `Spacing`/`Layout`.
+Five categories (General, Library, Appearance, Downloads, Integrations) with a panel on the left in landscape and tabs on top in portrait, searchable from the Library's search box. Among them: language; updates; gamepad layout (Xbox / Nintendo / PlayStation legends) and A/B · X/Y swap; download folder and per-console subfolders; automatic scan; preferred region and favourite languages; results per page; theme (System / Light / Dark / True black) and accent; covers in the list and tag colours with a D-pad colour picker; concurrent downloads, downloads per server, speed limit (web and torrent), automatic retries, finish notice; auto-extract, multi-disc playlists, verification and DAT files; metadata timeout, seeding, debrid service and key; frontends and servers.
 
-## How it works (inherited from Milou)
+## Compared with Milou
 
-A file called **Burnout Paradise (En,Es,Fr) (NTSC).zip** in a torrent becomes
-**Name: Burnout Paradise · Tags: Languages [En, Es, Fr], Region [NTSC], Console: Xbox 360, Manufacturer: Microsoft, Extension: .zip**.
+Dogmatix was forked from Milou's `master` in April 2026. Milou is a phone app driven by touch, with a floating menu button, full-screen filter overlays and a list of files; its engine indexes torrents, magnets and web folder listings, downloads over HTTP or libtorrent with a concurrency limit and a speed limit, and extracts archives. Everything below was added or rewritten in Dogmatix.
 
-1. **First launch**: the app starts with no sources (`consoles.json` is empty). Add consoles by hand or import a sources JSON from the Sources tab (export one from a device that already has sources; source files are deliberately not part of this repository).
-2. **Search**: filter by console, region, language, type or extension.
-3. **Download**: press A / tap on a game; torrents and direct HTTP links are both supported.
-4. **Manage**: follow progress in Downloads; archives are extracted automatically.
-5. **Configure**: download folder, per-console paths, speed limit, concurrency, theme.
+### Interface
+
+| Area | Milou | Dogmatix |
+|---|---|---|
+| Input | Touch | Gamepad first (focus ring, contextual legend, Xbox / Nintendo / PlayStation legends, button swap, analogue triggers) and touch |
+| Navigation | Floating menu button, full-screen overlays | Tabs on top in landscape, bottom bar in portrait, immersive mode, B undoes one layer at a time |
+| First run | Bundled sources, settings by hand | Onboarding wizard (folder, region and languages, sources import, ES-DE); no bundled sources |
+| Library | One row per file, filter overlays | One row per game with versions and discs grouped, square covers, coloured chips, foldable filter panel, active-filter chips, sort button, recommendations, similar games, genre / decade filters, jump by letter, favourites, ✓ / ★ / RomM marks |
+| Details | None | Popup with artwork, year, developer, genres, synopsis (RAWG / TheGamesDB / RomM), every version, similar games, collections, play status |
+| Search | Name only | Lenient matching, recent searches, results from downloads, sources, settings and Collection |
+| Downloads | Progress list | Queue with move / hold, chips and search, pause / resume, failure reasons, retry timers, verification result, covers and tags, multi-selection, upload state |
+| Collection | None | New section: summary, health, duplicates, repair, free up space, SD storage, move library, history and trash, collections |
+| Sources | Manufacturer / console / URL lists | Restyled cards, editable URLs, mirrors, switches, selector recipes with *Test*, predefined consoles, console colours, scan report, reliability per server, export / import |
+| Settings | One list | Five categories, steppers and switches for the controller, searchable rows, update checker |
+| Look | Material defaults | Flat palette, one accent (5 presets), light / dark / true black, Manrope |
+| Languages | English | English, Spanish, German, French, Portuguese, Italian |
+| Dialogs | Touch | Initial focus, B closes, wide dialogs for forms, confirmations that start on *Cancel* |
+
+### Engine
+
+| Area | Milou | Dogmatix |
+|---|---|---|
+| Source kinds | `.torrent`, magnets, HTML directory tables | Plus plain-link listings (nginx, IIS, Apache), pages with CSS selectors, Internet Archive items and ZIP viewers, RomM platforms, debrid services |
+| Rescan | Everything, one source after another | Incremental (ETag / Last-Modified, fingerprints, cached torrent metadata, Internet Archive change check), parallel with per-server limits, retries with `Retry-After`, mirrors, per-source replacement, queued and merged requests, cancel-safe, scan report, automatic daily / weekly scan |
+| Listing parser | Tables | Tables and `<pre>` listings, root-relative and scheme-relative links, thousands separators, truncated names, unsafe links filtered |
+| Download list | In memory | Room history with queue order, hold flag, failure reason, retry timer and debrid ids; restored on launch |
+| Download control | Start, retry, cancel; concurrency semaphore | Reorderable queue with global and per-server slots, pause / resume for HTTP, torrent and debrid, one lifecycle per file (no double starts, no ghost rows), bulk actions, notifications with actions |
+| Resume | From zero | `Range` + `If-Range` with stored validators, `.dogmatix-part` files promoted when whole, servers that cannot resume detected |
+| Failures | Retry | Classified reasons, automatic retries with persistent timers, mirrors ordered by measured reliability, transient vs permanent errors |
+| Verification | None | CRC32 / SHA-1 / MD5 against No-Intro / Redump DATs (fetched or imported), RomM and Internet Archive hashes |
+| Extraction | Extract, swallow errors | Reasons for failures, no overwrites, folder structure kept, unsafe paths refused, cancellable, archive kept for retry |
+| Post-download | None | Multi-disc `.m3u` folders, RomM upload, ES-DE favourite sync, verification, library index refresh |
+| Storage | Write and delete | Trash with undo and retention, action history, verified copies and moves, second root with smart routing, library move with resume and undo, storage problems told apart |
+| Metadata | File-name tags | Plus RAWG / TheGamesDB details, libretro covers, genres and years from libretro-database, franchise and genre similarity, recommendations |
+| Persistence | Room v2, 5 tables | Room v20 with explicit migrations from v1 (some twenty tables), migration tests from 1.0 and 1.1 schemas |
+| Integrations | None | RomM (catalogue, uploads, favourites, covers, self-signed TLS), TorBox, Real-Debrid, Internet Archive session, ES-DE, iiSU, Daijishō |
+| Updates | Toast on new version | In-app download and install, APK checked for package, version and signature |
+| Tests | Two placeholder tests | 679 unit tests in 98 classes, 45 instrumented tests in 8 classes, lint baseline, `validate.sh`, `release-check.sh`, GitHub Actions |
+
+### In numbers
+
+| | Milou (April 2026) | Dogmatix 1.4 |
+|---|---|---|
+| Kotlin files / lines | 100 / ~8,300 | 487 / ~63,500 |
+| Screens | 5 (Library, Downloads, Sources, Settings, Contact) | 7 (+ Onboarding, Collection) |
+| Room schema | v2 | v20 |
+| UI languages | 1 | 6 |
+| Tests | 2 placeholders | 679 unit + 45 instrumented |
+
+The package is `com.cortinadev.dogmatix` (Milou's is `com.santiifm.milou`), so Dogmatix installs as a separate app and does not update over a Milou install.
+
+## How it works
+
+A file called **Burnout Paradise (En,Es,Fr) (NTSC).zip** found in a source becomes **Burnout Paradise · Languages: En, Es, Fr · Region: NTSC · Console: Xbox 360 · Manufacturer: Microsoft · Extension: .zip**, grouped with its other versions under one game.
+
+1. **Sources** are read by kind: a torrent or magnet gives its file list (from the swarm, a local `.torrent` or the on-device metadata cache); a web folder is parsed as a listing; a selector recipe is applied page by page; an Internet Archive item is read from its metadata API; a RomM platform from its REST API. Each file is tagged, keyed by game and written in one transaction that replaces only that source.
+2. **The Library** pages by game, groups versions, ranks them by your region and languages, and decorates rows with covers, colours, ✓, ★ and RomM marks.
+3. **A download** takes a slot in the queue (global and per server), goes through a debrid service, libtorrent or HTTP with resume and mirrors, is written as a `.dogmatix-part`, promoted when whole, extracted if needed, moved into its multi-disc folder, uploaded to RomM, verified against hashes and, if starred, pushed to ES-DE's favourites.
+4. **Collection** scans the folders, compares with the catalogue and offers repairs; every deletion goes through the trash and the history.
+
+## Deep links
+
+Other apps and frontends can open the library with filters applied:
+
+```
+dogmatix://library?console=nintendo_snes&region=USA,Europe&lang=En&type=GAME&genre=platform&decade=1990&q=mario&fav=1
+```
+
+| Parameter | Meaning |
+|---|---|
+| `console` | Console ids as shown in Sources (comma-separated) |
+| `region`, `lang`, `type`, `filetype`, `tag` | Library tags (comma-separated); the kind is inferred from the value |
+| `genre` | Genres: ids such as `rpg`, `platform`, `shooter`, or database names such as `Role-playing` |
+| `decade` | Decades: `1990`, `90s`, `80s`… |
+| `q` | Search text |
+| `fav` | `1` / `true` shows favourites only |
+
+Try it with `adb shell am start -a android.intent.action.VIEW -d "dogmatix://library?console=nintendo_snes&q=mario"`. Dogmatix also opens `.dgmtx` files (a text file carrying one of these links), which is how it appears as an "emulator" inside ES-DE, iiSU or Daijishō. See [FRONTENDS.md](FRONTENDS.md).
+
+## Controller cheat sheet
+
+| Button | Action |
+|---|---|
+| D-pad | Move focus · ◀ ▶ in the Library list jump to the next / previous letter (sorted by name) |
+| A | Select / download the preferred version · pause or resume a download |
+| B | Back one layer (close sheet, clear search, back to tabs); never closes the app |
+| X | Game details · in Downloads, delete · in Collection, act on what is ticked or analyse |
+| Y | Focus search · in selection mode, tick everything |
+| Select | Star / unstar · in Downloads, tick rows |
+| START | On a queued download: move mode (▲ ▼ move, LB next, Y hold) |
+| LB / RB | Switch panel (filters, chips, tools or categories ⇄ list) |
+| R3 | Fold / unfold the filter panel |
+| ZL / ZR | Previous / next section |
+
+The legend only appears while a controller is connected; names and colours follow the *Gamepad layout* setting.
 
 ## Building
 
@@ -177,84 +205,56 @@ cd dogmatix
 scripts/validate.sh          # changelog, tests, lint, builds and release check in one go
 ```
 
-The release APK is signed with `keystore/dogmatix-release.jks`, which is not in the repository. Without it Gradle falls back to the debug key without a warning and the APK cannot update a published release; `scripts/release-check.sh <apk>` catches that before publishing.
+Optional API keys for the details popup and recommendations go in a git-ignored `.env` at the repository root (`RAWG_API_KEY`, `THEGAMESDB_API_KEY`); without them the app builds and the popup says "no data". The release APK is signed with `keystore/dogmatix-release.jks`, which is not in the repository; without it Gradle falls back to the debug key and `scripts/release-check.sh <apk>` flags the APK as not publishable.
 
 ### Testing and validation
 
-Unit tests cover the pure logic, instrumented tests cover migrations, storage and the gamepad on Android, and a manual checklist covers the rest. See [TESTING.md](TESTING.md) for the inventory, commands (also in Docker), CI workflows and the per-release checklist.
-
-The debug build uses the `.debug` application-id suffix so it can be installed next to a release build. The package is `com.cortinadev.dogmatix` (renamed from upstream's `com.santiifm.milou`).
+Unit tests cover the pure logic, instrumented tests cover migrations, DAOs, storage providers, queue recovery and the gamepad on a device or emulator, and a manual checklist covers the rest. [TESTING.md](TESTING.md) has the inventory, the Docker commands, the CI workflows and the per-release checklist.
 
 ### Project structure
+
 ```
 app/src/main/java/com/cortinadev/dogmatix/
-├── data/        Room entities/DAOs, repositories, services (scraping, torrents, downloads, extraction, RomM, frontends, Collection), app-wide search, shared state
-├── di/          Hilt modules
+├── data/
+│   ├── local/       Room database (v20), entities, DAOs, DataStore settings
+│   ├── model/       Domain models (sources, games and versions, tags, regions)
+│   ├── repository/  Settings, downloads, files, consoles, favourites, sources, collections
+│   ├── search/      App-wide search providers
+│   ├── service/     Scanning, torrents, downloads, queue, extraction, verification, multi-disc,
+│   │                debrid, RomM, Internet Archive, frontends, Collection tools, updates
+│   └── state/       Shared state (scan progress, pending navigation and filters)
+├── di/              Hilt modules
 ├── ui/
-│   ├── common/      Gamepad detection and shortcut bus
-│   ├── components/  AppShell, TopBar, TagChip + TagColors, GameCover, ColorPickerDialog, FocusHighlight, Stepper, SubTabs, GamepadLegend
-│   ├── screens/     onboarding, home (Library), download, collection, sources, settings (+ RomM), contact
-│   └── theme/       DogmatixTheme, palettes, ThemeMode, accent presets
-└── util/        Pure logic with its tests: file-name parsing, folder aliases, search, cover / colour / similar-games / recommendation logic, game versions and multi-disc sets, scanning, download queue / resume / verification, RomM, frontends, Collection rules, storage helpers
+│   ├── common/      Gamepad detection, shortcut bus, layouts, trigger handling
+│   ├── components/  Shell, tabs, legend, chips and colours, covers, dialogs, steppers, focus ring
+│   ├── screens/     onboarding, home (Library), download, collection, sources, settings (+ RomM, IA), contact
+│   └── theme/       Palettes, ThemeMode, accents, typography
+└── util/            Pure logic with its tests: file-name parsing, listings, selector recipes, Internet
+                     Archive, scan checks, download queue / resume / failures / verification, versions,
+                     multi-disc sets, covers, similarity, recommendations, RomM, frontends, Collection rules
 app/src/main/assets/consoles.json   Default sources (empty in Dogmatix)
 app/src/test/                       JVM unit tests
+app/src/androidTest/                Instrumented tests (sandboxed runner)
+scripts/                            validate.sh, release-check.sh
 ```
 
 ## Tech stack
+
 - **UI**: Jetpack Compose, Material 3, Navigation Compose
 - **DI**: Hilt (KSP)
 - **Persistence**: Room + FTS, DataStore Preferences
-- **Images**: Coil (disk-cached covers)
-- **Torrents**: libtorrent4j · **HTTP**: HttpURLConnection, Jsoup
-- **Archives**: 7-Zip-JBinding-4Android (ZIP/7z)
-- **Concurrency**: Kotlin Coroutines + Flow; JobScheduler for the automatic scan
+- **Images**: Coil, with covers kept on disk
+- **Torrents**: libtorrent4j · **HTTP**: HttpURLConnection, Jsoup · **JSON**: Gson
+- **Archives**: 7-Zip-JBinding-4Android (ZIP / 7z)
+- **Concurrency**: Kotlin Coroutines and Flow; JobScheduler for the automatic scan
 
-## Deep links
+## Credits
 
-Other apps and frontends can open the library with filters already applied:
-
-```
-dogmatix://library?console=nintendo_snes&region=USA,Europe&lang=En&type=GAME&genre=platform&decade=1990&q=mario&fav=1
-```
-
-| Parameter | Meaning |
-|---|---|
-| `console` | Console ids as shown in Sources (comma-separated) |
-| `region`, `lang`, `type`, `filetype`, `tag` | Library tags (comma-separated); the kind is inferred from the value |
-| `genre` | Genres (comma-separated): ids such as `rpg`, `platform` or `shooter`, or database names such as `Role-playing` |
-| `decade` | Decades (comma-separated): `1990`, `90s`, `80s`… |
-| `q` | Search text |
-| `fav` | `1`/`true` shows favourites only, `0`/`false` everything |
-
-Try it with `adb shell am start -a android.intent.action.VIEW -d "dogmatix://library?console=nintendo_snes&q=mario"`. A link opened while the app is on another tab switches to the Library; one opened during onboarding is applied once onboarding finishes.
-
-Dogmatix also opens `.dgmtx` shortcut files (a text file carrying one of these links), and
-Settings → *Frontend shortcuts* drops one into every platform folder — that's how it shows up
-as an "emulator" inside ES-DE, iiSU or Daijishō. ES-DE and iiSU also get a one-button setup
-in Settings ("Configure ES-DE" / "Configure iiSU"); Daijishō has no importable emulator
-configuration, so "Set up Daijishō" hands over the values to type into it. See
-[FRONTENDS.md](FRONTENDS.md) for the frontend configuration.
-
-## Controller cheat sheet
-
-| Button | Action |
-|---|---|
-| D-pad | Move focus · ◀ ▶ in the Library list jump to the next / previous letter (sorted by name) |
-| A | Select / download (the game's preferred version) · pause a running download |
-| B | Back one layer (close sheet, clear search, back to tabs) |
-| X | Game details popup, with every version of the game (B or X closes) · in Downloads, delete · in the Collection tools, act on what is ticked |
-| Y | Focus search |
-| Select | Star / unstar the focused game · in Downloads, tick rows for multi-selection |
-| START | On a queued download: move mode (▲ ▼ move, LB next, Y hold) |
-| LB / RB | Switch panel (filters, chips, tools or categories ⇄ list) |
-| R3 | Fold / unfold the filter panel |
-| ZL / ZR | Previous / next section |
-
-Everything is also reachable by touch; the legend only appears while a controller is connected, and button names and colours follow the *Gamepad layout* setting (Xbox / Nintendo / PlayStation).
+Dogmatix is a fork of [Milou](https://github.com/santiifm/milou) by [santiifm](https://github.com/santiifm), who wrote the original indexer, tagger, downloader and extractor that this app grew from. Covers come from [libretro-thumbnails](https://github.com/libretro-thumbnails), genres, years and DATs from [libretro-database](https://github.com/libretro/libretro-database), and game details from [RAWG](https://rawg.io) and [TheGamesDB](https://thegamesdb.net).
 
 ## Roadmap
 
-Ideas and requests are welcome as [issues](https://github.com/cortinadev/dogmatix/issues).
+Ideas and requests are welcome as [issues](https://github.com/cortinadev/dogmatix/issues). The [CHANGELOG](CHANGELOG.md) lists what each release brought and what is still known to be rough.
 
 ## Disclaimer
 
