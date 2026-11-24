@@ -15,6 +15,16 @@ import com.cortinadev.dogmatix.data.service.DownloadProgressTracker
 import com.cortinadev.dogmatix.data.service.RommUploadService
 import com.cortinadev.dogmatix.data.service.UploadState
 import com.cortinadev.dogmatix.data.service.QueueState
+import com.cortinadev.dogmatix.data.service.ConversionInspection
+import com.cortinadev.dogmatix.data.service.ConversionJob
+import com.cortinadev.dogmatix.data.service.ConversionOrigin
+import com.cortinadev.dogmatix.data.service.ConversionState
+import com.cortinadev.dogmatix.data.service.ConversionTarget
+import com.cortinadev.dogmatix.data.service.RomConversionService
+import com.cortinadev.dogmatix.util.ConversionFormat
+import com.cortinadev.dogmatix.util.FileParsingUtils
+import com.cortinadev.dogmatix.util.MultiDisc
+import com.cortinadev.dogmatix.util.RomConversions
 import com.cortinadev.dogmatix.data.state.PendingDownloadsView
 import com.cortinadev.dogmatix.util.DownloadBulk
 import com.cortinadev.dogmatix.util.DownloadFailure
@@ -55,7 +65,8 @@ class DownloadViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     progressTracker: DownloadProgressTracker,
     autoRetry: DownloadAutoRetry,
-    private val pendingView: PendingDownloadsView
+    private val pendingView: PendingDownloadsView,
+    private val conversionService: RomConversionService
 ) : ViewModel() {
 
     /** Why each failed row failed (shown under its name). */
@@ -341,4 +352,85 @@ class DownloadViewModel @Inject constructor(
     fun onNotificationPermissionAsked() {
         viewModelScope.launch { settingsRepository.setNotificationPermissionAsked() }
     }
+
+    // conversion: completed rows of convertible games (XISO, CHD, RVZ).
+
+    /** The format each completed row would convert to, by names (its file, or its archive's likely content). */
+    val convertible: StateFlow<Map<String, ConversionFormat>> = downloads
+        .map { list -> list.filter { it.status == DownloadStatus.COMPLETED }.map { it.fileName to it.finishedAt } }
+        .distinctUntilChanged()
+        // Converted in an earlier session (the history says so, and the download was not done again since).
+        .combine(conversionService.convertedDownloads) { rows, converted ->
+            rows.filterNot { (name, finishedAt) -> RomConversions.convertedSince(converted[name], finishedAt) }.map { it.first }
+        }
+        .distinctUntilChanged()
+        .map { names -> names.mapNotNull { name -> conversionService.likelyFormatForDownload(name)?.let { name to it } }.toMap() }
+        .flowOn(Dispatchers.Default)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    /** The conversion of each row (running, or the last one of this session). */
+    val conversions: StateFlow<Map<String, ConversionJob>> = conversionService.jobs
+        .map { jobs ->
+            jobs.values.filter { it.downloadFileName != null }.groupBy { it.downloadFileName!! }
+                .mapValues { (_, list) -> list.firstOrNull { it.state.active } ?: list.last() }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    /**
+     * Whether the row offers "Convert" now: convertible, completed, and not converted or converting
+     * already, nor found to save nothing (remembered across restarts).
+     */
+    fun canConvert(fileName: String): Boolean {
+        if (fileName !in convertible.value) return false
+        val job = conversions.value[fileName] ?: return true
+        return !job.state.active && job.state != ConversionState.DONE && !job.savesNothing
+    }
+
+    /** One row of the confirmation: the file found on disk ([target]) and what reading it said. */
+    data class ConversionPromptItem(val fileName: String, val title: String, val target: ConversionTarget?, val inspection: ConversionInspection?) {
+        val convertible: Boolean get() = target != null && inspection?.convertible == true
+    }
+
+    /** The confirmation: null = closed; [loading] while the images are found and read. */
+    data class ConversionPrompt(val items: List<ConversionPromptItem>, val loading: Boolean) {
+        val ready: List<ConversionPromptItem> get() = items.filter { it.convertible }
+    }
+
+    private val _conversionPrompt = MutableStateFlow<ConversionPrompt?>(null)
+    val conversionPrompt: StateFlow<ConversionPrompt?> = _conversionPrompt.asStateFlow()
+
+    /** START (or the row's button, or the selection bar): finds each file on disk, reads it and asks first. */
+    fun requestConversion(fileNames: List<String>) {
+        val rows = downloads.value.filter { it.fileName in fileNames && canConvert(it.fileName) }
+        if (rows.isEmpty()) return
+        _conversionPrompt.value = ConversionPrompt(rows.map { ConversionPromptItem(it.fileName, it.name, null, null) }, loading = true)
+        viewModelScope.launch {
+            val items = rows.map { row ->
+                val target = runCatching { conversionService.targetForDownload(row.fileName) }.getOrNull()
+                val inspection = target?.let { runCatching { conversionService.inspect(it) }.getOrNull() }
+                // Not found: the download's own file name (region and disc included), as a found file shows.
+                val fallback = MultiDisc.stripExtension(FileParsingUtils.decodeUrlEncodedFileName(row.fileName).substringAfterLast('/'))
+                ConversionPromptItem(row.fileName, target?.title ?: fallback, target, inspection)
+            }
+            // Closed meanwhile (B): stays closed.
+            if (_conversionPrompt.value != null) _conversionPrompt.value = ConversionPrompt(items, loading = false)
+        }
+    }
+
+    fun convertSelected() = requestConversion(_selection.value.toList())
+
+    fun confirmConversion() {
+        val prompt = _conversionPrompt.value ?: return
+        _conversionPrompt.value = null
+        conversionService.enqueue(prompt.ready.mapNotNull { it.target }, ConversionOrigin.DOWNLOADS)
+    }
+
+    fun dismissConversion() {
+        _conversionPrompt.value = null
+    }
+
+    fun cancelConversion(fileName: String) {
+        conversions.value[fileName]?.takeIf { it.state.active }?.let { conversionService.cancel(it.id) }
+    }
 }
+

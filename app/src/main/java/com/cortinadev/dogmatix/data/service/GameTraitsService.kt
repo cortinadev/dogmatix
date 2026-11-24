@@ -14,6 +14,7 @@ import com.cortinadev.dogmatix.util.LibraryGenre
 import com.cortinadev.dogmatix.util.LibretroMetadat
 import com.cortinadev.dogmatix.util.LibretroThumbnails
 import com.cortinadev.dogmatix.util.Recommender
+import com.cortinadev.dogmatix.util.TitleClones
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -137,7 +138,7 @@ class GameTraitsService @Inject constructor(
     private fun datTraits(consoleId: String, system: LibretroThumbnails.System): Map<String, LibretroMetadat.Trait> {
         val genres = read(consoleId, system, LibretroMetadat.Field.GENRE)
         val years = read(consoleId, system, LibretroMetadat.Field.YEAR)
-        return LibretroMetadat.traitsByGroup(genres, years)
+        return LibretroMetadat.traitsByGroup(genres, years) { TitleClones.canonical(consoleId, LibretroMetadat.groupKeyOf(it)) }
     }
 
     private fun read(consoleId: String, system: LibretroThumbnails.System, field: LibretroMetadat.Field): List<Pair<String, String>> {

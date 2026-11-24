@@ -40,6 +40,9 @@ import com.cortinadev.dogmatix.data.model.DownloadItemModel
 import com.cortinadev.dogmatix.data.model.DownloadStatus
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
 import com.cortinadev.dogmatix.data.model.LibraryGame
+import com.cortinadev.dogmatix.data.service.ConversionError
+import com.cortinadev.dogmatix.data.service.ConversionJob
+import com.cortinadev.dogmatix.data.service.ConversionState
 import com.cortinadev.dogmatix.data.service.DownloadAutoRetry
 import com.cortinadev.dogmatix.data.service.UploadState
 import com.cortinadev.dogmatix.data.service.UploadStatus
@@ -54,6 +57,7 @@ import com.cortinadev.dogmatix.ui.components.formatBytes
 import com.cortinadev.dogmatix.ui.components.rememberFocusSource
 import com.cortinadev.dogmatix.ui.components.stripExtension
 import com.cortinadev.dogmatix.util.ConsoleFormatter
+import com.cortinadev.dogmatix.util.ConversionFormat
 import com.cortinadev.dogmatix.util.DownloadFailure
 import kotlinx.coroutines.launch
 import java.text.DateFormat
@@ -96,7 +100,14 @@ fun DownloadItem(
     queueTurn: Int? = null,
     held: Boolean = false,
     moving: Boolean = false,
-    queueActions: QueueRowActions? = null
+    queueActions: QueueRowActions? = null,
+    // conversion
+    /** The row's conversion (running, or the last one of this session). */
+    conversion: ConversionJob? = null,
+    /** The format "Convert" offers (null = no button): a completed, convertible row not converted yet. */
+    convertTo: ConversionFormat? = null,
+    onConvert: () -> Unit = {},
+    onCancelConversion: () -> Unit = {}
 ) {
     val queued = queueTurn != null || held
     val scheme = MaterialTheme.colorScheme
@@ -153,8 +164,10 @@ fun DownloadItem(
             "  ·  ${formatBytes(item.downloadedBytes)} / ${formatBytes(item.fileSize)}"
         else -> listOfNotNull(failureLabel, restartLabel, formatBytes(item.fileSize), checkText).joinToString("  ·  ")
     } + (timeLabel?.let { "  ·  $it" } ?: "")
+    val converting = conversion != null && conversion.state.active
     val busy = status == DownloadStatus.COPYING || status == DownloadStatus.UNZIPPING ||
-        (status == DownloadStatus.QUEUED && item.progress <= 0f)
+        (status == DownloadStatus.QUEUED && item.progress <= 0f) ||
+        (converting && conversion.state != ConversionState.CONVERTING && conversion.state != ConversionState.VERIFYING)
     val actionSize: Dp = if (compact) 36.dp else 44.dp
 
     // A (or a tap) on the row runs the primary action; the side buttons stay for touch and
@@ -252,7 +265,8 @@ fun DownloadItem(
                 )
             } else {
                 LinearProgressIndicator(
-                    progress = { if (status == DownloadStatus.COMPLETED) 1f else item.progress },
+                    // A conversion running on the finished file shows its own progress.
+                    progress = { if (converting) conversion.progress else if (status == DownloadStatus.COMPLETED) 1f else item.progress },
                     modifier = Modifier.fillMaxWidth().height(4.dp),
                     color = statusColor,
                     trackColor = scheme.surfaceContainerHigh,
@@ -277,6 +291,11 @@ fun DownloadItem(
                     } ?: stringResource(R.string.romm_upload_failed, up.message)) to scheme.error
                 }
                 Text(label, style = MaterialTheme.typography.bodySmall, color = color, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            conversion?.let { job ->
+                val (label, color) = conversionLine(job)
+                // Two lines at most: a failure reason in a narrow portrait row is read whole.
+                Text(label, style = MaterialTheme.typography.bodySmall, color = color, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             details?.let {
                 TagRow(
@@ -319,6 +338,12 @@ fun DownloadItem(
                         ActionButton(R.drawable.ic_arrow_up, stringResource(description), actionSize, scheme.primary) {
                             viewModel.retryUpload(item.fileName)
                         }
+                    }
+                    // conversion: the same place START reaches with a pad.
+                    if (converting) {
+                        ActionButton(R.drawable.ic_close, stringResource(R.string.conversion_cancel), actionSize, scheme.onSurface, onClick = onCancelConversion)
+                    } else if (convertTo != null) {
+                        ActionButton(R.drawable.ic_convert, stringResource(R.string.conversion_convert_to, convertTo.label), actionSize, scheme.primary, onClick = onConvert)
                     }
                     ActionButton(R.drawable.ic_retry, stringResource(R.string.download_retry), actionSize, scheme.onSurface) {
                         scope.launch { viewModel.retryDownload(item.fileName) }
@@ -383,6 +408,44 @@ internal fun ActionButton(
         Icon(painterResource(icon), contentDescription = description, tint = tint, modifier = Modifier.size(16.dp))
     }
 }
+
+/** The conversion line under the row's detail: what it is doing, or how it ended. */
+@Composable
+internal fun conversionLine(job: ConversionJob): Pair<String, Color> {
+    val scheme = MaterialTheme.colorScheme
+    val format = job.format.label
+    val percent = (job.progress * 100).toInt()
+    return when (job.state) {
+        ConversionState.QUEUED -> stringResource(R.string.conversion_queued, format) to scheme.onSurfaceVariant
+        ConversionState.CONVERTING -> stringResource(R.string.conversion_converting, format, percent) to scheme.primary
+        ConversionState.VERIFYING -> stringResource(R.string.conversion_verifying, format, percent) to scheme.primary
+        ConversionState.FINISHING -> stringResource(R.string.conversion_finishing) to scheme.primary
+        ConversionState.DONE -> (job.savedBytes?.takeIf { it > 0 }?.let { stringResource(R.string.conversion_done, format, formatBytes(it)) }
+            ?: stringResource(R.string.conversion_done_plain, format)) to scheme.tertiary
+        // Its own short line: with the "Couldn't convert: …" prefix it was cut short in portrait.
+        ConversionState.FAILED -> (if (job.savesNothing) stringResource(R.string.conversion_no_saving)
+            else stringResource(R.string.conversion_failed, conversionErrorText(job.error))) to scheme.error
+        ConversionState.CANCELLED -> stringResource(R.string.conversion_cancelled) to scheme.onSurfaceVariant
+    }
+}
+
+@Composable
+internal fun conversionErrorText(error: ConversionError?): String = stringResource(
+    when (error) {
+        ConversionError.NOT_FOUND -> R.string.conversion_error_not_found
+        ConversionError.ALREADY_CONVERTED -> R.string.conversion_error_already
+        ConversionError.UNRECOGNISED -> R.string.conversion_error_unrecognised
+        ConversionError.DAMAGED -> R.string.conversion_error_damaged
+        ConversionError.INCOMPLETE -> R.string.conversion_error_incomplete
+        ConversionError.NO_SPACE -> R.string.conversion_error_no_space
+        ConversionError.STORAGE -> R.string.conversion_error_storage
+        ConversionError.VERIFY_FAILED -> R.string.conversion_error_verify
+        ConversionError.RETIRE_FAILED -> R.string.conversion_error_retire
+        // A whole line of its own ([conversionLine] shows it without the prefix).
+        ConversionError.NO_SAVING -> R.string.conversion_no_saving
+        ConversionError.UNKNOWN, null -> R.string.conversion_error_unknown
+    }
+)
 
 /** Short text for each failure reason. */
 private val DownloadFailure.labelRes: Int

@@ -26,6 +26,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
@@ -95,12 +96,18 @@ fun Modifier.toolPane(first: FocusRequester, legend: List<LegendEntry>): Modifie
  * Goes before [toolPane] on the pane's root.
  */
 @Composable
-fun Modifier.refocusOnChange(key: Any?, first: FocusRequester): Modifier {
+fun Modifier.refocusOnChange(key: Any?, first: FocusRequester): Modifier =
+    refocusOnChange(key) { runCatching { first.requestFocus() } }
+
+/** Like the one above, but [refocus] picks where the focus goes (the row that took the gone one's place…). */
+@Composable
+fun Modifier.refocusOnChange(key: Any?, refocus: () -> Unit): Modifier {
     val focus = remember { PaneFocus() }
+    val current by rememberUpdatedState(refocus)
     LaunchedEffect(key) {
         withFrameNanos { }
         withFrameNanos { }
-        if (!focus.has && SystemClock.uptimeMillis() - focus.lostAt < 1_000) runCatching { first.requestFocus() }
+        if (!focus.has && SystemClock.uptimeMillis() - focus.lostAt < 1_000) current()
     }
     return onFocusChanged {
         if (focus.has && !it.hasFocus) focus.lostAt = SystemClock.uptimeMillis()

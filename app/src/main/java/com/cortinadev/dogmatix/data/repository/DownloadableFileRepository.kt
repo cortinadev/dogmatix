@@ -121,9 +121,11 @@ class DownloadableFileRepository @Inject constructor(
         if (groups.isEmpty()) return emptyList()
         // The page's files in one query; an unlimited page skips the key list (SQLite caps the
         // number of bound values at 999 on older Android) and keeps only the page's games below.
+        // The text picks games, not versions: a game found by one of its titles ("fire red")
+        // still shows the version for the user's region and languages ("Rojo Fuego").
         val keys = groups.map { it.groupKey }.distinct().takeIf { it.size <= MAX_KEYS_PER_QUERY }.orEmpty()
         val rows = dao.queryFilesWithTags(
-            query = pattern, manufacturer = null,
+            query = if (keys.isEmpty()) pattern else "*", manufacturer = null,
             consoleIds = consoleIds.toList(), consoleIdsCount = consoleIds.size,
             regions = kind(TagKind.REGION), regionsCount = kind(TagKind.REGION).size,
             languages = kind(TagKind.LANGUAGE), languagesCount = kind(TagKind.LANGUAGE).size,
@@ -150,8 +152,8 @@ class DownloadableFileRepository @Inject constructor(
     private fun byOrigin(versions: List<GameVersion>): List<GameVersion> =
         sourceStats.orderBy(versions) { DownloadOrigins.forFile(it.primary.file.downloadUrl, it.primary.file.torrentMagnet) }
 
-    /** File names of one game, all versions (to count the discs of a release). */
-    suspend fun gameFileNames(consoleId: String, groupKey: String): List<String> = dao.getGameFileNames(consoleId, groupKey)
+    /** File names of one title, every region and revision under it (to count the discs of a release). */
+    suspend fun titleFileNames(consoleId: String, titleKey: String): List<String> = dao.getTitleFileNames(consoleId, titleKey)
 
     private fun toFileWithTags(result: DownloadableFileWithTagsResult) = DownloadableFileWithTags(
         file = DownloadableFileEntity(
@@ -164,7 +166,8 @@ class DownloadableFileRepository @Inject constructor(
             fileExtension = result.fileExtension,
             torrentFileIndex = result.torrentFileIndex,
             torrentMagnet = result.torrentMagnet,
-            groupKey = result.groupKey.ifEmpty { VersionGrouping.groupKey(result.name) }
+            groupKey = result.groupKey.ifEmpty { VersionGrouping.groupKey(result.name) },
+            titleKey = result.titleKey.ifEmpty { VersionGrouping.groupKey(result.name) }
         ),
         tags = result.tags?.split("|")?.filter { it.isNotBlank() } ?: emptyList()
     )

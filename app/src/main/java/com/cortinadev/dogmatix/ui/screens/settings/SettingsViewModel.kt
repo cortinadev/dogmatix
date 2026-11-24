@@ -8,6 +8,7 @@ import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.data.model.DebridProvider
 import com.cortinadev.dogmatix.data.model.SeedingMode
+import com.cortinadev.dogmatix.data.service.convert.ChdCompression
 import com.cortinadev.dogmatix.data.model.PreferredRegion
 import com.cortinadev.dogmatix.util.AutoRetryPolicy
 import com.cortinadev.dogmatix.data.service.DaijishoConfigService
@@ -403,8 +404,9 @@ class SettingsViewModel @Inject constructor(
         repository.autoRetryAttempts,
         repository.perHostDownloads,
         repository.multiDiscPlaylists,
-        repository.preferredRegion
-    ) { retries, perHost, multiDisc, region -> FeatureSettingsUi(retries, perHost, multiDisc, region) }
+        repository.preferredRegion,
+        repository.unifyTitles
+    ) { retries, perHost, multiDisc, region, unify -> FeatureSettingsUi(retries, perHost, multiDisc, region, unify) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), FeatureSettingsUi())
 
     fun onAutoRetryChanged(context: Context, attempts: Int) =
@@ -418,6 +420,16 @@ class SettingsViewModel @Inject constructor(
 
     fun onPreferredRegionChanged(context: Context, region: PreferredRegion) =
         executeWithToast(context, "SettingsViewModel") { repository.setPreferredRegion(region) }
+
+    fun onUnifyTitlesChanged(context: Context, enabled: Boolean) =
+        executeWithToast(context, "SettingsViewModel") { repository.setUnifyTitles(enabled) }
+
+    // conversion
+    val chdCompression: StateFlow<ChdCompression> = repository.chdCompression
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ChdCompression.FAST)
+
+    fun onChdCompressionChanged(context: Context, compression: ChdCompression) =
+        executeWithToast(context, "SettingsViewModel") { repository.setChdCompression(compression) }
 
     // dl-cola
     val batchNotification: StateFlow<Boolean> = repository.batchNotification
@@ -493,5 +505,6 @@ data class FeatureSettingsUi(
     val autoRetryAttempts: Int = AutoRetryPolicy.DEFAULT_ATTEMPTS,
     val perHostDownloads: Int = 0,
     val multiDiscPlaylists: Boolean = true,
-    val preferredRegion: PreferredRegion = PreferredRegion.forLocale()
+    val preferredRegion: PreferredRegion = PreferredRegion.forLocale(),
+    val unifyTitles: Boolean = true
 )

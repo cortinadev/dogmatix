@@ -32,6 +32,7 @@ object SettingsRowKeys {
     const val MAX_RESULTS = "max_results"
     const val REGION = "region"
     const val FAVORITE_LANGUAGES = "favorite_languages"
+    const val UNIFY_TITLES = "unify_titles"
     const val FRONTEND_SHORTCUTS = "frontend_shortcuts"
     const val ESDE = "esde"
     const val IISU = "iisu"
@@ -43,6 +44,7 @@ object SettingsRowKeys {
     const val AUTO_SCAN_CHARGING = "auto_scan_charging"
     const val VERIFY_DOWNLOADS = "verify_downloads"
     const val DAT_FILES = "dat_files"
+    const val CHD_COMPRESSION = "chd_compression"
     const val BATCH_NOTICE = "batch_notice"
     const val ESDE_FAVOURITES = "esde_favourites"
     const val FRONTEND_CHECK = "frontend_check"
@@ -91,6 +93,7 @@ object SettingsSearchEntries {
         row(SettingsRowKeys.MAX_RESULTS, R.string.settings_max_results, R.string.settings_max_results_hint, R.string.search_kw_max_results),
         row(SettingsRowKeys.REGION, R.string.settings_region, R.string.settings_region_hint, R.string.search_kw_region),
         row(SettingsRowKeys.FAVORITE_LANGUAGES, R.string.settings_favorite_languages, R.string.settings_favorite_languages_hint, R.string.search_kw_favorite_languages),
+        row(SettingsRowKeys.UNIFY_TITLES, R.string.settings_unify_titles, R.string.settings_unify_titles_hint, R.string.search_kw_unify_titles),
         row(SettingsRowKeys.FRONTEND_SHORTCUTS, R.string.settings_frontend_shortcuts, R.string.settings_frontend_shortcuts_hint, R.string.search_kw_frontend_shortcuts),
         row(SettingsRowKeys.ESDE, R.string.settings_esde, R.string.settings_esde_hint, R.string.search_kw_esde),
         row(SettingsRowKeys.IISU, R.string.settings_iisu, R.string.settings_iisu_hint, R.string.search_kw_iisu),
@@ -102,6 +105,7 @@ object SettingsSearchEntries {
         row(SettingsRowKeys.AUTO_SCAN_CHARGING, R.string.settings_auto_scan_charging, R.string.settings_auto_scan_charging_hint, R.string.search_kw_auto_scan_charging),
         row(SettingsRowKeys.VERIFY_DOWNLOADS, R.string.settings_verify_downloads, R.string.settings_verify_downloads_hint, R.string.search_kw_verify_downloads),
         row(SettingsRowKeys.DAT_FILES, R.string.settings_dat_files, R.string.settings_dat_files_hint_none, R.string.search_kw_dat_files),
+        row(SettingsRowKeys.CHD_COMPRESSION, R.string.settings_chd_compression, R.string.settings_chd_compression_hint, R.string.search_kw_chd_compression),
         row(SettingsRowKeys.BATCH_NOTICE, R.string.settings_batch_notice, R.string.settings_batch_notice_hint, R.string.search_kw_batch_notice),
         row(SettingsRowKeys.ESDE_FAVOURITES, R.string.settings_esde_favourites, R.string.settings_esde_favourites_hint, R.string.search_kw_esde_favourites),
         row(SettingsRowKeys.FRONTEND_CHECK, R.string.settings_frontend_check, R.string.settings_frontend_check_hint, R.string.search_kw_frontend_check),

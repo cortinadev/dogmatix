@@ -18,6 +18,16 @@ data class LibraryGame(
     val preferred: GameVersion get() = versions.first()
     val primary: DownloadableFileWithTags get() = preferred.primary
     val files: List<DownloadableFileWithTags> get() = versions.flatMap { it.discs }
+
+    /**
+     * What the A→Z list sorts the game by (the DAO's `queryGameGroups` rule, also its letter
+     * buckets): the first name among the rows titled like [groupKey], else the first of all. A
+     * game with several titles is keyed by the one it shows (TitleClones.gameKeys), so this is
+     * [preferred]'s title.
+     */
+    val listName: String
+        get() = files.filter { it.file.titleKey == groupKey }.minOfOrNull { it.file.name }
+            ?: files.minOfOrNull { it.file.name }.orEmpty()
 }
 
 /** What the version ranking needs from Settings. */

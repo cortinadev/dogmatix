@@ -142,6 +142,7 @@ private fun entryTitle(entry: ActionHistoryEntity): String {
         ActionTypes.DUPLICATES -> R.string.history_type_duplicates
         ActionTypes.REPAIR -> R.string.history_type_repair
         ActionTypes.FREE_SPACE -> R.string.history_type_free_space
+        ActionTypes.CONVERSION -> R.string.history_type_conversion
         else -> null
     }
     return when {

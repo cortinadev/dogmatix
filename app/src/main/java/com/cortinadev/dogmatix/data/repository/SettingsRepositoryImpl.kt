@@ -3,6 +3,7 @@ package com.cortinadev.dogmatix.data.repository
 import com.cortinadev.dogmatix.data.model.DebridProvider
 import com.cortinadev.dogmatix.data.model.SeedingMode
 import com.cortinadev.dogmatix.data.model.PreferredRegion
+import com.cortinadev.dogmatix.data.service.convert.ChdCompression
 import androidx.datastore.preferences.core.Preferences
 import com.cortinadev.dogmatix.data.local.SettingsDataStore
 import com.cortinadev.dogmatix.util.AutoScanFrequency
@@ -106,6 +107,8 @@ class SettingsRepositoryImpl @Inject constructor(
     override suspend fun setPerHostDownloads(max: Int): Preferences = settingsDataStore.setPerHostDownloads(max)
     override suspend fun setMultiDiscPlaylists(enabled: Boolean): Preferences = settingsDataStore.setMultiDiscPlaylists(enabled)
     override suspend fun setPreferredRegion(region: PreferredRegion): Preferences = settingsDataStore.setPreferredRegion(region)
+    override val unifyTitles: Flow<Boolean> = settingsDataStore.unifyTitles
+    override suspend fun setUnifyTitles(enabled: Boolean): Preferences = settingsDataStore.setUnifyTitles(enabled)
 
     // escaneo
     override val autoScanFrequency: Flow<AutoScanFrequency> = settingsDataStore.autoScanFrequency
@@ -122,6 +125,10 @@ class SettingsRepositoryImpl @Inject constructor(
     override val datAutoDownload: Flow<Boolean> = settingsDataStore.datAutoDownload
     override suspend fun setVerifyDownloads(enabled: Boolean): Preferences = settingsDataStore.setVerifyDownloads(enabled)
     override suspend fun setDatAutoDownload(enabled: Boolean): Preferences = settingsDataStore.setDatAutoDownload(enabled)
+
+    // conversion
+    override val chdCompression: Flow<ChdCompression> = settingsDataStore.chdCompression
+    override suspend fun setChdCompression(compression: ChdCompression): Preferences = settingsDataStore.setChdCompression(compression)
 
     // dl-cola
     override val batchNotification: Flow<Boolean> = settingsDataStore.batchNotification

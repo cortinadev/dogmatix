@@ -48,3 +48,6 @@
 -keepclassmembers class com.cortinadev.dogmatix.util.VolumeUsage { <fields>; }
 -keepclassmembers class com.cortinadev.dogmatix.util.LibraryRoot { <fields>; }
 -keepclassmembers class com.cortinadev.dogmatix.util.CatalogRow { <fields>; }
+
+# rvz: zstd-jni's native code looks up its Java classes, fields and constructors by name.
+-keep class com.github.luben.zstd.** { *; }

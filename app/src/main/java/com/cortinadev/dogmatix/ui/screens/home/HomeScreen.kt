@@ -1025,7 +1025,7 @@ private data class Refocus(val toRecommendations: Boolean, val serial: Int)
 
 /** The name a game sorts by in the list (the DAO's `MIN(name)` over its files), for letter jumps. */
 private fun listName(item: DownloadableFileWithTags, games: Map<Long, LibraryGame>): String =
-    games[item.file.id]?.files?.minOfOrNull { it.file.name } ?: item.file.name
+    games[item.file.id]?.listName?.takeIf { it.isNotEmpty() } ?: item.file.name
 
 /** "N results" above the stacked list. */
 @Composable

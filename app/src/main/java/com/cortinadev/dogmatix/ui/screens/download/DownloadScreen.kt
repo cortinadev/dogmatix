@@ -56,6 +56,7 @@ import com.cortinadev.dogmatix.R
 import com.cortinadev.dogmatix.data.model.DownloadItemModel
 import com.cortinadev.dogmatix.data.model.DownloadStatus
 import com.cortinadev.dogmatix.data.model.DownloadableFileWithTags
+import com.cortinadev.dogmatix.data.service.ConversionState
 import com.cortinadev.dogmatix.data.service.QueueState
 import com.cortinadev.dogmatix.ui.common.Gamepad
 import com.cortinadev.dogmatix.ui.common.GamepadButton
@@ -97,6 +98,17 @@ fun DownloadScreen(
     val filter by viewModel.filter.collectAsState()
     val confirmClearCompleted by viewModel.confirmClearCompleted.collectAsState()
     val pendingFilter by viewModel.pendingFilter.collectAsState()
+    // conversion: what each completed row converts to, and the conversions of this session.
+    val convertible by viewModel.convertible.collectAsState()
+    val conversions by viewModel.conversions.collectAsState()
+    val conversionPrompt by viewModel.conversionPrompt.collectAsState()
+    /** "Convert to …" for [name]: convertible, and not converted, converting or found to save nothing. */
+    val convertTo = { name: String ->
+        convertible[name]?.takeIf {
+            val job = conversions[name]
+            job == null || (!job.state.active && job.state != ConversionState.DONE && !job.savesNothing)
+        }
+    }
     LaunchedEffect(pendingFilter) { if (pendingFilter != null) viewModel.applyPendingFilter() }
 
     // Row under the D-pad cursor: SELECT ticks it, X deletes it (the in-row buttons are touch-only —
@@ -177,11 +189,18 @@ fun DownloadScreen(
                         }
                     }
                 }
-                // START puts the row under the cursor in reorder mode (only rows waiting in line).
+                // START puts the row under the cursor in reorder mode (only rows waiting in line); on a
+                // completed row of a convertible game it converts it (or cancels its conversion).
                 GamepadButton.START -> when {
                     reordering != null -> moving = null
-                    !selectionMode -> focusedRow?.fileName?.takeIf { it in queue.waitingSet }?.let { moving = it }
-                    else -> Unit
+                    !selectionMode -> focusedRow?.fileName?.let { name ->
+                        when {
+                            name in queue.waitingSet -> moving = name
+                            viewModel.conversions.value[name]?.state?.active == true -> viewModel.cancelConversion(name)
+                            viewModel.canConvert(name) -> viewModel.requestConversion(listOf(name))
+                        }
+                    }
+                    else -> viewModel.convertSelected()
                 }
                 // LB: the chips (filters ⇄ list, like the library); while reordering, first in line.
                 GamepadButton.PREV_PANEL -> if (reordering != null) viewModel.moveToFront(reordering) else runCatching { chipFocus.requestFocus() }
@@ -239,18 +258,30 @@ fun DownloadScreen(
 
     val section = LegendEntry("ZL · ZR", stringResource(R.string.pad_section))
     val search = LegendEntry("Y", stringResource(R.string.pad_search))
+    val selectionConverts = selected.any { convertTo(it.fileName) != null }
     val selectionLegend = if (barFocused) listOf(
         LegendEntry("A", stringResource(R.string.pad_apply)),
         LegendEntry("◀ ▶", stringResource(R.string.pad_change)),
         LegendEntry("B", stringResource(R.string.pad_cancel)), section
-    ) else listOf(
+    ) else listOfNotNull(
         LegendEntry("A", stringResource(R.string.pad_tick)),
         LegendEntry("Y", stringResource(R.string.pad_select_all)),
         LegendEntry("X", stringResource(R.string.pad_delete)),
-        LegendEntry("B", stringResource(R.string.pad_cancel)), section
+        if (selectionConverts) LegendEntry("START", stringResource(R.string.conversion_convert)) else null,
+        LegendEntry("B", stringResource(R.string.pad_cancel)),
+        if (selectionConverts) null else section
     )
     val liveRow = focusedRow?.let { row -> downloads.find { it.fileName == row.fileName } }
     val rowQueued = liveRow != null && liveRow.fileName in queue.waitingSet
+    val rowConverting = liveRow != null && conversions[liveRow.fileName]?.state?.active == true
+    val rowConvertTo = liveRow?.takeIf { it.status == DownloadStatus.COMPLETED }?.let { convertTo(it.fileName) }
+    // START has one meaning per row: reorder (waiting), cancel the conversion, or convert.
+    val startEntry = when {
+        rowQueued -> LegendEntry("START", stringResource(R.string.pad_order))
+        rowConverting -> LegendEntry("START", stringResource(R.string.conversion_cancel))
+        rowConvertTo != null -> LegendEntry("START", stringResource(R.string.conversion_convert_to, rowConvertTo.label))
+        else -> null
+    }
     val legend = when {
         moving != null -> listOf(
             LegendEntry("▲ ▼", stringResource(R.string.pad_move)),
@@ -274,10 +305,10 @@ fun DownloadScreen(
             LegendEntry("A", primaryLabel(liveRow, queue)),
             // X deletes paused, stopped, failed and completed rows; a transfer is paused or stopped first.
             if (liveRow == null || liveRow.status.canDelete) LegendEntry("X", stringResource(R.string.pad_delete)) else null,
-            if (rowQueued) LegendEntry("START", stringResource(R.string.pad_order)) else null,
+            startEntry,
             search,
             LegendEntry("SELECT", stringResource(R.string.pad_tick)),
-            if (rowQueued) null else section
+            if (startEntry != null) null else section
         )
     }
     // Only while this is the current section: leaving it (a search result in another section) the
@@ -314,7 +345,9 @@ fun DownloadScreen(
                         onHold = viewModel::holdSelected,
                         onRelease = viewModel::releaseSelected,
                         onDelete = viewModel::deleteSelected,
-                        onClear = viewModel::clearSelection
+                        onClear = viewModel::clearSelection,
+                        converts = selectionConverts,
+                        onConvert = viewModel::convertSelected
                     )
                 }),
                 query = query,
@@ -405,6 +438,10 @@ fun DownloadScreen(
                         queueTurn = queue.turns[name],
                         held = name in queue.held,
                         moving = moving == name,
+                        conversion = conversions[name],
+                        convertTo = if (item.status == DownloadStatus.COMPLETED) convertTo(name) else null,
+                        onConvert = { viewModel.requestConversion(listOf(name)) },
+                        onCancelConversion = { viewModel.cancelConversion(name) },
                         queueActions = if (name in queue.waitingSet) QueueRowActions(
                             onReorder = { moving = name },
                             onUp = { viewModel.moveUp(name) },
@@ -417,6 +454,10 @@ fun DownloadScreen(
                 }
             }
         }
+    }
+
+    conversionPrompt?.let { prompt ->
+        ConversionDialog(prompt, onConfirm = viewModel::confirmConversion, onDismiss = viewModel::dismissConversion)
     }
 
     if (confirmClearCompleted) {
@@ -507,7 +548,9 @@ private fun SelectionBar(
     onHold: () -> Unit,
     onRelease: () -> Unit,
     onDelete: () -> Unit,
-    onClear: () -> Unit
+    onClear: () -> Unit,
+    converts: Boolean = false,
+    onConvert: () -> Unit = {}
 ) {
     val scheme = MaterialTheme.colorScheme
     val size = if (compact) 36.dp else 44.dp
@@ -531,6 +574,10 @@ private fun SelectionBar(
         }
         if (selected.any { it.fileName in queue.held }) {
             add(BulkAction(R.drawable.ic_play, stringResource(R.string.download_queue_release), scheme.primary, onRelease))
+        }
+        // conversion: some ticked row converts (Xbox ISO → XISO…).
+        if (converts) {
+            add(BulkAction(R.drawable.ic_convert, stringResource(R.string.conversion_convert), scheme.primary, onConvert))
         }
         if (selected.any { it.status.canDelete }) {
             add(BulkAction(R.drawable.ic_trash, stringResource(R.string.download_delete), scheme.error, onDelete))

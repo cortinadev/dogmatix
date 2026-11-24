@@ -94,6 +94,7 @@ import com.cortinadev.dogmatix.ui.components.rememberFocusSource
 import com.cortinadev.dogmatix.ui.navigation.NavRoutes
 import com.cortinadev.dogmatix.data.model.DebridProvider
 import com.cortinadev.dogmatix.data.model.SeedingMode
+import com.cortinadev.dogmatix.data.service.convert.ChdCompression
 import com.cortinadev.dogmatix.ui.common.GamepadLayout
 import com.cortinadev.dogmatix.ui.theme.AccentPresets
 import com.cortinadev.dogmatix.util.TagColorKind
@@ -208,6 +209,7 @@ fun SettingsScreen(
     // Download retries, per-server limit, multi-disc playlists and the preferred region
     val features by viewModel.features.collectAsState()
     val batchNotification by viewModel.batchNotification.collectAsState()
+    val chdCompression by viewModel.chdCompression.collectAsState()
     fun adjustAutoRetry(delta: Int) {
         val choices = AutoRetryPolicy.ATTEMPT_CHOICES
         val current = choices.indexOf(features.autoRetryAttempts).takeIf { it >= 0 } ?: choices.indexOf(AutoRetryPolicy.DEFAULT_ATTEMPTS)
@@ -262,6 +264,10 @@ fun SettingsScreen(
         )
     }
 
+    fun cycleChdCompression(delta: Int) {
+        val all = ChdCompression.entries
+        viewModel.onChdCompressionChanged(context, all[((chdCompression.ordinal + delta) % all.size + all.size) % all.size])
+    }
     val seeding = ui.seedingMode
     fun cycleSeeding(delta: Int) {
         val modes = SeedingMode.entries
@@ -444,6 +450,16 @@ fun SettingsScreen(
                     PillButton(stringResource(R.string.settings_change)) { showLanguagesDialog = true }
                 }
             },
+            SettingsRow(key = SettingsRowKeys.UNIFY_TITLES) {
+                SettingRow(
+                    title = stringResource(R.string.settings_unify_titles),
+                    hint = stringResource(R.string.settings_unify_titles_hint),
+                    onClick = { viewModel.onUnifyTitlesChanged(context, !features.unifyTitles) },
+                    onAdjust = { viewModel.onUnifyTitlesChanged(context, it > 0) }
+                ) {
+                    ThemedSwitch(features.unifyTitles) { viewModel.onUnifyTitlesChanged(context, it) }
+                }
+            },
             SettingsRow(key = SettingsRowKeys.MAX_RESULTS) {
                 SettingRow(
                     title = stringResource(R.string.settings_max_results),
@@ -597,6 +613,22 @@ fun SettingsScreen(
             // dl-motor: checksum / DAT check of finished downloads (DownloadChecksSettings.kt)
             SettingsRow(key = SettingsRowKeys.VERIFY_DOWNLOADS) { VerifyDownloadsRow() },
             SettingsRow(key = SettingsRowKeys.DAT_FILES) { DatFilesRow() },
+            // conversion: codecs of the CHD converter (Downloads → START, Collection → Free up space)
+            SettingsRow(key = SettingsRowKeys.CHD_COMPRESSION) {
+                SettingRow(
+                    title = stringResource(R.string.settings_chd_compression),
+                    hint = stringResource(R.string.settings_chd_compression_hint),
+                    onClick = { cycleChdCompression(1) },
+                    onAdjust = ::cycleChdCompression
+                ) {
+                    Stepper(
+                        stringResource(chdCompression.labelRes),
+                        onDecrement = { cycleChdCompression(-1) },
+                        onIncrement = { cycleChdCompression(1) },
+                        valueWidth = StepperWidth
+                    )
+                }
+            },
             SettingsHeading(R.string.settings_group_torrents),
             SettingsRow(key = SettingsRowKeys.METADATA_TIMEOUT) {
                 SettingRow(
@@ -1176,6 +1208,12 @@ private val AutoScanFrequency.labelRes: Int
         AutoScanFrequency.OFF -> R.string.settings_off
         AutoScanFrequency.DAILY -> R.string.auto_scan_daily
         AutoScanFrequency.WEEKLY -> R.string.auto_scan_weekly
+    }
+
+private val ChdCompression.labelRes: Int
+    get() = when (this) {
+        ChdCompression.BEST -> R.string.chd_compression_best
+        ChdCompression.FAST -> R.string.chd_compression_fast
     }
 
 private val SeedingMode.labelRes: Int

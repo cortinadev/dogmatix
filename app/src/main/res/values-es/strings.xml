@@ -487,6 +487,12 @@
     <string name="settings_per_host_hint">Descargas web a la vez desde un mismo servidor; algunos bloquean a quien abre muchas conexiones</string>
     <string name="settings_multi_disc">Juegos multidisco (.m3u)</string>
     <string name="settings_multi_disc_hint">Cuando están todos los discos, pasan a una carpeta «Juego.m3u» con su lista: el frontend muestra un solo juego y el emulador cambia de disco</string>
+    <string name="settings_chd_compression">Compresión de CHD</string>
+    <string name="settings_chd_compression_hint">Rápida tarda mucho menos; Mejor da un CHD algo más pequeño</string>
+    <string name="chd_compression_best">Mejor</string>
+    <string name="chd_compression_fast">Rápida</string>
+    <string name="settings_unify_titles">Agrupar títulos traducidos</string>
+    <string name="settings_unify_titles_hint">Las versiones de un juego con el título traducido («Rojo Fuego», «FireRed», «Pocket Monsters»…) salen como un solo juego, con la de tu región e idiomas delante</string>
     <string name="settings_region">Región preferida</string>
     <string name="settings_region_hint">Junto con tus idiomas favoritos, elige la versión que descarga la biblioteca cuando un juego tiene varias</string>
     <string name="region_europe">Europa</string>
@@ -861,6 +867,7 @@
     <string name="search_kw_max_results">tamaño de página, cargar más, resultados</string>
     <string name="search_kw_region">versión, país, europa, españa, usa, japón, preferida</string>
     <string name="search_kw_favorite_languages">traducción, versiones, idiomas</string>
+    <string name="search_kw_unify_titles">títulos, traducidos, regiones, agrupar, clones, retool</string>
     <string name="search_kw_frontend_shortcuts">dgmtx, es-de, lanzador, acceso directo</string>
     <string name="search_kw_esde">es-de, emulationstation, frontend, lanzador</string>
     <string name="search_kw_iisu">frontend, lanzador, emulador</string>
@@ -872,6 +879,7 @@
     <string name="search_kw_auto_scan_wifi">wifi, datos móviles, red, escaneo en segundo plano</string>
     <string name="search_kw_auto_scan_charging">batería, cargador, enchufado, corriente, escaneo en segundo plano</string>
     <string name="search_kw_verify_downloads">suma de comprobación, crc, sha-1, md5, hash, integridad, no-intro, redump</string>
+    <string name="search_kw_chd_compression">chd, compresión, convertir, lzma, zlib, rápida, más pequeño, chdman</string>
     <string name="search_kw_dat_files">dat, no-intro, redump, libretro, suma de comprobación, importar</string>
     <string name="search_kw_batch_notice">notificación, terminadas, completadas, fallidas, aviso</string>
     <string name="search_kw_esde_favourites">favoritos, estrella, es-de, gamelist, sincronizar</string>
@@ -1459,4 +1467,60 @@
     <string name="update_error_signature">Esta actualización está firmada con otra clave que la app instalada, así que Android no la instalará encima. Consulta la página de la versión en GitHub.</string>
     <string name="update_error_storage">No hay espacio libre suficiente para descargar la actualización.</string>
     <string name="update_error_older">El APK descargado no es más nuevo que la versión instalada, así que no puede actualizarla. Consulta la página de la versión en GitHub.</string>
+    <!-- conversion: ROMs convertidas a XISO, CHD y RVZ. -->
+    <string name="conversion_convert_to">Convertir a %1$s</string>
+    <string name="conversion_convert">Convertir</string>
+    <string name="conversion_cancel">Cancelar conversión</string>
+    <string name="conversion_queued">En cola para convertir a %1$s</string>
+    <string name="conversion_converting">Convirtiendo a %1$s · %2$d %%</string>
+    <string name="conversion_verifying">Comprobando el %1$s · %2$d %%</string>
+    <string name="conversion_finishing">Sustituyendo el original…</string>
+    <string name="conversion_done">Convertido a %1$s · ahorra %2$s</string>
+    <string name="conversion_done_plain">Convertido a %1$s</string>
+    <string name="conversion_failed">No se pudo convertir: %1$s</string>
+    <string name="conversion_cancelled">Conversión cancelada</string>
+    <string name="conversion_error_not_found">el fichero ya no está</string>
+    <string name="conversion_error_already">ya está en ese formato</string>
+    <string name="conversion_error_unrecognised">no es una imagen que admita este formato</string>
+    <string name="conversion_error_damaged">la imagen está dañada o incompleta</string>
+    <string name="conversion_error_incomplete">falta una pista que nombra su .cue o .gdi</string>
+    <string name="conversion_error_no_space">no hay espacio libre suficiente</string>
+    <string name="conversion_error_storage">no se puede escribir en la carpeta</string>
+    <string name="conversion_error_verify">la copia convertida no coincidía; el original sigue intacto</string>
+    <string name="conversion_error_retire">no se pudo sustituir el original; no ha cambiado nada</string>
+    <string name="conversion_no_saving">Convertir ahorraría muy poco espacio</string>
+    <string name="conversion_error_unknown">error inesperado</string>
+    <plurals name="conversion_confirm_title">
+        <item quantity="one">¿Convertir %1$d juego a %2$s?</item>
+        <item quantity="many">¿Convertir %1$d juegos a %2$s?</item>
+        <item quantity="other">¿Convertir %1$d juegos a %2$s?</item>
+    </plurals>
+    <string name="conversion_confirm_line">%1$s · %2$s → %3$s</string>
+    <string name="conversion_confirm_skip">%1$s · %2$s</string>
+    <string name="conversion_confirm_trash">Cuando la copia convertida esté comprobada, el original va a la papelera: Colección → Historial lo deshace.</string>
+    <string name="conversion_confirm_saves">Ahorra unos %1$s</string>
+    <string name="conversion_confirm_none">Aquí no hay nada que convertir.</string>
+    <string name="conversion_confirm_wbfs">Un WBFS se convierte y sigue funcionando, pero su RVZ no coincidirá con el DAT de Redump (el WBFS descartó los datos sin uso del disco).</string>
+    <string name="conversion_confirm_loading">Leyendo las imágenes…</string>
+    <string name="conversion_not_found_line">%1$s · no está en el disco</string>
+    <string name="conversion_notification_converting">Convirtiendo a %1$s</string>
+    <string name="conversion_notification_verifying">Comprobando el %1$s</string>
+    <string name="conversion_notification_waiting">En cola para convertir</string>
+    <plurals name="conversion_notification_queued">
+        <item quantity="one">%d más en cola</item>
+        <item quantity="many">%d más en cola</item>
+        <item quantity="other">%d más en cola</item>
+    </plurals>
+    <string name="history_type_conversion">Convertido</string>
+    <string name="collection_reclaim_convert_heading">Convertir para ahorrar espacio</string>
+    <string name="collection_reclaim_convert">A %1$s · %2$s</string>
+    <string name="collection_reclaim_convert_estimating">Comprobando qué juegos se pueden convertir…</string>
+    <string name="collection_convert_ticked">Convertir lo marcado</string>
+    <string name="collection_apply_ticked">Borrar y convertir lo marcado</string>
+    <string name="collection_delete_and_convert">Borrar y convertir</string>
+    <plurals name="collection_convert_lines">
+        <item quantity="one">%1$d juego se convierte a %2$s; su original se borra definitivamente cuando la copia esté comprobada.</item>
+        <item quantity="many">%1$d juegos se convierten a %2$s; sus originales se borran definitivamente cuando cada copia esté comprobada.</item>
+        <item quantity="other">%1$d juegos se convierten a %2$s; sus originales se borran definitivamente cuando cada copia esté comprobada.</item>
+    </plurals>
 </resources>

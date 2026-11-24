@@ -58,19 +58,24 @@ object LibretroMetadat {
     data class Trait(val genres: Int, val year: Int?)
 
     /**
-     * Per library game, keyed like the index groups the console's files ([groupKeyOf]): the
-     * genres of all its releases OR-ed and the earliest year.
+     * Per library game, keyed like the index groups the console's files ([keyOf], by default
+     * [groupKeyOf]; the service passes the game's key, see TitleClones): the genres of all its
+     * releases OR-ed and the earliest year.
      */
-    fun traitsByGroup(genres: List<Pair<String, String>>, years: List<Pair<String, String>>): Map<String, Trait> {
+    fun traitsByGroup(
+        genres: List<Pair<String, String>>,
+        years: List<Pair<String, String>>,
+        keyOf: (String) -> String = ::groupKeyOf
+    ): Map<String, Trait> {
         val masks = HashMap<String, Int>()
         genres.forEach { (name, genre) ->
             val bit = LibraryGenre.fromName(genre)?.mask ?: return@forEach
-            masks.merge(groupKeyOf(name), bit, Int::or)
+            masks.merge(keyOf(name), bit, Int::or)
         }
         val firstYears = HashMap<String, Int>()
         years.forEach { (name, text) ->
             val year = LibraryDecades.parseYear(text) ?: return@forEach
-            firstYears.merge(groupKeyOf(name), year, ::minOf)
+            firstYears.merge(keyOf(name), year, ::minOf)
         }
         return (masks.keys + firstYears.keys).associateWith { Trait(masks[it] ?: 0, firstYears[it]) }
     }

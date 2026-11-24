@@ -17,6 +17,8 @@ object ActionTypes {
     const val DUPLICATES = "duplicates"
     const val REPAIR = "repair"
     const val FREE_SPACE = "free_space"
+    /** A ROM converted to another format (XISO, CHD, RVZ); from Downloads it can be undone. */
+    const val CONVERSION = "conversion"
 }
 
 /** Which undo handler reverts an entry (the key of its Hilt map binding). */
@@ -25,6 +27,7 @@ object UndoKinds {
     const val MOVE = "move"
     const val SOURCES = "sources"
     const val COLLECTION = "collection"
+    const val CONVERSION = "conversion"
 }
 
 enum class ActionState {

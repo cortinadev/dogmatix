@@ -21,6 +21,7 @@ import com.cortinadev.dogmatix.data.service.GameMetadataService
 import com.cortinadev.dogmatix.data.service.SimilarGamesService
 import com.cortinadev.dogmatix.data.service.GameTraitsService
 import com.cortinadev.dogmatix.data.service.RecommendationsService
+import com.cortinadev.dogmatix.data.service.TitleClonesService
 import com.cortinadev.dogmatix.data.model.RecommendationState
 import com.cortinadev.dogmatix.util.LetterJump
 import com.cortinadev.dogmatix.util.LibraryGenre
@@ -79,6 +80,7 @@ class HomeViewModel @Inject constructor(
     pendingNavigation: PendingNavigation,
     private val traitsService: GameTraitsService,
     private val recommendationsService: RecommendationsService,
+    private val titleClones: TitleClonesService,
     // coleccion-gestion
     private val collectionFilter: CollectionFilterState
 ) : ViewModel() {
@@ -397,7 +399,8 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             combine(
                 combine(_searchQuery, _selectedConsoles, _activeTags) { q, c, t -> Triple(q, c, t) },
-                combine(_sort, _favouritesOnly, _source, rescanStateHolder.lastRescanTime) { s, f, src, _ -> Triple(s, f, src) },
+                // Also when games merge or split (translated titles, TitleClonesService).
+                combine(_sort, _favouritesOnly, _source, rescanStateHolder.lastRescanTime, titleClones.version) { s, f, src, _, _ -> Triple(s, f, src) },
                 // Re-query when a star changes while "Favourites only" is on, else the row would linger.
                 combine(_favouritesOnly, favourites.keys) { only, keys -> if (only) keys else emptySet() }.distinctUntilChanged(),
                 combine(

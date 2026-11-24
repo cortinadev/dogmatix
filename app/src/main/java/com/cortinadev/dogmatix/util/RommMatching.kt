@@ -46,16 +46,16 @@ object RommMatching {
     fun releaseOfKey(fileKey: String): String =
         MultiDisc.withoutDiscTag(fileKey.replace(trackTag, " ")).replace(spaces, " ").trim()
 
-    /** The library's group key for a server file or folder name. */
-    fun groupKeyOf(fsName: String): String =
-        VersionGrouping.groupKey(FileParsingUtils.extractNameAndTags(fsName.trim()).first)
+    /** The library's group key for a server file or folder name (the game's, with [consoleId]: see [TitleClones]). */
+    fun groupKeyOf(fsName: String, consoleId: String? = null): String =
+        TitleClones.canonical(consoleId, VersionGrouping.groupKey(FileParsingUtils.extractNameAndTags(fsName.trim()).first))
 
     fun entryOf(consoleId: String, rom: RommCatalogRom): RommEntry = RommEntry(
         romId = rom.romId,
         consoleId = consoleId,
         fsName = rom.fsName,
         name = rom.name,
-        groupKey = groupKeyOf(rom.fsName),
+        groupKey = groupKeyOf(rom.fsName, consoleId),
         fileKeys = (listOf(rom.fsName) + rom.fileNames).map(::fileKey).filter { it.isNotEmpty() }.toSet(),
         hashes = rom.hashes.toSet(),
         coverSmall = rom.coverSmall,

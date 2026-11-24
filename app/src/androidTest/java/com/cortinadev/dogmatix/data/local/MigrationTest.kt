@@ -156,12 +156,14 @@ class MigrationTest {
         }
         assertEquals(2L, sql.single("SELECT COUNT(*) FROM manufacturers"))
 
-        // Library rows: groupKey worked out by MIGRATION_11_12, torrent rows claimed by their magnet (12_13).
+        // Library rows: groupKey worked out by MIGRATION_11_12, torrent rows claimed by their magnet (12_13),
+        // their own title key copied from it (20_21: no clone list has merged anything yet).
         val files = sql.rows("SELECT * FROM downloadable_files ORDER BY id")
         assertEquals(FILES.size, files.size)
         files.forEach { row ->
             val name = row["name"] as String
             assertEquals("groupKey of $name", VersionGrouping.groupKey(name), row["groupKey"])
+            assertEquals("titleKey of $name", VersionGrouping.groupKey(name), row["titleKey"])
             assertEquals("sourceUrl of $name", row["torrentMagnet"] ?: "", row["sourceUrl"])
         }
         assertEquals("dragon quest", files.single { (it["fileName"] as String).startsWith("Dragon Quest") }["groupKey"])

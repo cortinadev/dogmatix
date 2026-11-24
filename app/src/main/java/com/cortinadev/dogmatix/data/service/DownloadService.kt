@@ -538,6 +538,19 @@ class DownloadService @Inject constructor(
         extractedFilesMap[fileName]?.takeIf { it.isNotEmpty() }
             ?: listOf(com.cortinadev.dogmatix.util.FileParsingUtils.decodeUrlEncodedFileName(fileName))
 
+    /**
+     * conversion: the files called [replaced] (by name, in whatever folder of the list) became
+     * [with], next to them; deleting the row then finds the converted file.
+     */
+    fun replaceExtracted(fileName: String, replaced: Set<String>, with: String) {
+        val names = replaced.mapTo(HashSet()) { it.lowercase() }
+        extractedFilesMap.computeIfPresent(fileName) { _, paths ->
+            val kept = paths.filterNot { it.substringAfterLast('/').lowercase() in names }
+            val folder = paths.firstOrNull { it.substringAfterLast('/').lowercase() in names }?.substringBeforeLast('/', "")
+            if (folder == null) paths else (kept + listOf(if (folder.isEmpty()) with else "$folder/$with")).distinct()
+        }
+    }
+
     private suspend fun performTorrentDownload(file: DownloadableFileEntity) {
         Log.d(TAG, "Starting torrent download for ${file.fileName}")
         val startedAt = System.currentTimeMillis()

@@ -24,7 +24,7 @@ import com.cortinadev.dogmatix.util.RommOwnedGame
 import com.cortinadev.dogmatix.util.RommPlayState
 import com.cortinadev.dogmatix.util.RommSource
 import com.cortinadev.dogmatix.util.RommUserProps
-import com.cortinadev.dogmatix.util.VersionGrouping
+import com.cortinadev.dogmatix.util.TitleClones
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -225,7 +225,7 @@ class RommCatalogService @Inject constructor(
 
     /** The server entry a star (console + file name) stands for, by file and else by title. */
     fun entryForStar(consoleId: String, fileName: String, index: RommIndex = _index.value): RommEntry? =
-        index.forFile(consoleId, fileName) ?: index.forGame(consoleId, RommMatching.groupKeyOf(fileName), emptyList())
+        index.forFile(consoleId, fileName) ?: index.forGame(consoleId, RommMatching.groupKeyOf(fileName, consoleId), emptyList())
 
     /** The RomM cover of a library game, when RomM is set up and the game is on the server. */
     fun coverUrl(consoleId: String, fileName: String, name: String? = null): String? {
@@ -233,7 +233,7 @@ class RommCatalogService @Inject constructor(
         val index = _index.value
         if (index.isEmpty) return null
         val entry = index.forFile(consoleId, fileName)
-            ?: name?.let { index.forGame(consoleId, VersionGrouping.groupKey(it), emptyList()) }
+            ?: name?.let { index.forGame(consoleId, TitleClones.gameKey(consoleId, it), emptyList()) }
             ?: return null
         return RommCovers.url(auth.baseUrl, entry.coverSmall.ifEmpty { entry.coverLarge })
     }

@@ -9,6 +9,11 @@ import com.cortinadev.dogmatix.data.repository.ConsoleRepository
 import com.cortinadev.dogmatix.data.repository.FavouritesRepository
 import com.cortinadev.dogmatix.data.repository.SettingsRepository
 import com.cortinadev.dogmatix.data.service.CollectionFileOps
+import com.cortinadev.dogmatix.data.service.ConversionJob
+import com.cortinadev.dogmatix.data.service.ConversionOrigin
+import com.cortinadev.dogmatix.data.service.ConversionState
+import com.cortinadev.dogmatix.data.service.ConversionTarget
+import com.cortinadev.dogmatix.data.service.RomConversionService
 import com.cortinadev.dogmatix.data.service.DownloadService
 import com.cortinadev.dogmatix.data.service.LibraryScanService
 import com.cortinadev.dogmatix.data.service.ScanProgress
@@ -35,6 +40,7 @@ import com.cortinadev.dogmatix.util.ReclaimCandidate
 import com.cortinadev.dogmatix.util.ReclaimKind
 import com.cortinadev.dogmatix.util.RepairAction
 import com.cortinadev.dogmatix.util.RepairKind
+import com.cortinadev.dogmatix.util.RomConversions
 import com.cortinadev.dogmatix.util.SourcesJson
 import com.cortinadev.dogmatix.util.StorageProblem
 import com.cortinadev.dogmatix.util.TagCount
@@ -113,7 +119,8 @@ class CollectionViewModel @Inject constructor(
     favouritesRepository: FavouritesRepository,
     private val downloadService: DownloadService,
     consoleRepository: ConsoleRepository,
-    private val pendingFilters: PendingLibraryFilters
+    private val pendingFilters: PendingLibraryFilters,
+    private val conversionService: RomConversionService
 ) : ViewModel() {
 
     // Which tool is open: answered at once from memory while the D-pad moves through the list,
@@ -337,20 +344,71 @@ class CollectionViewModel @Inject constructor(
         }
     }
 
-    val reclaim: StateFlow<List<ReclaimCandidate>> = combine(analysis, _keepChoices, caches) { analysis, choices, (torrent, images) ->
+    // conversion: games of the analysis that take less space converted (Xbox ISO → XISO…).
+
+    /** Every file of the analysis a converter of this build takes, as a conversion target. */
+    private val conversionTargets: StateFlow<List<Pair<ConversionTarget, List<DiskFile>>>> = snapshot.map { snap ->
+        val files = snap?.files.orEmpty().filter { CollectionGames.isGameFile(it) }
+        val byFolder = files.groupBy { it.parentUri }
+        files.mapNotNull { file ->
+            val inFolder = byFolder[file.parentUri].orEmpty()
+            conversionService.targetFor(file, inFolder)?.let { target ->
+                // The main file first (its row, its job), then the tracks of its sheet: one game, one row.
+                val tracks = target.companions.mapTo(HashSet()) { it.uri }
+                target to (listOf(file) + inFolder.filter { it.uri in tracks })
+            }
+        }
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /** The conversions of this session, by main file URI (the candidate rows show theirs). */
+    val conversionJobs: StateFlow<Map<String, ConversionJob>> = conversionService.jobs
+
+    /** Some files are still being read to tell whether (and how much) they convert. */
+    val estimating: StateFlow<Boolean> = combine(conversionTargets, conversionService.estimates) { targets, estimates ->
+        targets.any { (target, _) -> conversionService.estimateKey(target) !in estimates }
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
+
+    private val conversionCandidates = combine(conversionTargets, conversionService.estimates, conversionService.jobs) { targets, estimates, jobs ->
+        targets.mapNotNull { (target, files) ->
+            val inspection = estimates[conversionService.estimateKey(target)] ?: return@mapNotNull null
+            // Converted already in this session: the next analysis shows the new file. An estimate
+            // that saves nothing is not offered (one that turns out so after converting stays, locked).
+            if (!inspection.convertible || jobs[target.id]?.state == ConversionState.DONE) return@mapNotNull null
+            if (inspection.outputBytes?.let { !RomConversions.savesSpace(target.inputBytes, it) } == true) return@mapNotNull null
+            ReclaimCandidate(
+                id = CONVERT_PREFIX + target.id, kind = ReclaimKind.CONVERT, title = target.title, consoleId = target.consoleId,
+                bytes = RomConversions.savedBytes(target.inputBytes, inspection.outputBytes) ?: 0L,
+                files = files, format = target.format
+            )
+        }
+    }
+
+    val reclaim: StateFlow<List<ReclaimCandidate>> = combine(analysis, _keepChoices, caches, conversionCandidates) { analysis, choices, (torrent, images), conversions ->
         CollectionReclaim.candidates(
             analysis?.duplicates.orEmpty(), { keepOf(it, choices) }, analysis?.findings.orEmpty(),
-            torrentCacheBytes = torrent, imageCacheBytes = images
+            torrentCacheBytes = torrent, imageCacheBytes = images, conversions = conversions
         )
     }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * A conversion candidate already queued or running, or converted and found to save nothing
+     * ([ConversionJob.savesNothing]: its row says so, also after a restart): it
+     * cannot be ticked.
+     */
+    fun converting(candidate: ReclaimCandidate): Boolean =
+        candidate.kind == ReclaimKind.CONVERT && conversionService.jobs.value[candidate.id.removePrefix(CONVERT_PREFIX)]
+            ?.let { it.state.active || it.savesNothing } == true
 
     private val _reclaimTicked = MutableStateFlow<Set<String>>(emptySet())
     val reclaimTicked: StateFlow<Set<String>> = _reclaimTicked.asStateFlow()
 
-    fun toggleReclaim(id: String) = _reclaimTicked.update { if (id in it) it - id else it + id }
+    fun toggleReclaim(id: String) {
+        if (reclaim.value.firstOrNull { it.id == id }?.let(::converting) == true) return
+        _reclaimTicked.update { if (id in it) it - id else it + id }
+    }
 
     fun toggleAllReclaim() {
-        val ids = reclaim.value.map { it.id }.toSet()
+        val ids = reclaim.value.filterNot(::converting).map { it.id }.toSet()
         _reclaimTicked.update { if (ids.isNotEmpty() && it.containsAll(ids)) emptySet() else ids }
     }
 
@@ -361,7 +419,15 @@ class CollectionViewModel @Inject constructor(
      * Deleted for good, not to the trash: in the same volume the trash would free nothing until
      * emptied. [plan]: what the confirmation showed for the files ([reclaimFiles]).
      */
-    fun deleteReclaim(candidates: List<ReclaimCandidate>, plan: DiscSetCleanup.Plan? = null) = run {
+    fun deleteReclaim(chosen: List<ReclaimCandidate>, plan: DiscSetCleanup.Plan? = null) = run {
+        // Conversions are queued (their originals go for good once each copy is checked); the rest is deleted now.
+        val conversions = CollectionReclaim.conversions(chosen).filterNot(::converting)
+        if (conversions.isNotEmpty()) {
+            val targets = conversionTargets.value.associate { (target, _) -> target.id to target }
+            conversionService.enqueue(conversions.mapNotNull { targets[it.id.removePrefix(CONVERT_PREFIX)] }, ConversionOrigin.FREE_SPACE)
+            _reclaimTicked.update { it - conversions.map { c -> c.id }.toSet() }
+        }
+        val candidates = chosen.filter { it.kind != ReclaimKind.CONVERT }
         if (candidates.isEmpty()) return@run null
         var done = 0
         var failed = 0
@@ -395,6 +461,11 @@ class CollectionViewModel @Inject constructor(
     fun openInLibraryTag(tag: String) = pendingFilters.submit(LibraryFilterRequest(tags = setOf(tag)))
 
     init {
+        // Free up space reads the convertible images (a few sectors each) while it is open.
+        viewModelScope.launch {
+            combine(tool, conversionTargets) { tool, targets -> if (tool == CollectionTool.FREE_SPACE) targets else emptyList() }
+                .collect { targets -> if (targets.isNotEmpty()) conversionService.requestEstimates(targets.map { it.first }) }
+        }
         refreshCaches()
         viewModelScope.launch { chosenTool.debounce(TOOL_SAVE_DELAY_MS).collect { settingsRepository.setCollectionTool(it.name) } }
     }
@@ -406,6 +477,7 @@ class CollectionViewModel @Inject constructor(
         const val BIGGEST_COUNT = 10
         const val TOOL_SAVE_DELAY_MS = 600L
         const val RECENT_COUNT = 5
+        const val CONVERT_PREFIX = "convert:"
         val ACTIVE_STATUSES = setOf(
             DownloadStatus.QUEUED.name, DownloadStatus.DOWNLOADING.name, DownloadStatus.COPYING.name, DownloadStatus.UNZIPPING.name
         )

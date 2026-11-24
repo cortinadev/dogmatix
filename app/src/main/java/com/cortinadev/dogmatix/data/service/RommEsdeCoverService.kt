@@ -121,7 +121,7 @@ class RommEsdeCoverService @Inject constructor(
             }
             val index = catalog.index.value
             val plan = RommCovers.planEsde(games, existing.mapValues { it.value.keys }, overwrite) { consoleId, stem ->
-                index.forGame(consoleId, RommMatching.groupKeyOf(stem), listOf(stem))
+                index.forGame(consoleId, RommMatching.groupKeyOf(stem, consoleId), listOf(stem))
                     ?.let { it.coverLarge.ifEmpty { it.coverSmall } }?.ifEmpty { null }
             }
             _progress.value = RommEsdeCoversProgress(0, plan.jobs.size)

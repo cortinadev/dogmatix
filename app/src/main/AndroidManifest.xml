@@ -78,6 +78,12 @@
             android:enabled="true"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+        <!-- conversion: keeps ROM conversions (XISO, CHD, RVZ) alive; see data/service/RomConversionService. -->
+        <service
+            android:name=".data.service.ConversionForegroundService"
+            android:enabled="true"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
         <!-- escaneo: Settings → Automatic scan (see data/service/AutoScanScheduler). -->
         <service
             android:name=".data.service.AutoScanJobService"

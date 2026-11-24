@@ -66,6 +66,10 @@ class DogmatixApplication : Application(), ImageLoaderFactory {
     @Inject
     lateinit var libraryScanService: com.cortinadev.dogmatix.data.service.LibraryScanService
 
+    // titulos: one library game across its translated titles (clone lists, regrouping).
+    @Inject
+    lateinit var titleClonesService: com.cortinadev.dogmatix.data.service.TitleClonesService
+
     private val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     
     override fun onCreate() {
@@ -87,6 +91,9 @@ class DogmatixApplication : Application(), ImageLoaderFactory {
 
         // New versions on GitHub: checked on start (at most every 6 h), announced by the update dialog
         versionCheckerService.start()
+
+        // Translated titles of one game grouped together (Retool clone lists), now and after rescans
+        titleClonesService.start()
 
         // Short names / folder aliases configured per console, kept in sync for the static helpers
         applicationScope.launch {

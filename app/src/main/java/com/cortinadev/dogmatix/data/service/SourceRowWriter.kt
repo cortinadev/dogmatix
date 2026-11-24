@@ -4,6 +4,7 @@ import com.cortinadev.dogmatix.data.local.dao.SourceScanDao
 import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
 import com.cortinadev.dogmatix.data.model.UrlEntry
 import com.cortinadev.dogmatix.util.SourceScanCheck
+import com.cortinadev.dogmatix.util.TitleClones
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,7 +40,9 @@ class SourceRowWriter @Inject constructor(private val dao: SourceScanDao) {
         if (SourceScanCheck.sameContent(entry, previous, force, hash, files.size)) {
             return SourceWrite(files.size, 0, unchanged = true, contentHash = hash)
         }
-        val written = dao.replaceSource(consoleId, entry.url, files, tags)
+        // Each row under its game's key: a title the console's clone list ties to others joins them.
+        val keyed = files.map { it.copy(groupKey = TitleClones.canonical(consoleId, it.titleKey)) }
+        val written = dao.replaceSource(consoleId, entry.url, keyed, tags)
         return SourceWrite(files.size, written.tags, written.newFiles, written.newGames, contentHash = hash)
     }
 }

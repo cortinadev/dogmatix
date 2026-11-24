@@ -26,6 +26,8 @@ roomKtx = "2.8.4"
 jsoup = "1.22.1"
 sevenZipJBinding = "Release-16.02-2.03"
 coil = "2.7.0"
+zstdJni = "1.5.7-12"
+xz = "1.10"
 
 [libraries]
 # Core Android
@@ -78,7 +80,9 @@ androidx-room-compiler = { group = "androidx.room", name = "room-compiler", vers
 jsoup = { module = "org.jsoup:jsoup", version.ref = "jsoup" }
 
 # Archive Processing
+tukaani-xz = { module = "org.tukaani:xz", version.ref = "xz" }
 seven-zip-jbinding = { module = "com.github.omicronapps:7-Zip-JBinding-4Android", version.ref = "sevenZipJBinding" }
+zstd-jni = { module = "com.github.luben:zstd-jni", version.ref = "zstdJni" }
 kotlinx-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinxCoroutinesCore" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "kotlinxCoroutinesCore" }
 

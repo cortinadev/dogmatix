@@ -3,6 +3,7 @@ package com.cortinadev.dogmatix.data.local
 import com.cortinadev.dogmatix.data.model.DebridProvider
 import com.cortinadev.dogmatix.data.model.SeedingMode
 import com.cortinadev.dogmatix.data.model.PreferredRegion
+import com.cortinadev.dogmatix.data.service.convert.ChdCompression
 import com.cortinadev.dogmatix.util.AutoRetryPolicy
 import com.cortinadev.dogmatix.util.AutoScanFrequency
 import com.cortinadev.dogmatix.util.TorrentConstants
@@ -78,6 +79,8 @@ object SettingsKeys {
     val MULTI_DISC_PLAYLISTS = booleanPreferencesKey("multi_disc_playlists")
     /** A [com.cortinadev.dogmatix.data.model.PreferredRegion] name: which version of a game the library downloads. */
     val PREFERRED_REGION = stringPreferencesKey("preferred_region")
+    /** One library entry per game across its translated titles (Retool clone lists). */
+    val UNIFY_TITLES = booleanPreferencesKey("unify_titles")
 
     // escaneo
     /** A [com.cortinadev.dogmatix.util.AutoScanFrequency] name: background scan of every source (OFF by default). */
@@ -92,6 +95,10 @@ object SettingsKeys {
     val VERIFY_DOWNLOADS = booleanPreferencesKey("verify_downloads")
     /** Fetch the No-Intro / Redump DAT of a console from libretro-database when a check needs it. */
     val DAT_AUTO_DOWNLOAD = booleanPreferencesKey("dat_auto_download")
+
+    // conversion
+    /** A [com.cortinadev.dogmatix.data.service.convert.ChdCompression] name: the CHD converter's codecs (FAST by default). */
+    val CHD_COMPRESSION = stringPreferencesKey("chd_compression")
 
     // dl-cola
     /** A notification with how many downloads completed and failed once the queue runs dry. */
@@ -288,6 +295,8 @@ class SettingsDataStore @Inject constructor(
     suspend fun setPerHostDownloads(max: Int) = context.dataStore.edit { it[SettingsKeys.PER_HOST_DOWNLOADS] = max }
     suspend fun setMultiDiscPlaylists(enabled: Boolean) = context.dataStore.edit { it[SettingsKeys.MULTI_DISC_PLAYLISTS] = enabled }
     suspend fun setPreferredRegion(region: PreferredRegion) = context.dataStore.edit { it[SettingsKeys.PREFERRED_REGION] = region.name }
+    val unifyTitles: Flow<Boolean> = context.dataStore.data.map { it[SettingsKeys.UNIFY_TITLES] ?: true }
+    suspend fun setUnifyTitles(enabled: Boolean) = context.dataStore.edit { it[SettingsKeys.UNIFY_TITLES] = enabled }
 
     // escaneo
     val autoScanFrequency: Flow<AutoScanFrequency> = context.dataStore.data.map { AutoScanFrequency.fromName(it[SettingsKeys.AUTO_SCAN]) }
@@ -304,6 +313,12 @@ class SettingsDataStore @Inject constructor(
     val datAutoDownload: Flow<Boolean> = context.dataStore.data.map { it[SettingsKeys.DAT_AUTO_DOWNLOAD] ?: true }
     suspend fun setVerifyDownloads(enabled: Boolean) = context.dataStore.edit { it[SettingsKeys.VERIFY_DOWNLOADS] = enabled }
     suspend fun setDatAutoDownload(enabled: Boolean) = context.dataStore.edit { it[SettingsKeys.DAT_AUTO_DOWNLOAD] = enabled }
+
+    // conversion
+    val chdCompression: Flow<ChdCompression> = context.dataStore.data.map { prefs ->
+        ChdCompression.entries.firstOrNull { it.name == prefs[SettingsKeys.CHD_COMPRESSION] } ?: ChdCompression.FAST
+    }
+    suspend fun setChdCompression(compression: ChdCompression) = context.dataStore.edit { it[SettingsKeys.CHD_COMPRESSION] = compression.name }
 
     // dl-cola
     val batchNotification: Flow<Boolean> = context.dataStore.data.map { it[SettingsKeys.BATCH_NOTIFICATION] ?: true }

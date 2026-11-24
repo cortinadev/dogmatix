@@ -33,12 +33,20 @@ data class DownloadableFileEntity(
     /** Lenient form of [name] used for searching; see [SearchNormalizer]. */
     @ColumnInfo(defaultValue = "")
     val searchKey: String = SearchNormalizer.key(name),
-    /** Shared by every version of one game in its console (regions, revisions, discs); see [VersionGrouping]. */
+    /**
+     * Shared by every version of one game in its console (regions, revisions, discs); see
+     * [VersionGrouping]. Starts as [titleKey]; titles a clone list ties together get one key, the
+     * title the game shows for the preferred region (see `TitleClones.gameKeys`), so a game
+     * translated under other names is still one game and sorts by what it shows.
+     */
     @ColumnInfo(defaultValue = "")
     val groupKey: String = VersionGrouping.groupKey(name),
     /** The source (its URL as configured) this row came from: a rescan replaces one source's rows at a time. '' = indexed before sources were tracked. */
     @ColumnInfo(defaultValue = "")
     val sourceUrl: String = "",
+    /** [VersionGrouping.groupKey] of this row's own title, whatever game [groupKey] puts it in. */
+    @ColumnInfo(defaultValue = "")
+    val titleKey: String = VersionGrouping.groupKey(name),
 ) {
     val isTorrent: Boolean get() = torrentFileIndex != null && torrentMagnet != null
 }

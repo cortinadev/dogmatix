@@ -9,6 +9,7 @@ import com.cortinadev.dogmatix.data.local.entity.DownloadableFileEntity
 import com.cortinadev.dogmatix.data.local.entity.FileTagEntity
 import com.cortinadev.dogmatix.util.CatalogRow
 import com.cortinadev.dogmatix.util.SearchNormalizer
+import com.cortinadev.dogmatix.util.TitleClones
 
 @Dao
 interface DownloadableFileDao {
@@ -27,7 +28,7 @@ interface DownloadableFileDao {
      */
     @Query("""
         SELECT df.id, df.name, df.fileName, df.consoleId, df.downloadUrl, df.fileSize,
-               df.fileExtension, df.torrentFileIndex, df.torrentMagnet, df.groupKey,
+               df.fileExtension, df.torrentFileIndex, df.torrentMagnet, df.groupKey, df.titleKey,
                GROUP_CONCAT(t.tag, '|') as tags
         FROM downloadable_files df
         LEFT JOIN downloadable_file_tags t ON df.id = t.fileId
@@ -68,7 +69,7 @@ interface DownloadableFileDao {
                 SELECT 1 FROM game_traits g_decade WHERE g_decade.consoleId = df.consoleId AND g_decade.groupKey = df.groupKey AND (g_decade.year / 10) * 10 IN (:decades)
           ))
         GROUP BY df.id, df.name, df.fileName, df.consoleId, df.downloadUrl, df.fileSize,
-                 df.fileExtension, df.torrentFileIndex, df.torrentMagnet, df.groupKey
+                 df.fileExtension, df.torrentFileIndex, df.torrentMagnet, df.groupKey, df.titleKey
         ORDER BY
             CASE WHEN :sort = 0 THEN df.name END ASC,
             CASE WHEN :sort = 1 THEN df.name END DESC,
@@ -118,7 +119,11 @@ interface DownloadableFileDao {
     /**
      * One page of games: the (console, groupKey) pairs with at least one file passing the same
      * filters as [queryFilesWithTags], in list order. Paging by game keeps every version of a
-     * game on the same page.
+     * game on the same page. By name, a game sorts by its *list name*: the first name among its
+     * rows titled like its key, else the first of all. With translated titles grouped the key is
+     * the title the game shows (its preferred version's, see TitleClones.gameKeys), so the list
+     * sorts by what it shows; for a game with one title that is `MIN(name)`, as always.
+     * [com.cortinadev.dogmatix.data.model.LibraryGame.listName] is the same rule.
      */
     @Query("""
         SELECT df.consoleId, df.groupKey
@@ -162,15 +167,15 @@ interface DownloadableFileDao {
           ))
         GROUP BY df.consoleId, df.groupKey
         ORDER BY
-            CASE WHEN :sort = 0 THEN MIN(df.name) END ASC,
-            CASE WHEN :sort = 1 THEN MIN(df.name) END DESC,
+            CASE WHEN :sort = 0 THEN COALESCE(MIN(CASE WHEN df.titleKey = df.groupKey THEN df.name END), MIN(df.name)) END ASC,
+            CASE WHEN :sort = 1 THEN COALESCE(MIN(CASE WHEN df.titleKey = df.groupKey THEN df.name END), MIN(df.name)) END DESC,
             CASE WHEN :sort = 2 THEN MAX(df.fileSize) END DESC,
             CASE WHEN :sort = 3 THEN MIN(df.fileSize) END ASC,
             CASE WHEN :sort = 4 THEN MIN(c.name) END ASC,
             CASE WHEN :sort IN (5, 6) THEN MIN(gt.year) IS NULL END ASC,
             CASE WHEN :sort = 5 THEN MIN(gt.year) / 10 END ASC,
             CASE WHEN :sort = 6 THEN MIN(gt.year) / 10 END DESC,
-            MIN(df.name) ASC, df.consoleId ASC, df.groupKey ASC
+            COALESCE(MIN(CASE WHEN df.titleKey = df.groupKey THEN df.name END), MIN(df.name)) ASC, df.consoleId ASC, df.groupKey ASC
         LIMIT :limit OFFSET :offset
     """)
     suspend fun queryGameGroups(
@@ -203,7 +208,7 @@ interface DownloadableFileDao {
     /** Every file of one game (all its versions), with tags, for the details card. */
     @Query("""
         SELECT df.id, df.name, df.fileName, df.consoleId, df.downloadUrl, df.fileSize,
-               df.fileExtension, df.torrentFileIndex, df.torrentMagnet, df.groupKey,
+               df.fileExtension, df.torrentFileIndex, df.torrentMagnet, df.groupKey, df.titleKey,
                GROUP_CONCAT(t.tag, '|') as tags
         FROM downloadable_files df
         LEFT JOIN downloadable_file_tags t ON df.id = t.fileId
@@ -216,6 +221,10 @@ interface DownloadableFileDao {
     /** File names of one game, to count the discs a release has (see MultiDiscService). */
     @Query("SELECT fileName FROM downloadable_files WHERE consoleId = :consoleId AND groupKey = :groupKey")
     suspend fun getGameFileNames(consoleId: String, groupKey: String): List<String>
+
+    /** File names of every row titled [titleKey]: one release's discs share the title even when its game has other titles. */
+    @Query("SELECT fileName FROM downloadable_files WHERE consoleId = :consoleId AND titleKey = :titleKey")
+    suspend fun getTitleFileNames(consoleId: String, titleKey: String): List<String>
 
     @Query("SELECT COUNT(*) FROM downloadable_files")
     suspend fun getFilesCount(): Int
@@ -319,18 +328,18 @@ interface DownloadableFileDao {
     // biblioteca
 
     /**
-     * Games per first-character bucket of their list name (`MIN(name)`, the A→Z / Z→A sort key)
+     * Games per first-character bucket of their list name (the A→Z / Z→A sort key of [queryGameGroups])
      * among those passing the same filters as [queryGameGroups]: what letter jumps need to reach
      * rows that are not loaded yet. The buckets are `com.cortinadev.dogmatix.util.LetterJump`'s.
      */
     @Query("""
-        SELECT bucket, COUNT(*) AS games FROM (
-            SELECT CASE
-                    WHEN substr(MIN(df.name), 1, 1) < 'A' THEN '0'
-                    WHEN substr(MIN(df.name), 1, 1) <= 'Z' THEN substr(MIN(df.name), 1, 1)
-                    WHEN substr(MIN(df.name), 1, 1) < 'a' THEN '1'
-                    WHEN substr(MIN(df.name), 1, 1) <= 'z' THEN substr(MIN(df.name), 1, 1)
-                    ELSE '2' END AS bucket
+        SELECT CASE
+                WHEN substr(listName, 1, 1) < 'A' THEN '0'
+                WHEN substr(listName, 1, 1) <= 'Z' THEN substr(listName, 1, 1)
+                WHEN substr(listName, 1, 1) < 'a' THEN '1'
+                WHEN substr(listName, 1, 1) <= 'z' THEN substr(listName, 1, 1)
+                ELSE '2' END AS bucket, COUNT(*) AS games FROM (
+            SELECT COALESCE(MIN(CASE WHEN df.titleKey = df.groupKey THEN df.name END), MIN(df.name)) AS listName
             FROM downloadable_files df
             JOIN consoles c ON df.consoleId = c.id
             JOIN manufacturers m ON c.manufacturerId = m.id
@@ -426,22 +435,87 @@ interface DownloadableFileDao {
     @Query("SELECT id, name, consoleId, groupKey FROM downloadable_files WHERE searchKey LIKE '%' || :pattern || '%' LIMIT :limit")
     suspend fun findGameRows(pattern: String, limit: Int): List<GameRow>
 
-    // coleccion-analisis: the collection tools match what is on disk with the catalogue.
+    // coleccion-analisis: the collection tools match what is on disk with the catalogue. They
+    // work per title (`titleKey AS groupKey`): files on disk are keyed by their own name.
 
-    /** Rows of the given games in one console (the index on consoleId + groupKey serves it). */
-    @Query("SELECT id, consoleId, groupKey, fileName, fileSize FROM downloadable_files WHERE consoleId = :consoleId AND groupKey IN (:groupKeys)")
+    /** Rows of the given titles in one console. */
+    @Query("SELECT id, consoleId, titleKey AS groupKey, fileName, fileSize FROM downloadable_files WHERE consoleId = :consoleId AND titleKey IN (:groupKeys)")
     suspend fun catalogRowsForConsole(consoleId: String, groupKeys: List<String>): List<CatalogRow>
 
-    /** Rows of the given games in any console: for files whose folder says nothing about it. */
-    @Query("SELECT id, consoleId, groupKey, fileName, fileSize FROM downloadable_files WHERE groupKey IN (:groupKeys)")
+    /** Rows of the given titles in any console: for files whose folder says nothing about it. */
+    @Query("SELECT id, consoleId, titleKey AS groupKey, fileName, fileSize FROM downloadable_files WHERE titleKey IN (:groupKeys)")
     suspend fun catalogRowsForGroups(groupKeys: List<String>): List<CatalogRow>
 
-    /** Distinct games (group keys) per console. */
-    @Query("SELECT consoleId, COUNT(DISTINCT groupKey) AS games FROM downloadable_files GROUP BY consoleId")
+    /** Distinct titles per console (what the collection tools count as games, see above). */
+    @Query("SELECT consoleId, COUNT(DISTINCT titleKey) AS games FROM downloadable_files GROUP BY consoleId")
     suspend fun gameCountsByConsole(): List<ConsoleGameCount>
 
     @Query("SELECT DISTINCT consoleId, fileExtension FROM downloadable_files")
     suspend fun extensionsByConsole(): List<ConsoleExtension>
+
+    // titulos: one game across its translated titles (TitleClonesService).
+
+    @Query("SELECT DISTINCT consoleId FROM downloadable_files")
+    suspend fun indexedConsoles(): List<String>
+
+    @Query("SELECT id, titleKey, groupKey FROM downloadable_files WHERE consoleId = :consoleId")
+    suspend fun titleRows(consoleId: String): List<TitleClones.Row>
+
+    /** Rows of [titleKeys] in one console with their tags: which title a game of several shows (TitleClones.gameKeys). */
+    @Query("""
+        SELECT df.titleKey, df.name, df.fileName, GROUP_CONCAT(t.tag, '|') AS tags
+        FROM downloadable_files df
+        LEFT JOIN downloadable_file_tags t ON t.fileId = df.id
+        WHERE df.consoleId = :consoleId AND df.titleKey IN (:titleKeys)
+        GROUP BY df.id
+    """)
+    suspend fun titledRows(consoleId: String, titleKeys: List<String>): List<TitledRowResult>
+
+    @Query("UPDATE downloadable_files SET groupKey = :groupKey WHERE id IN (:ids)")
+    suspend fun setGroupKey(ids: List<Long>, groupKey: String)
+
+    @Query("""
+        INSERT OR IGNORE INTO game_traits (consoleId, groupKey, genres, year, source)
+        SELECT consoleId, :to, genres, year, source FROM game_traits WHERE consoleId = :consoleId AND groupKey = :from
+    """)
+    suspend fun copyTraits(consoleId: String, from: String, to: String)
+
+    @Query("DELETE FROM game_traits WHERE consoleId = :consoleId AND groupKey = :groupKey")
+    suspend fun deleteTraits(consoleId: String, groupKey: String)
+
+    @Query("""
+        INSERT OR IGNORE INTO collection_games (collectionId, consoleId, groupKey, addedAt)
+        SELECT collectionId, consoleId, :to, addedAt FROM collection_games WHERE consoleId = :consoleId AND groupKey = :from
+    """)
+    suspend fun copyCollectionGames(consoleId: String, from: String, to: String)
+
+    @Query("DELETE FROM collection_games WHERE consoleId = :consoleId AND groupKey = :groupKey")
+    suspend fun deleteCollectionGames(consoleId: String, groupKey: String)
+
+    @Query("UPDATE romm_games SET groupKey = :to WHERE consoleId = :consoleId AND groupKey = :from")
+    suspend fun moveRommGames(consoleId: String, from: String, to: String)
+
+    /**
+     * Re-keys one console's rows as [plan] says, in one transaction, and moves what is keyed by
+     * game along: genre and year (game_traits), collection membership (collection_games) and the
+     * RomM pairing (romm_games; a split leaves it with the first game, the next catalogue refresh
+     * pairs it again). Favourites, downloads and covers go by file name and do not move.
+     */
+    @Transaction
+    suspend fun regroup(consoleId: String, plan: TitleClones.Plan) {
+        plan.updates.forEach { (groupKey, ids) -> ids.chunked(500).forEach { setGroupKey(it, groupKey) } }
+        plan.moves.forEach { move ->
+            move.to.forEach { to ->
+                copyTraits(consoleId, move.from, to)
+                copyCollectionGames(consoleId, move.from, to)
+            }
+            if (move.dropFrom) {
+                deleteTraits(consoleId, move.from)
+                deleteCollectionGames(consoleId, move.from)
+                move.to.firstOrNull()?.let { moveRommGames(consoleId, move.from, it) }
+            }
+        }
+    }
 }
 
 data class DownloadableFileWithTagsResult(
@@ -455,10 +529,13 @@ data class DownloadableFileWithTagsResult(
     val torrentFileIndex: Int?,
     val torrentMagnet: String?,
     val groupKey: String = "",
+    val titleKey: String = "",
     val tags: String?
 )
 
 data class GameGroupRef(val consoleId: String, val groupKey: String)
+
+data class TitledRowResult(val titleKey: String, val name: String, val fileName: String, val tags: String?)
 
 data class ConsoleWithFileCount(
     val id: String,

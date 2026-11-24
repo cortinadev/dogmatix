@@ -30,10 +30,12 @@ class SimilarGamesService @Inject constructor(
         val counts = SimilarGames.words(name).associateWith { files.rowsContaining(it) }
         val keys = SimilarGames.keyWords(SimilarGames.franchiseWords(name), counts, total)
 
-        // Candidates: library rows with a key word, rarest words first (they say the most).
+        // Candidates: library rows with a key word, rarest words first (they say the most); never
+        // the game itself under another title (a translated release is a version, not a relative).
         val pool = keys.sortedBy { counts[it] ?: Int.MAX_VALUE }.take(MAX_KEY_SEARCHES)
-            .flatMap { files.idNamesMatching(it, POOL_PER_WORD) }
+            .flatMap { files.gameRowsMatching(it, POOL_PER_WORD) }
             .distinctBy { it.id }
+            .filterNot { it.consoleId == item.file.consoleId && it.groupKey == item.file.groupKey }
         val found = SimilarGames.rank(name, pool.map { SimilarGames.Row(it.id, it.name) }, counts, total).all
 
         val foundIds = found.toSet()

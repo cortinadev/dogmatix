@@ -3,6 +3,7 @@ package com.cortinadev.dogmatix.data.repository
 import com.cortinadev.dogmatix.data.model.DebridProvider
 import com.cortinadev.dogmatix.data.model.SeedingMode
 import com.cortinadev.dogmatix.data.model.PreferredRegion
+import com.cortinadev.dogmatix.data.service.convert.ChdCompression
 import androidx.datastore.preferences.core.Preferences
 import com.cortinadev.dogmatix.util.AutoScanFrequency
 import com.cortinadev.dogmatix.util.TagColorKind
@@ -76,6 +77,9 @@ interface SettingsRepository {
     suspend fun setPerHostDownloads(max: Int): Preferences
     suspend fun setMultiDiscPlaylists(enabled: Boolean): Preferences
     suspend fun setPreferredRegion(region: PreferredRegion): Preferences
+    /** One library entry per game across its translated titles. */
+    val unifyTitles: Flow<Boolean>
+    suspend fun setUnifyTitles(enabled: Boolean): Preferences
 
     // escaneo
     val autoScanFrequency: Flow<AutoScanFrequency>
@@ -93,6 +97,11 @@ interface SettingsRepository {
     val datAutoDownload: Flow<Boolean>
     suspend fun setVerifyDownloads(enabled: Boolean): Preferences
     suspend fun setDatAutoDownload(enabled: Boolean): Preferences
+
+    // conversion
+    /** Codecs of the CHD converter: BEST (lzma + zlib) or FAST (zlib only). */
+    val chdCompression: Flow<ChdCompression>
+    suspend fun setChdCompression(compression: ChdCompression): Preferences
 
     // dl-cola
     val batchNotification: Flow<Boolean>

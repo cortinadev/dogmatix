@@ -153,9 +153,12 @@ class MultiDiscService @Inject constructor(
         return DiscSetOutcome(fileName, setFolder = folderName, left = left, problem = problem, missingReferences = plan.missing)
     }
 
-    /** Discs the catalogue lists for this release (same game, same name save for the disc tag). */
+    /**
+     * Discs the catalogue lists for this release (same title, same name save for the disc tag):
+     * by title, not by game, so the discs of a release translated under another title never count.
+     */
     private suspend fun expectedDiscs(entity: DownloadableFileEntity, disc: DiscRef): Int =
-        fileRepository.gameFileNames(entity.consoleId, entity.groupKey)
+        fileRepository.titleFileNames(entity.consoleId, entity.titleKey)
             .mapNotNull { MultiDisc.discOf(FileParsingUtils.decodeUrlEncodedFileName(it)) }
             .filter { it.setStem.equals(disc.setStem, ignoreCase = true) }
             .map { it.number }

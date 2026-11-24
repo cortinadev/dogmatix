@@ -28,6 +28,7 @@ import com.cortinadev.dogmatix.util.Recommender.Pick
 import com.cortinadev.dogmatix.util.Recommender.Seed
 import com.cortinadev.dogmatix.util.Recommender.SeedKind
 import com.cortinadev.dogmatix.util.SimilarGames
+import com.cortinadev.dogmatix.util.TitleClones
 import com.cortinadev.dogmatix.util.VersionGrouping
 import com.cortinadev.dogmatix.util.VersionRanking
 import kotlinx.coroutines.CancellationException
@@ -83,6 +84,7 @@ class RecommendationsService @Inject constructor(
     private val settings: SettingsRepository,
     private val covers: CoverRepository,
     private val romm: RommCatalogService,
+    private val titleClones: TitleClonesService,
     @ApplicationContext private val context: Context
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -96,7 +98,9 @@ class RecommendationsService @Inject constructor(
         val completed: Set<String>,
         val rescanTime: Long,
         val rescanning: Boolean,
-        val prefs: VersionPrefs
+        val prefs: VersionPrefs,
+        /** [TitleClonesService.version]: games merged or split. */
+        val titles: Int = 0
     )
 
     /** Starts following the library (once per process); the first shelves come shortly after. */
@@ -109,8 +113,9 @@ class RecommendationsService @Inject constructor(
                 libraryIndex.ownedKeys,
                 downloadService.downloads.map { list -> list.filter { it.status == DownloadStatus.COMPLETED }.map { it.fileName }.toSet() }.distinctUntilChanged(),
                 combine(rescanState.lastRescanTime, rescanState.isRescanning) { time, running -> time to running },
-                combine(settings.preferredRegion, settings.favoriteLanguages) { region, languages -> VersionPrefs(region, languages) }
-            ) { owned, completed, (time, running), prefs -> Inputs(owned, completed, time, running, prefs) }
+                combine(settings.preferredRegion, settings.favoriteLanguages) { region, languages -> VersionPrefs(region, languages) },
+                titleClones.version
+            ) { owned, completed, (time, running), prefs, titles -> Inputs(owned, completed, time, running, prefs, titles) }
                 // A rescan empties the index first: keep the last shelves until it is done.
                 .filter { !it.rescanning }
                 .distinctUntilChanged()
@@ -165,17 +170,17 @@ class RecommendationsService @Inject constructor(
             val consoleId = key.substringBefore('|')
             if (consoleId !in consoles) return@forEach
             val name = nameOf(key.substringAfter('|'))
-            seeds += Seed(consoleId, VersionGrouping.groupKey(name), name, SeedKind.FAVOURITE)
+            seeds += Seed(consoleId, TitleClones.gameKey(consoleId, name), name, SeedKind.FAVOURITE)
         }
         val downloads = history.getAll()
             .filter { it.status == DownloadStatus.COMPLETED.name && it.consoleId in consoles }
             .sortedByDescending { it.finishedAt ?: it.startedAt }
-        downloads.take(MAX_DOWNLOAD_SEEDS).forEach { seeds += Seed(it.consoleId, VersionGrouping.groupKey(it.name), it.name, SeedKind.DOWNLOADED) }
+        downloads.take(MAX_DOWNLOAD_SEEDS).forEach { seeds += Seed(it.consoleId, TitleClones.gameKey(it.consoleId, it.name), it.name, SeedKind.DOWNLOADED) }
         val owned = ownedGames(inputs.owned, consoles)
         owned.forEach { seeds += Seed(it.consoleId, it.groupKey, it.name, SeedKind.OWNED) }
         val ownedTitles = (owned.map { it.name } + downloads.map { it.name }).map(SimilarGames::titleKey).toSet()
         val excluded = owned.map { Recommender.key(it.consoleId, it.groupKey) }.toSet() +
-            downloads.map { Recommender.key(it.consoleId, VersionGrouping.groupKey(it.name)) }
+            downloads.map { Recommender.key(it.consoleId, TitleClones.gameKey(it.consoleId, it.name)) }
         return Basis(Recommender.distinctSeeds(seeds), excluded, ownedTitles)
     }
 
@@ -189,7 +194,8 @@ class RecommendationsService @Inject constructor(
         }
         return consoles.flatMap { consoleId ->
             val candidates = LibraryKeys.scopesFor(consoleId).flatMap { byScope[it].orEmpty() }.toSet()
-            if (candidates.isEmpty()) emptyList() else files.gamesIn(consoleId, candidates)
+            // Disk names are titles: the games they belong to (a translated title is the same game).
+            if (candidates.isEmpty()) emptyList() else files.gamesIn(consoleId, candidates.map { TitleClones.canonical(consoleId, it) })
         }
     }
 

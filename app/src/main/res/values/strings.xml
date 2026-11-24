@@ -518,6 +518,12 @@
     <string name="settings_per_host_hint">Web downloads at once from the same server; some servers block clients with many connections</string>
     <string name="settings_multi_disc">Multi-disc games (.m3u)</string>
     <string name="settings_multi_disc_hint">Once every disc is in, they go into a «Game.m3u» folder with its playlist: the frontend shows one game and the emulator swaps discs</string>
+    <string name="settings_chd_compression">CHD compression</string>
+    <string name="settings_chd_compression_hint">Fast takes much less time; Best makes a slightly smaller CHD</string>
+    <string name="chd_compression_best">Best</string>
+    <string name="chd_compression_fast">Fast</string>
+    <string name="settings_unify_titles">Group translated titles</string>
+    <string name="settings_unify_titles_hint">Releases of a game under a translated title (“Rojo Fuego”, “FireRed”, “Pocket Monsters”…) show as one game, with the version for your region and languages first</string>
     <string name="settings_region">Preferred region</string>
     <string name="settings_region_hint">With your favourite languages, picks the version the library downloads when a game has several</string>
     <string name="region_europe">Europe</string>
@@ -892,6 +898,7 @@
     <string name="search_kw_max_results">page size, load more, results</string>
     <string name="search_kw_region">version, country, europe, usa, japan, preferred</string>
     <string name="search_kw_favorite_languages">translation, versions</string>
+    <string name="search_kw_unify_titles">titles, translated, regions, group, clones, retool</string>
     <string name="search_kw_frontend_shortcuts">dgmtx, es-de, launcher, shortcut</string>
     <string name="search_kw_esde">es-de, emulationstation, frontend, launcher</string>
     <string name="search_kw_iisu">frontend, launcher, emulator</string>
@@ -903,6 +910,7 @@
     <string name="search_kw_auto_scan_wifi">wifi, wi-fi, mobile data, network, background scan</string>
     <string name="search_kw_auto_scan_charging">battery, charger, plugged in, power, background scan</string>
     <string name="search_kw_verify_downloads">checksum, crc, sha-1, md5, hash, integrity, no-intro, redump</string>
+    <string name="search_kw_chd_compression">chd, compression, convert, lzma, zlib, fast, smaller, chdman</string>
     <string name="search_kw_dat_files">dat, no-intro, redump, libretro, checksum, import</string>
     <string name="search_kw_batch_notice">notification, finished, completed, failed, alert</string>
     <string name="search_kw_esde_favourites">favourites, favorites, star, es-de, gamelist, sync</string>
@@ -1490,4 +1498,57 @@
     <string name="update_error_signature">This update is signed with a different key than the installed app, so Android won’t install it over this one. See the release page on GitHub.</string>
     <string name="update_error_storage">Not enough free space to download the update.</string>
     <string name="update_error_older">The downloaded APK isn’t newer than the installed version, so it can’t update it. See the release page on GitHub.</string>
+    <!-- conversion: ROMs converted to XISO, CHD and RVZ. -->
+    <string name="conversion_convert_to">Convert to %1$s</string>
+    <string name="conversion_convert">Convert</string>
+    <string name="conversion_cancel">Cancel conversion</string>
+    <string name="conversion_queued">Waiting to convert to %1$s</string>
+    <string name="conversion_converting">Converting to %1$s · %2$d%%</string>
+    <string name="conversion_verifying">Checking the %1$s · %2$d%%</string>
+    <string name="conversion_finishing">Replacing the original…</string>
+    <string name="conversion_done">Converted to %1$s · %2$s saved</string>
+    <string name="conversion_done_plain">Converted to %1$s</string>
+    <string name="conversion_failed">Couldn’t convert: %1$s</string>
+    <string name="conversion_cancelled">Conversion cancelled</string>
+    <string name="conversion_error_not_found">the file is no longer there</string>
+    <string name="conversion_error_already">it already is in that format</string>
+    <string name="conversion_error_unrecognised">it isn’t an image this format takes</string>
+    <string name="conversion_error_damaged">the image is damaged or cut short</string>
+    <string name="conversion_error_incomplete">a track its .cue or .gdi names isn’t next to it</string>
+    <string name="conversion_error_no_space">not enough free space</string>
+    <string name="conversion_error_storage">the folder can’t be written</string>
+    <string name="conversion_error_verify">the converted copy didn’t match; the original is untouched</string>
+    <string name="conversion_error_retire">the original couldn’t be replaced; nothing changed</string>
+    <string name="conversion_no_saving">Converting wouldn’t save enough space</string>
+    <string name="conversion_error_unknown">unexpected error</string>
+    <plurals name="conversion_confirm_title">
+        <item quantity="one">Convert %1$d game to %2$s?</item>
+        <item quantity="other">Convert %1$d games to %2$s?</item>
+    </plurals>
+    <string name="conversion_confirm_line">%1$s · %2$s → %3$s</string>
+    <string name="conversion_confirm_skip">%1$s · %2$s</string>
+    <string name="conversion_confirm_trash">Once the converted copy has been checked, the original goes to the trash: Collection → History undoes it.</string>
+    <string name="conversion_confirm_saves">Saves about %1$s</string>
+    <string name="conversion_confirm_none">Nothing here can be converted.</string>
+    <string name="conversion_confirm_wbfs">A WBFS converts and still plays, but its RVZ won’t match the Redump DAT (the WBFS dropped the disc’s unused data).</string>
+    <string name="conversion_confirm_loading">Reading the images…</string>
+    <string name="conversion_not_found_line">%1$s · not found on disk</string>
+    <string name="conversion_notification_converting">Converting to %1$s</string>
+    <string name="conversion_notification_verifying">Checking the %1$s</string>
+    <string name="conversion_notification_waiting">Waiting to convert</string>
+    <plurals name="conversion_notification_queued">
+        <item quantity="one">%d more waiting</item>
+        <item quantity="other">%d more waiting</item>
+    </plurals>
+    <string name="history_type_conversion">Converted</string>
+    <string name="collection_reclaim_convert_heading">Convert to save space</string>
+    <string name="collection_reclaim_convert">To %1$s · %2$s</string>
+    <string name="collection_reclaim_convert_estimating">Checking which games can be converted…</string>
+    <string name="collection_convert_ticked">Convert ticked</string>
+    <string name="collection_apply_ticked">Delete and convert ticked</string>
+    <string name="collection_delete_and_convert">Delete and convert</string>
+    <plurals name="collection_convert_lines">
+        <item quantity="one">%1$d game is converted to %2$s; its original is deleted for good once the copy has been checked.</item>
+        <item quantity="other">%1$d games are converted to %2$s; their originals are deleted for good once each copy has been checked.</item>
+    </plurals>
 </resources>

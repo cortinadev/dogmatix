@@ -125,7 +125,11 @@ dependencies {
     implementation(libs.androidx.documentfile)
     implementation(libs.jsoup)
     implementation(libs.seven.zip.jbinding)
+    implementation(libs.tukaani.xz)
     implementation(libs.kotlinx.coroutines.core)
+    // zstd for the RVZ converter: the AAR carries the Android .so files; JVM unit tests use the
+    // plain jar, which bundles host natives (linux/macOS).
+    implementation(variantOf(libs.zstd.jni) { artifactType("aar") })
 
     // libtorrent4j
     implementation(libs.libtorrent4j.android.arm64.v8a)
@@ -136,6 +140,7 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.zstd.jni)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

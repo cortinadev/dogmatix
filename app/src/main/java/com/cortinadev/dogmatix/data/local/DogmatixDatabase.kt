@@ -49,7 +49,7 @@ import com.cortinadev.dogmatix.util.VersionGrouping
     entities = [ManufacturerEntity::class, ConsoleEntity::class, DownloadableFileEntity::class, FileTagEntity::class, DownloadableFileFts::class, DownloadHistoryEntity::class, GameMetadataEntity::class, FavouriteEntity::class, CoverEntity::class, SourceScanEntity::class, SourceStatEntity::class, DownloadResumeEntity::class, DownloadCheckEntity::class, RommUploadEntity::class, GameTraitEntity::class, GameTraitSyncEntity::class, RommGameEntity::class, RommFavouriteBaseEntity::class,
         // coleccion-gestion
         ActionHistoryEntity::class, TrashItemEntity::class, CollectionEntity::class, CollectionGameEntity::class, StorageRedirectEntity::class],
-    version = 20,
+    version = 21,
     exportSchema = false
 )
 abstract class DogmatixDatabase : RoomDatabase() {
@@ -352,6 +352,19 @@ abstract class DogmatixDatabase : RoomDatabase() {
             }
         }
 
+        // 1.5 titulos
+        /**
+         * `titleKey` keeps each row's own title key while `groupKey` becomes the game's, which a
+         * clone list can share among translated titles (TitleClonesService). Up to now both were
+         * the same, so the copy is exact.
+         */
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE downloadable_files ADD COLUMN titleKey TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE downloadable_files SET titleKey = groupKey")
+            }
+        }
+
         /** Generalises the TorBox resume ids to any debrid service (string ids); SQLite < 3.35 can't drop columns, so rebuild. */
         val MIGRATION_8_9 = object : Migration(8, 9) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -470,7 +483,8 @@ abstract class DogmatixDatabase : RoomDatabase() {
             get() = arrayOf(
                 MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4, MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7,
                 MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13,
-                MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20
+                MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20,
+                MIGRATION_20_21
             )
     }
 }

@@ -69,4 +69,22 @@ class CollectionRepairTest {
         val picked = CollectionReclaim.candidates(listOf(tie), { tie.games.last().id }, emptyList(), torrentCacheBytes = null, imageCacheBytes = 4_000)
         assertEquals(listOf(ReclaimKind.IMAGE_CACHE, ReclaimKind.DUPLICATE), picked.map { it.kind })
     }
+
+    @Test
+    fun `conversions come after what is deleted and are never deleted themselves`() {
+        val iso = file("Halo (USA).iso", 7_000)
+        val other = file("Fable (USA).iso", 6_000)
+        fun convert(f: DiskFile, saved: Long) = ReclaimCandidate("convert:${f.uri}", ReclaimKind.CONVERT, f.name, GBA, saved, listOf(f), format = ConversionFormat.XISO)
+        val candidates = CollectionReclaim.candidates(
+            emptyList(), { null },
+            listOf(HealthFinding("zip:a", HealthKind.EXTRACTED_ARCHIVE, zip.name, GBA, files = listOf(zip))),
+            torrentCacheBytes = null, imageCacheBytes = null,
+            // Unknown saving (0) stays listed; the archive offered for deletion is not converted too.
+            conversions = listOf(convert(other, 0), convert(iso, 3_000), convert(zip, 1_000))
+        )
+        assertEquals(listOf(ReclaimKind.EXTRACTED_ARCHIVE, ReclaimKind.CONVERT, ReclaimKind.CONVERT), candidates.map { it.kind })
+        assertEquals(listOf(iso, other), CollectionReclaim.conversions(candidates).map { it.files.single() })
+        assertEquals(listOf(zip), CollectionReclaim.files(candidates))
+        assertEquals(1, CollectionReclaim.onDisk(candidates).size)
+    }
 }

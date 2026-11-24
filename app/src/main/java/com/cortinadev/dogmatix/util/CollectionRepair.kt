@@ -62,7 +62,11 @@ object CollectionRepair {
     fun deletions(actions: List<RepairAction>): List<DiskFile> = actions.filter { it.kind in deleting }.flatMap { it.finding.files }
 }
 
-enum class ReclaimKind { DUPLICATE, EXTRACTED_ARCHIVE, PARTIAL_DOWNLOAD, TORRENT_CACHE, IMAGE_CACHE }
+enum class ReclaimKind {
+    DUPLICATE, EXTRACTED_ARCHIVE, PARTIAL_DOWNLOAD, TORRENT_CACHE, IMAGE_CACHE,
+    /** conversion: a game that takes less space converted ([ReclaimCandidate.format]); [ReclaimCandidate.bytes] is the estimated saving. */
+    CONVERT
+}
 
 /** Something the Free up space tool can delete, and what it frees. */
 data class ReclaimCandidate(
@@ -75,7 +79,9 @@ data class ReclaimCandidate(
     /** [ReclaimKind.DUPLICATE]: the game's `<game>.m3u/` folder, removed with it. */
     val setFolderUri: String? = null,
     /** [ReclaimKind.DUPLICATE]: the copy that stays. */
-    val kept: DiskGame? = null
+    val kept: DiskGame? = null,
+    /** [ReclaimKind.CONVERT]: what it converts to. */
+    val format: ConversionFormat? = null
 )
 
 /** The Free up space list: biggest first, each file offered once. Pure, for the tests. */
@@ -93,7 +99,9 @@ object CollectionReclaim {
         keepOf: (DuplicateGroup) -> String?,
         findings: List<HealthFinding>,
         torrentCacheBytes: Long?,
-        imageCacheBytes: Long?
+        imageCacheBytes: Long?,
+        /** [ReclaimKind.CONVERT] candidates: listed after the rest, biggest saving first, even when the saving is unknown (0). */
+        conversions: List<ReclaimCandidate> = emptyList()
     ): List<ReclaimCandidate> {
         val out = ArrayList<ReclaimCandidate>()
         val offered = HashSet<String>()
@@ -118,8 +126,10 @@ object CollectionReclaim {
         }
         torrentCacheBytes?.takeIf { it > 0 }?.let { out += ReclaimCandidate(TORRENT_CACHE_ID, ReclaimKind.TORRENT_CACHE, "", null, it) }
         imageCacheBytes?.takeIf { it > 0 }?.let { out += ReclaimCandidate(IMAGE_CACHE_ID, ReclaimKind.IMAGE_CACHE, "", null, it) }
-        return out.filter { it.bytes > 0 }
-            .sortedWith(compareByDescending<ReclaimCandidate> { it.bytes }.thenBy { it.title.lowercase(Locale.ROOT) }.thenBy { it.id })
+        val order = compareByDescending<ReclaimCandidate> { it.bytes }.thenBy { it.title.lowercase(Locale.ROOT) }.thenBy { it.id }
+        // A file offered for deletion is not offered for conversion too.
+        val converts = conversions.filter { c -> c.kind == ReclaimKind.CONVERT && c.files.none { it.uri in offered } }
+        return out.filter { it.bytes > 0 }.sortedWith(order) + converts.sortedWith(order)
     }
 
     fun total(candidates: List<ReclaimCandidate>, ids: Set<String>): Long = candidates.filter { it.id in ids }.sumOf { it.bytes }
@@ -127,6 +137,9 @@ object CollectionReclaim {
     /** The candidates that are files on disk (the caches aside). */
     fun onDisk(candidates: List<ReclaimCandidate>): List<ReclaimCandidate> =
         candidates.filter { it.kind == ReclaimKind.DUPLICATE || it.kind == ReclaimKind.EXTRACTED_ARCHIVE || it.kind == ReclaimKind.PARTIAL_DOWNLOAD }
+
+    /** The conversions among [candidates]. */
+    fun conversions(candidates: List<ReclaimCandidate>): List<ReclaimCandidate> = candidates.filter { it.kind == ReclaimKind.CONVERT }
 
     /** The files [candidates] delete: what [DiscSetCleanup.plan] is asked about. */
     fun files(candidates: List<ReclaimCandidate>): List<DiskFile> = onDisk(candidates).flatMap { it.files }
