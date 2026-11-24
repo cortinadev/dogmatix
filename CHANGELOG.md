@@ -3,6 +3,31 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
+## [1.5] – 2026-11-25
+
+Finished games can be converted to formats that take less space, and the same game under different regional titles now shows as one. Checked with the automated suite (768 unit tests, 50 on-device tests) and by hand on an Android 14 handheld in landscape and portrait.
+
+### Added
+- **Convert finished games to save space.** In Downloads, START on a completed row offers *Convert to <format>* (START on a row that is converting cancels it; on a queued row it still moves it), and a multi-selection has a convert button. Dogmatix writes the new file next to the original, checks it, and only then retires the original: from Downloads it goes to the trash (Collection → *History* undoes it, `.m3u` playlists included); from Collection → *Free up space*, under *Convert to save space*, it is deleted for good. One conversion runs at a time, with its own progress notification, and a row already converted is not offered again.
+  - **Original Xbox** (`.iso` only, not Xbox 360) → **XISO**, the game partition alone, as `extract-xiso -r` writes it.
+  - **PlayStation, Saturn, Dreamcast, Sega CD, PC Engine CD, PS2 and PSP** (`.cue` / `.bin`, `.gdi` or `.iso`) → **CHD**.
+  - **GameCube and Wii** (`.iso` and `.wbfs`) → **RVZ**. A WBFS converts and still plays, but its RVZ will not match the Redump DAT.
+  - **CHD compression** (Settings → Downloads → *When finished*, after *DAT files*): *Fast* (the default) takes much less time; *Best* makes a slightly smaller CHD (Fast came out about 1.6 % larger in one test).
+  - A conversion that would not save at least 5 % of the size is discarded: the original is left untouched (nothing goes to the trash or history), the row says it saves no space and Downloads stops offering to convert it (no button, no START hint), and this is remembered across restarts; in *Free up space* the row is greyed out with “—”.
+  - Multi-disc games inside `<game>.m3u/` convert disc by disc. If the app is killed mid-conversion, the unfinished file is removed the next time it starts.
+- **Group translated titles** (Settings → Library → Preferences, on by default): releases of a game under another regional title (“Rojo Fuego”, “FireRed”, “Pocket Monsters”…) appear as one game. The details popup shows the title of the preferred version for your region, and search finds a game by any of its titles. The groupings come from the Retool clone lists, downloaded per console when first needed.
+- *Third-party notices*: [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) lists the components the converters use and their licences.
+
+### Changed
+- A game with several regional titles is now sorted A → Z, jumped to by letter and ordered by Console or Decade under the title it shows (the one of its preferred version for your region and languages). Changing the region or favourite languages regroups the library again (about 15 s on a 60,000-file library); stars, collections and search keep working.
+- The database moves to version 21 (each file keeps its own title key and the game key becomes canonical). Installs from 1.0 to 1.4 migrate in place; checked from 1.4 with 60,740 indexed files intact (32,135 titles became 27,750 games).
+
+### Known issues
+- A GameCube game converted to RVZ was checked with `dolphin-tool` and started in Dolphin. Not yet checked: converting real Xbox and Wii games, running those and the CHD and XISO files in emulators, and the expanded progress notification.
+- With a region filter on, the A → Z order may not match the title shown. Some clone-list groupings are doubtful (for example *Buzz!* by country), releases with another spelling are not joined, and Xbox, Wii U and Neo Geo Pocket have no clone list, so they are not grouped.
+- CHD and RVZ need free space equal to the size of the input and show “?” as the saving before they run. Changing the CHD compression setting lifts the block for CHD rows. Conversions are not resumed after a restart, and one started from *Free up space* does not mark its row in Downloads.
+- Collection’s Summary counts titles, not grouped games, and an entry already undone in *History* still shows *A Undo*.
+
 ## [1.4] – 2026-10-27
 
 Downloads, source scans and file handling are sturdier: an interrupted download no longer leaves a half-written file that looks like a game, and Dogmatix tells you why something failed instead of silently stopping. Two new kinds of source arrive with it: Internet Archive items and web pages described with CSS selectors. Checked with the automated suite (679 unit tests, 45 on-device tests) and by hand on an Android 14 handheld in landscape and portrait.

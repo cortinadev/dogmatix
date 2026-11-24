@@ -17,6 +17,7 @@ Dogmatix ships **without sources**. On first run, import a sources JSON exported
 - **Gamepad first.** Every screen, dialog and setting is reachable with the D-pad and face buttons; a focus ring shows where you are and a legend at the bottom says what each button does right now. B always undoes one layer and never closes the app.
 - **One row per game.** Regions, revisions, demos and sources of the same game are grouped into one row with square box art and coloured chips; A downloads the version that fits your preferred region and languages, every disc of it, and the details popup lists all the others.
 - **Downloads you can trust.** A persistent queue you can reorder and hold, pause and resume for every kind of download, partial files that never pass for finished games, readable failure reasons, automatic retries that survive a restart, and a checksum against No-Intro / Redump DATs, RomM or Internet Archive when a download completes.
+- **Smaller games, one title.** Finished Xbox, PlayStation-family, Sega CD-based, GameCube and Wii images convert to XISO, CHD or RVZ from Downloads or Collection, checked before the original is retired (a conversion that would not save at least 5 % is discarded); and a game released under different regional titles shows as one row.
 - **Sources of every kind.** Torrents and magnets, plain web folders (Apache, nginx, IIS, h5ai…), pages described with CSS selectors, Internet Archive items and their per-system ZIPs, RomM servers, and TorBox / Real-Debrid in front of any torrent. Rescans are incremental, parallel and polite to servers.
 - **A Collection section** that analyses what is on disk: health checks, duplicates, repairs, free-up-space, a trash with undo, a second storage root (SD card) with smart routing, moving the whole library, and your own collections by hand or by rules.
 - **Frontend integrations.** Shortcuts, find rules and gamelist entries for ES-DE, an emulator entry for iiSU, values for Daijishō, favourites and covers kept in sync, and a *Check frontends* button that repairs what is missing.
@@ -32,6 +33,7 @@ An onboarding wizard explains what Dogmatix does, asks for the root ROMs folder,
 
 - **Filters and sort.** A fixed filter panel in landscape (Console, Region, Language, Tag, Genre, Decade, Favourites, Source) with ◀ ▶ quick change and multi-select dropdowns; console chips and a modal filter sheet in portrait. Active filters show as chips under the search box (A removes one, *Clear* removes all). The sort button offers A → Z, Z → A, size, console and decade. The panel folds into a thin rail (R3, or its arrow) so the list gets the full width.
 - **One row per game.** Versions are grouped with a `4+` badge and multi-disc releases travel together (`2 discs`, total size). A downloads the **preferred version**: releases before demos, betas, prototypes and bad dumps, then your region and its fallbacks (Spain → Europe → World → USA…), a version in one of your languages, the latest revision, verified `[!]` dumps. Nothing is hidden: the details popup lists every version, preferred first, and A on any of them downloads it.
+- **Translated titles in one row.** With *Group translated titles* on (Settings → Library, default), a game released under different regional names (“FireRed”, “Rojo Fuego”, “Pocket Monsters”…) is one row; the details popup shows the title of the preferred version for your region, and search finds it by any of its titles. Groupings come from the [Retool](https://github.com/unexpectedpanda/retool-clonelists-metadata) clone lists, fetched per console; consoles without a list (Xbox, Wii U, Neo Geo Pocket) are not grouped.
 - **Covers and colours.** Square box art from [libretro-thumbnails](https://github.com/libretro-thumbnails) (the covers RetroArch shows, no API key) found by the No-Intro / Redump file name, with RomM's covers first when a server is configured and up to three other versions tried when the preferred one has none. The console chip takes its console's colour and tags are tinted by group (region, language, revision, demo / beta / hack), all editable.
 - **Marks.** ✓ on games already on disk, ★ on favourites (Select stars; favourites survive rescans), a server icon on games your RomM server already has.
 - **Search.** Lenient matching ("yugioh" finds *Yu-Gi-Oh!*, "virtual tenis" finds *Virtua Tennis*), the last ten searches that found something under the empty box, and results from the **whole app** under the games: downloads, sources, settings, Collection tools and collections, each opening in its section with B coming back to the search.
@@ -49,6 +51,7 @@ An onboarding wizard explains what Dogmatix does, asks for the root ROMs folder,
 - **Verification.** Finished downloads are hashed in the background (CRC32 and SHA-1, inside kept ZIPs too) and checked against RomM's hashes, Internet Archive's hashes or the console's No-Intro / Redump DAT (fetched from libretro-database or imported in Settings). The row says *Verified · No-Intro*, *Does not match* or *Not verified* and why. Nothing is deleted because of it.
 - **Multi-disc games** move into a `<Game>.m3u/` folder with a `<Game>.m3u` playlist once every disc is in, for systems whose emulators read playlists (PlayStation, Saturn, Sega CD, Dreamcast, GameCube, PC Engine CD, 3DO, Neo Geo CD, Amiga, C64, MSX…; never PS2 or Xbox). A disc that arrives later joins the folder.
 - **Extraction** keeps folder structure, refuses unsafe paths, never overwrites (an identical file is reused, a different one becomes `name (2).ext`), reports why it failed, keeps the archive and unpacks it again on *Retry* without downloading twice.
+- **Convert to save space.** START on a completed row (or the convert button of a multi-selection) converts the image: original Xbox `.iso` → **XISO** (Xbox 360 is not supported), PS1 / Saturn / Dreamcast / Sega CD / PC Engine CD / PS2 / PSP `.cue`/`.bin`, `.gdi` or `.iso` → **CHD**, GameCube / Wii `.iso` or `.wbfs` → **RVZ**. All three are written in Kotlin inside the app (no external tools). The converted file is checked before the original goes to the trash (undo in Collection → *History*); one conversion runs at a time with its own notification, and START on a converting row cancels it. A setting (Settings → Downloads) chooses *Fast* (the default) or *Best* CHD compression, and a conversion that would not save at least 5 % of the size is discarded and the original left as it was (Dogmatix remembers this across restarts; changing the CHD compression setting lets it try again). Free space equal to the input is needed, and the Xbox converter does not patch XBE media flags. A WBFS converts and still plays, but its RVZ decodes to an image no Redump DAT lists.
 - **Notifications** with *Pause all* / *Resume* / *Cancel all*, progress and speed; a notice when the batch finishes with how many completed and failed.
 - **Multi-selection** (Select, or long press) with an action bar offering only what the ticked rows accept: retry, pause, stop, delete, *next*, hold, release.
 - **Seed after download** (off by default): 30 min, 1 hour, until ratio 1.0, or unlimited.
@@ -62,7 +65,7 @@ A section between Downloads and Sources for the games already on disk. It analys
 - **Health**: twelve checks (lost folder permission, low space, empty files, broken `.cue` / `.gdi` / `.m3u` references, incomplete sets, games in another console's folder, leftover partial downloads, sets without a playlist, archives already extracted, empty folders, foreign extensions, sources never scanned), each with its fix.
 - **Duplicates**: the same game twice (same files, different versions, or same size and content, cue/bin and multi-disc sets included, also across console folders) with a suggestion of which copy to keep.
 - **Repair**: create missing `.m3u` playlists, move games to their console's folder, delete empty folders, leftovers and archives already extracted, with a preview.
-- **Free up space**: the biggest items first, plus the torrent and cover caches. Deletes for good.
+- **Free up space**: the biggest items first, plus the torrent and cover caches. Deletes for good. A *Convert to save space* group lists the games that XISO, CHD or RVZ would shrink; there the original is deleted for good once the converted copy is checked.
 - **SD storage**: a second library root. Consoles can live there, suggestions say which to move when internal space runs low, and a download that does not fit goes to the same console folder on the other root.
 - **Move library**: the whole library or some consoles to another folder, pausing downloads while it copies; it can be interrupted, resumed and undone. Every copy is verified (size and sampled blocks) before the original is deleted.
 - **History and trash**: what was deleted, repaired, moved or imported, with undo. Deletions go to a hidden `.dogmatix-trash` (which ES-DE skips) that empties itself after 7 or 30 days.
@@ -125,23 +128,24 @@ Dogmatix was forked from Milou's `master` in April 2026. Milou is a phone app dr
 | Failures | Retry | Classified reasons, automatic retries with persistent timers, mirrors ordered by measured reliability, transient vs permanent errors |
 | Verification | None | CRC32 / SHA-1 / MD5 against No-Intro / Redump DATs (fetched or imported), RomM and Internet Archive hashes |
 | Extraction | Extract, swallow errors | Reasons for failures, no overwrites, folder structure kept, unsafe paths refused, cancellable, archive kept for retry |
-| Post-download | None | Multi-disc `.m3u` folders, RomM upload, ES-DE favourite sync, verification, library index refresh |
+| Post-download | None | Multi-disc `.m3u` folders, RomM upload, ES-DE favourite sync, verification, library index refresh, conversion to XISO / CHD / RVZ |
+| Titles | File-name tags | Releases under translated titles grouped through Retool clone lists, searchable by any title |
 | Storage | Write and delete | Trash with undo and retention, action history, verified copies and moves, second root with smart routing, library move with resume and undo, storage problems told apart |
 | Metadata | File-name tags | Plus RAWG / TheGamesDB details, libretro covers, genres and years from libretro-database, franchise and genre similarity, recommendations |
-| Persistence | Room v2, 5 tables | Room v20 with explicit migrations from v1 (some twenty tables), migration tests from 1.0 and 1.1 schemas |
+| Persistence | Room v2, 5 tables | Room v21 with explicit migrations from v1 (some twenty tables), migration tests from 1.0 and 1.1 schemas |
 | Integrations | None | RomM (catalogue, uploads, favourites, covers, self-signed TLS), TorBox, Real-Debrid, Internet Archive session, ES-DE, iiSU, Daijishō |
 | Updates | Toast on new version | In-app download and install, APK checked for package, version and signature |
-| Tests | Two placeholder tests | 679 unit tests in 98 classes, 45 instrumented tests in 8 classes, lint baseline, `validate.sh`, `release-check.sh`, GitHub Actions |
+| Tests | Two placeholder tests | 767 unit tests in 109 classes, 50 instrumented tests in 11 classes, lint baseline, `validate.sh`, `release-check.sh`, GitHub Actions |
 
 ### In numbers
 
-| | Milou (April 2026) | Dogmatix 1.4 |
+| | Milou (April 2026) | Dogmatix 1.4 (Kotlin lines not recounted for 1.5) |
 |---|---|---|
 | Kotlin files / lines | 100 / ~8,300 | 487 / ~63,500 |
 | Screens | 5 (Library, Downloads, Sources, Settings, Contact) | 7 (+ Onboarding, Collection) |
-| Room schema | v2 | v20 |
+| Room schema | v2 | v20 (v21 in 1.5) |
 | UI languages | 1 | 6 |
-| Tests | 2 placeholders | 679 unit + 45 instrumented |
+| Tests | 2 placeholders | 679 unit + 45 instrumented (767 + 50 in 1.5) |
 
 The package is `com.cortinadev.dogmatix` (Milou's is `com.santiifm.milou`), so Dogmatix installs as a separate app and does not update over a Milou install.
 
@@ -216,12 +220,13 @@ Unit tests cover the pure logic, instrumented tests cover migrations, DAOs, stor
 ```
 app/src/main/java/com/cortinadev/dogmatix/
 ├── data/
-│   ├── local/       Room database (v20), entities, DAOs, DataStore settings
+│   ├── local/       Room database (v21), entities, DAOs, DataStore settings
 │   ├── model/       Domain models (sources, games and versions, tags, regions)
 │   ├── repository/  Settings, downloads, files, consoles, favourites, sources, collections
 │   ├── search/      App-wide search providers
 │   ├── service/     Scanning, torrents, downloads, queue, extraction, verification, multi-disc,
-│   │                debrid, RomM, Internet Archive, frontends, Collection tools, updates
+│   │                debrid, RomM, Internet Archive, frontends, Collection tools, updates,
+│   │                ROM converters (XISO, CHD, RVZ), title clone lists
 │   └── state/       Shared state (scan progress, pending navigation and filters)
 ├── di/              Hilt modules
 ├── ui/
@@ -246,11 +251,12 @@ scripts/                            validate.sh, release-check.sh
 - **Images**: Coil, with covers kept on disk
 - **Torrents**: libtorrent4j · **HTTP**: HttpURLConnection, Jsoup · **JSON**: Gson
 - **Archives**: 7-Zip-JBinding-4Android (ZIP / 7z)
+- **Converters**: XISO, CHD and RVZ writers in Kotlin (CHD ported from MAME, RVZ with zstd-jni, LZMA from XZ for Java); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)
 - **Concurrency**: Kotlin Coroutines and Flow; JobScheduler for the automatic scan
 
 ## Credits
 
-Dogmatix is a fork of [Milou](https://github.com/santiifm/milou) by [santiifm](https://github.com/santiifm), who wrote the original indexer, tagger, downloader and extractor that this app grew from. Covers come from [libretro-thumbnails](https://github.com/libretro-thumbnails), genres, years and DATs from [libretro-database](https://github.com/libretro/libretro-database), and game details from [RAWG](https://rawg.io) and [TheGamesDB](https://thegamesdb.net).
+Dogmatix is a fork of [Milou](https://github.com/santiifm/milou) by [santiifm](https://github.com/santiifm), who wrote the original indexer, tagger, downloader and extractor that this app grew from. Covers come from [libretro-thumbnails](https://github.com/libretro-thumbnails), genres, years and DATs from [libretro-database](https://github.com/libretro/libretro-database), and game details from [RAWG](https://rawg.io) and [TheGamesDB](https://thegamesdb.net). Translated-title groupings use the [Retool](https://github.com/unexpectedpanda/retool-clonelists-metadata) clone lists. Third-party code and data, with their licences, are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Roadmap
 

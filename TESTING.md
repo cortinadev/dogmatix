@@ -10,7 +10,7 @@ script can see (controller feel, storage cards, frontends).
 | Level | Where it runs | Needs | Covers |
 |---|---|---|---|
 | Unit (JVM) | `app/src/test`, any machine | JDK 17 or Docker | Parsing, rules, queue and scan logic, no Android runtime |
-| Instrumented | `app/src/androidTest`, emulator or device | Android emulator or a device | Room migrations, DAOs, storage provider, queue recovery, gamepad smoke test |
+| Instrumented | `app/src/androidTest`, emulator or device | Android emulator or a device | Room migrations, DAOs, title regrouping, storage provider, queue recovery, converter engines, gamepad smoke test |
 | Manual | a handheld, with a controller | Device, optional SD card | Gamepad flow, touch, frontends, big downloads, real servers |
 
 ## Unit tests (`app/src/test`)
@@ -28,13 +28,14 @@ Grouped by area (class names, in `…Test`):
 - **Verification**: `Checksums`, `DatParser`, `DownloadCheck`, `LibretroDats`.
 - **Files and storage**: `ArchivePaths`, `CopyCheck`, `StorageProblems`, `MultiDisc`, `DocumentIds`, `DiscSetCleanup`.
 - **Collection**: `CollectionGames`, `CollectionHealth`, `VolumeUsage`, `CollectionDuplicates`, `CollectionRepair`, `CollectionDeletionPlan`, `CollectionRules`, `GameTraitRules`, `SmartStorage`, `LibraryMoveJob`, `TrashRules`, `ActionHistoryRules`.
+- **Converters and titles**: `RomConversions`, `Xdvdfs`, `XdvdfsReference`, `TitleClones`, `CdSheets`, `ChdEngine`, `ChdInterop`, and under `util/rvz` `Lfg`, `RvzRoundTrip`, `RvzBenchmark` (the CHD and RVZ engines are checked by round trip; the interop tests compare with reference tools when they are available, and are skipped otherwise).
 - **Gamepad**: `GamepadLayout`, `TriggerPress`.
 
 New pure logic comes with its test.
 
 ## Instrumented tests (`app/src/androidTest`)
 
-Eight classes, 45 tests. They use their own test runner and application, which redirect the app's
+Eleven classes, 50 tests. They use their own test runner and application, which redirect the app's
 files, caches and databases to a throw-away folder (`instrumentation-sandbox/`, deleted before and
 after), so the installed app's settings, library and downloads are never touched.
 
@@ -44,6 +45,8 @@ after), so the installed app's settings, library and downloads are never touched
 - `LargeCatalogTest`: 20,000 games across five consoles — paging in every sort order without repeats or gaps, search, letter jump; timings go to logcat (`DogmatixPerf`).
 - `QueueRecoveryTest`: the download queue rebuilt from the history after a restart (order, held and paused rows, no duplicates).
 - `StorageProviderTest` (13 tests): copy, move, rename, delete, trash and *Move library* cycles against a test documents provider that behaves like an external one (name clashes get ` (1)`, moving onto an existing name fails).
+- `TitleRegroupTest`: regrouping a large catalogue under canonical title keys (plan and write timings go to logcat), idempotent on a second pass.
+- `ChdEngineDeviceTest`, `RvzEngineTest`: the CHD and RVZ engines on the device's own CPU and runtime (timings in logcat).
 - `GamepadSmokeTest`: B never closes the app, ZL / ZR change section, LB / RB switch panel, A on a failed download retries it. The most fragile of the set.
 
 ## Running
@@ -141,6 +144,49 @@ Neither workflow has run on GitHub yet.
 fails on any new error. Warnings do not fail. To accept the current state after a deliberate change:
 `./gradlew updateLintBaseline`.
 
+## Results of 13 November 2026 (release 1.5)
+
+Run in Docker (tests, compilation and lint in separate Gradle passes):
+
+| Step | Result |
+|---|---|
+| Unit tests | 767 tests in 109 classes, 0 failures (2 skipped) |
+| Lint | 0 errors; 20 warnings outside the baseline |
+| Debug and test APKs | built |
+| Release (R8) | built before the last fixes (65.1 MB, signed with the debug key because the build tree had no release keystore, so not publishable); **not repeated** after them |
+
+On the Android 14 handheld (Unisoc T620, debug build, other load on the device):
+- **Instrumented tests**: OK. 50 tests in 11 classes: 47 in 156 s plus `GamepadSmokeTest` (3) in 26 s. Timings (`DogmatixPerf`): inserting 20,003 rows 19.1 s; regrouping 60,000 rows 4.3 s planning + 25.3 s writing, 3.5 s on a second pass; CHD of 6.49 MB in 6.0 s and of 20.48 MB in 15.2 s.
+- **Migration** v20 → v21: 60,740 files intact; 32,135 titles became 27,750 games; 16 clone lists loaded.
+- **Conversions**, checked bit by bit with `chdman` 0.276, `dolphin-tool` and `extract-xiso` 2.7.1: PS1, Sega CD, Dreamcast, PSP, GameCube, Wii (`.iso` and `.wbfs`) and Xbox. The PS2 CHDs were not run through `chdman`. Examples: PSP 768 MB → CHD 643 MB in 8 min 17 s; PS1 528 MB → 340 MB in about 4 min; GameCube 1.46 GB → RVZ 242 MB in about 25 s; Xbox 424 MB → 17 MB in 1.5 s.
+- **Titles** (13 November): the first start regroups 16 consoles in about 24 s with 60,740 files and 27,750 games intact. Spanish GBA A → Z keeps the “Edicion …” titles together and in order, Z → A reverses it, 19 letter jumps land correctly (also with more than 1,476 rows loaded), Console and Decade orders use the shown title. Region to USA about 17 s and back about 13 s with identical keys (stars, collections, Similar and recommendations survive); the grouping setting off 32,135 games (6 s), on 27,750 (23 s).
+- **CHD compression**: a synthetic 122.3 MB PS1 cue+bin gives 42,705,637 bytes in about 58 s with *Best* and 43,382,903 bytes (+1.6 %) in about 7 s with *Fast*; both pass `chdman verify` and extract bit by bit. Fast is now the default; the help text reads “Fast takes much less time; Best makes a slightly smaller CHD”. Real games were not measured.
+- **No saving**: random PS1, PS2 and GameCube images report “saves no space”, the original is byte-identical and nothing is left in the trash or history; *Free up space* greys those rows with “—”. Compressible games still convert (CHD, RVZ 25.3 → 2.3 MB, XISO 404 → 16.1 MB) and undo works. A fix afterwards (the row kept offering to convert) was confirmed on 13 November: no button and no START hint, a mixed selection converts only the compressible row, and a cancelled row still offers to convert. The “no saving” result is stored in a small file and survives `force-stop`; changing the CHD compression setting unlocks the row and changing it back locks it again; deleting the row clears the record.
+- **Flows**: multi-disc games inside `<game>.m3u/`, cancelling, undo from *History*, force-stop mid-conversion and *Free up space* focus, in landscape and portrait: OK.
+
+**Not verified**: converting real Xbox and Wii games, booting converted files in emulators, the release build after the last fixes, the expanded notification, a random Wii image, a conversion failing for another reason, a loose `.iso` that changes size or disappears, and the English text on screen. Instrumented tests were not repeated after the 13 November changes (767 unit tests in 109 classes then, 0 failures, 2 skipped).
+
+A one-off ANR was seen once and not reproduced.
+
+## Results of 14 November 2026 (release 1.5)
+
+Changes since 13 November: a conversion must now save at least 5 % of the input or it is discarded, and the stored “no saving” record also remembers the size of each track of a cue/bin, so changing the `.bin` unlocks the row after a restart.
+
+| Step | Result |
+|---|---|
+| Unit tests | 768 tests in 109 classes, 0 failures (2 skipped) |
+| Debug build | built |
+| Lint, test APK, instrumented tests, release (R8) | **not repeated** after these changes |
+
+On the Android 14 handheld (debug build, other load on the device), landscape and portrait, Spanish and English:
+- **5 % threshold**: OK in Downloads and *Free up space*; the text fits on one line in portrait. PS1 cue+bin 28,224,078 → 28,497,950 bytes (−1.0 %) and a 3.19 % case were discarded; a GameCube `.iso` 25,165,824 → 24,004,136 (4.62 %) was discarded; 5.72 % (GameCube) became RVZ, 8.40 % (PS1) CHD and 10.12 % (GameCube) RVZ. Discarded ones: original byte-identical (md5), no partial file, nothing in history or trash, a red row with no button and no START hint.
+- **cue/bin record**: unchanged files stay blocked after `force-stop`; a `.bin` of another size, or removed, offers conversion again and the record is cleared; an older record without the file list loads and stays blocked.
+- **GameCube**: a real game, 1,459,978,240 → RVZ 634,505,096 bytes (−56.5 %) in about 32.5 s; `dolphin-tool verify` reports no problems, converting back gives an identical SHA-1, and the RVZ starts in Dolphin 2606 up to the title screen.
+
+**Not verified**: the size estimate below 5 % (only XISO estimates, and only with a Redump layout, where the minimum saving is about 387 MB), any Wii image (none on the device), real Xbox games, and booting CHD and XISO files in emulators.
+
+**Known minor issues**: in *Free up space* a row whose estimate is too small is hidden, so only the row that was tried and saved nothing stays blocked with a reason; after the library root changes, old rows whose file is gone still offer to convert; with *Subfolders per console* off, an unconverted copy in `gc/` shows as a copy rather than in the convert group; a row converted from Downloads still shows the original size and extension. A one-off ANR was seen once and not reproduced.
+
 ## Results of 27 October 2026 (release 1.4)
 
 Run in Docker with `DOGMATIX_DOCKER=1 scripts/validate.sh --skip instrumented` from the release
@@ -219,6 +265,7 @@ Findings still open: with *Source: Direct link* a row keeps its *2+* badge; a do
 - A `.cue` whose file was renamed to `(2)` still points to the old file; undoing a delete that rewrote a `.m3u` does not restore the earlier list.
 - A torrent parked after an extraction failure keeps its cache until its row is deleted.
 - RomM scans are not retried; a RomM server that is off fails at the first attempt.
+- Converted files have been compared with the reference tools (`chdman`, `dolphin-tool`, `extract-xiso`) but not booted in emulators; real Xbox and Wii games were not converted. The PS2 CHDs were not run through `chdman`.
 - Real servers, a physical controller, the SD card, ES-DE / iiSU / Daijishō and large downloads are manual only.
 
 ## Release checklist
