@@ -23,8 +23,8 @@ android {
         applicationId = "com.cortinadev.dogmatix"
         minSdk = 29
         targetSdk = 36
-        versionCode = 15
-        versionName = "1.5"
+        versionCode = 16
+        versionName = "1.5.1"
 
         // Runs every instrumented test in a sandboxed Hilt test application (see app/src/androidTest/.../testing).
         testInstrumentationRunner = "com.cortinadev.dogmatix.testing.DogmatixTestRunner"
