@@ -36,20 +36,24 @@ class TorrentHandleRegistry @Inject constructor(
     var handleCount: Int = 0
         private set
 
+    // Through TorrentNative: starting the session sets OpenSSL up on this thread (TLS contexts), which
+    // must not overlap a torrent being parsed elsewhere. It also keeps two callers from both starting it.
     fun start() {
-        if (!session.isRunning) {
-            session.start()
-            // libtorrent rejects info dicts above 3 MiB by default (peers get disconnected with
-            // "metadata too large" and re-tried forever); multi-TB collection torrents need more.
-            session.applySettings(
-                org.libtorrent4j.SettingsPack().apply { setMaxMetadataSize(TorrentConstants.MAX_METADATA_SIZE_BYTES) }
-                    .downloadRateLimit(downloadRateLimit)
-            )
-            TorrentConstants.DHT_BOOTSTRAP_NODES.forEach { (host, port) ->
-                try { session.swig().add_dht_node(org.libtorrent4j.swig.string_int_pair(host, port)) }
-                catch (e: Exception) { Log.w(TAG, "DHT node $host:$port failed: ${e.message}") }
+        TorrentNative.serialized {
+            if (!session.isRunning) {
+                session.start()
+                // libtorrent rejects info dicts above 3 MiB by default (peers get disconnected with
+                // "metadata too large" and re-tried forever); multi-TB collection torrents need more.
+                session.applySettings(
+                    org.libtorrent4j.SettingsPack().apply { setMaxMetadataSize(TorrentConstants.MAX_METADATA_SIZE_BYTES) }
+                        .downloadRateLimit(downloadRateLimit)
+                )
+                TorrentConstants.DHT_BOOTSTRAP_NODES.forEach { (host, port) ->
+                    try { session.swig().add_dht_node(org.libtorrent4j.swig.string_int_pair(host, port)) }
+                    catch (e: Exception) { Log.w(TAG, "DHT node $host:$port failed: ${e.message}") }
+                }
+                Log.i(TAG, "libtorrent4j session started")
             }
-            Log.i(TAG, "libtorrent4j session started")
         }
     }
 
@@ -169,7 +173,7 @@ class TorrentHandleRegistry @Inject constructor(
                 }
             } else {
                 val torrentFile = File(uri)
-                val ti = org.libtorrent4j.TorrentInfo(torrentFile)
+                val ti = TorrentNative.serialized { org.libtorrent4j.TorrentInfo(torrentFile) }
                 val p = org.libtorrent4j.AddTorrentParams()
                 p.torrentInfo = ti
                 p

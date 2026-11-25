@@ -88,6 +88,7 @@ import com.cortinadev.dogmatix.ui.screens.settings.romm.RommScreen
 import com.cortinadev.dogmatix.ui.screens.settings.ia.IaLoginScreen
 import com.cortinadev.dogmatix.ui.screens.sources.SourcesScreen
 import com.cortinadev.dogmatix.ui.screens.sources.SourcesViewModel
+import com.cortinadev.dogmatix.ui.screens.sources.components.ImportUrlDialog
 import com.cortinadev.dogmatix.ui.theme.DogmatixTheme
 import com.cortinadev.dogmatix.data.repository.SourcesRepository
 import com.cortinadev.dogmatix.ui.components.LocalTagPalette
@@ -223,6 +224,7 @@ private fun contentInsets(): WindowInsets = WindowInsets.systemBars.union(Window
 private fun OnboardingHost() {
     val sourcesViewModel: SourcesViewModel = hiltViewModel()
     val isRescanning by sourcesViewModel.isRescanning.collectAsState()
+    val importFailure by sourcesViewModel.fileImportFailure.collectAsState()
     val scheme = MaterialTheme.colorScheme
     val tokens = LocalDogmatixTokens.current
     val view = LocalView.current
@@ -240,7 +242,20 @@ private fun OnboardingHost() {
         ) {
             OnboardingScreen(
                 onImportSources = sourcesViewModel::importSources,
-                isRescanning = isRescanning
+                isRescanning = isRescanning,
+                importFailure = importFailure,
+                importUrlDialog = { onStarted, onDismiss ->
+                    val urlImport by sourcesViewModel.urlImport.collectAsState()
+                    val lastImportUrl by sourcesViewModel.lastImportUrl.collectAsState()
+                    ImportUrlDialog(
+                        lastUrl = lastImportUrl,
+                        state = urlImport,
+                        onImport = sourcesViewModel::importSourcesFromUrl,
+                        onEdited = sourcesViewModel::clearUrlImportError,
+                        onImported = { sourcesViewModel.closeUrlImport(); onStarted() },
+                        onDismiss = { sourcesViewModel.closeUrlImport(); onDismiss() }
+                    )
+                }
             )
         }
     }

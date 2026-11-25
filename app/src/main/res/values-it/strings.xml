@@ -380,7 +380,7 @@
     <string name="sources_export_share_title">Condividi il JSON delle fonti</string>
     <string name="sources_export_failed">Impossibile esportare le fonti: %1$s</string>
     <string name="sources_import_confirm_title">Importare le fonti?</string>
-    <string name="sources_import_confirm_message">Le fonti attuali e l’elenco dei giochi indicizzati verranno sostituiti dal file JSON che scegli, poi tutte le fonti verranno riscansionate.</string>
+    <string name="sources_import_confirm_message">Le fonti attuali e l’elenco dei giochi indicizzati verranno sostituiti dal JSON che scegli (un file o uno dal web), poi tutte le fonti verranno riscansionate.</string>
     <string name="sources_import_pick">Scegli file</string>
     <string name="sources_import_done">Importate %1$d console. Riscansione di tutte le fonti…</string>
     <string name="sources_import_failed">Impossibile importare le fonti: %1$s</string>

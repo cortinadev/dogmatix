@@ -379,7 +379,7 @@
     <string name="sources_export_share_title">Quellen-JSON teilen</string>
     <string name="sources_export_failed">Quellen konnten nicht exportiert werden: %1$s</string>
     <string name="sources_import_confirm_title">Quellen importieren?</string>
-    <string name="sources_import_confirm_message">Die aktuellen Quellen und die indexierte Spieleliste werden durch die gewählte JSON-Datei ersetzt, danach werden alle Quellen neu gescannt.</string>
+    <string name="sources_import_confirm_message">Die aktuellen Quellen und die indexierte Spieleliste werden durch das gewählte JSON (eine Datei oder eines aus dem Web) ersetzt, danach werden alle Quellen neu gescannt.</string>
     <string name="sources_import_pick">Datei wählen</string>
     <string name="sources_import_done">%1$d Konsolen importiert. Alle Quellen werden neu gescannt…</string>
     <string name="sources_import_failed">Quellen konnten nicht importiert werden: %1$s</string>

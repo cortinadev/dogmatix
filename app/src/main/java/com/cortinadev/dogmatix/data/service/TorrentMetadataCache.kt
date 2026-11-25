@@ -51,7 +51,8 @@ class TorrentMetadataCache @Inject constructor(@param:ApplicationContext context
         if (!file.isFile) return null
         return try {
             val ec = error_code()
-            val params = add_torrent_params.load_torrent_file(file.absolutePath, ec, limits())
+            // Parsing hashes the info dict with libtorrent's OpenSSL: never two at once (see TorrentNative).
+            val params = TorrentNative.serialized { add_torrent_params.load_torrent_file(file.absolutePath, ec, limits()) }
             val loaded = if (ec.value() == 0) params.ti_ptr() else null
             // An owned copy: the parsed params (and their pointer) go away right after.
             val info = loaded?.takeIf { matches(it, key) }?.let { torrent_info(it) }

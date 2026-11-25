@@ -149,6 +149,10 @@ object SettingsKeys {
     /** The archive.org session (its `logged-in-user` / `logged-in-sig` cookies, from the sign-in page); never exported. */
     val IA_COOKIE_USER = stringPreferencesKey("ia_cookie_user")
     val IA_COOKIE_SIG = stringPreferencesKey("ia_cookie_sig")
+
+    // importar-url
+    /** The address the sources JSON was last imported from (as typed), offered again in the dialog. */
+    val SOURCES_IMPORT_URL = stringPreferencesKey("sources_import_url")
 }
 
 /** Language tags are upper-cased ISO codes ("EN", "ES"), matching how files are tagged. */
@@ -387,4 +391,8 @@ class SettingsDataStore @Inject constructor(
             it[SettingsKeys.IA_COOKIE_SIG] = sig
         }
     }
+
+    // importar-url
+    val sourcesImportUrl: Flow<String> = context.dataStore.data.map { it[SettingsKeys.SOURCES_IMPORT_URL] ?: "" }
+    suspend fun setSourcesImportUrl(url: String) = context.dataStore.edit { it[SettingsKeys.SOURCES_IMPORT_URL] = url }
 }

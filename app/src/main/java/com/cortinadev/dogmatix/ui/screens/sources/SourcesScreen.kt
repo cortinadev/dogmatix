@@ -32,6 +32,7 @@ import com.cortinadev.dogmatix.ui.screens.sources.components.AddUrlDialog
 import com.cortinadev.dogmatix.ui.screens.sources.components.ConfirmDialog
 import com.cortinadev.dogmatix.ui.screens.sources.components.ConsoleCard
 import com.cortinadev.dogmatix.ui.screens.sources.components.EmptyManufacturerCard
+import com.cortinadev.dogmatix.ui.screens.sources.components.ImportUrlDialog
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import com.cortinadev.dogmatix.ui.components.DialogButton
@@ -130,6 +131,22 @@ fun SourcesScreen(
     // before, else the last console, else "Add console"), never left on a card that has gone.
     val addConsoleFocus = remember { FocusRequester() }
     val lastConsoleFocus = remember { FocusRequester() }
+    // Closing the import dialogs (or the message about how it went) gives the focus back to the
+    // Import button in the header; left alone it ended in the shell's invisible sink.
+    val importFocus = remember { FocusRequester() }
+    var importRefocus by remember { mutableIntStateOf(0) }
+    val refocusImport: () -> Unit = { importRefocus++ }
+    LaunchedEffect(importRefocus) {
+        if (importRefocus == 0) return@LaunchedEffect
+        if (listState.layoutInfo.visibleItemsInfo.none { it.index == 0 }) listState.scrollToItem(0)
+        // The dialog's window has just gone: give the screen's window a couple of frames to take the focus back.
+        withFrameNanos { }
+        withFrameNanos { }
+        repeat(5) {
+            if (runCatching { importFocus.requestFocus() }.isSuccess) return@LaunchedEffect
+            withFrameNanos { }
+        }
+    }
     val manufacturerFocus = remember { mutableMapOf<String, FocusRequester>() }
     /** The manufacturer being deleted and the empty one that takes the focus after it (null = none left). */
     var refocus by remember { mutableStateOf<Pair<String, String?>?>(null) }
@@ -175,7 +192,8 @@ fun SourcesScreen(
                 onRescan = { viewModel.rescanAllSources() },
                 onFullRescan = { viewModel.rescanAllSources(force = true) },
                 onExport = { viewModel.exportSources(::shareExport) },
-                onImport = { viewModel.confirmImport() }
+                onImport = { viewModel.confirmImport() },
+                importFocus = importFocus
             )
         }
 
@@ -351,11 +369,28 @@ fun SourcesScreen(
             message = stringResource(R.string.sources_import_confirm_message),
             confirmText = stringResource(R.string.sources_import_pick),
             onConfirm = { importPicker.launch(arrayOf("application/json", "application/octet-stream", "text/*")) },
-            onDismiss = { viewModel.dismissDialog() }
+            onDismiss = { viewModel.dismissDialog(); refocusImport() },
+            otherText = stringResource(R.string.sources_import_from_url),
+            onOther = { viewModel.showImportUrlDialog() }
         )
+        SourcesDialog.ImportUrl -> {
+            val urlImport by viewModel.urlImport.collectAsState()
+            val lastImportUrl by viewModel.lastImportUrl.collectAsState()
+            val close = { viewModel.closeUrlImport(); viewModel.dismissDialog(); refocusImport() }
+            ImportUrlDialog(
+                lastUrl = lastImportUrl,
+                state = urlImport,
+                onImport = viewModel::importSourcesFromUrl,
+                onEdited = viewModel::clearUrlImportError,
+                onImported = close,
+                onDismiss = close
+            )
+        }
     }
 
-    if (showReport) {
+    // One dialog at a time: a scan that ends while the import message (or another dialog) is open
+    // shows its report once that one is closed.
+    if (showReport && importMessage == null && dialog == null) {
         lastReport?.let { report ->
             ScanReportDialog(
                 report = report,
@@ -368,13 +403,14 @@ fun SourcesScreen(
 
     importMessage?.let { message ->
         val okFocus = rememberInitialFocus()
+        val close = { viewModel.clearImportMessage(); refocusImport() }
         AlertDialog(
-            modifier = Modifier.closeOnGamepadB { viewModel.clearImportMessage() },
-            onDismissRequest = { viewModel.clearImportMessage() },
+            modifier = Modifier.closeOnGamepadB(close),
+            onDismissRequest = close,
             title = { Text(stringResource(R.string.sources_import_result_title)) },
             text = { Text(message) },
             confirmButton = {
-                DialogButton(stringResource(R.string.dialog_ok), onClick = { viewModel.clearImportMessage() }, initialFocus = okFocus)
+                DialogButton(stringResource(R.string.dialog_ok), onClick = close, initialFocus = okFocus)
             }
         )
     }
@@ -457,7 +493,8 @@ private fun SourcesHeader(
     onRescan: () -> Unit,
     onFullRescan: () -> Unit,
     onExport: () -> Unit,
-    onImport: () -> Unit
+    onImport: () -> Unit,
+    importFocus: FocusRequester
 ) {
     // The section name already lives in the tabs; only the actions stay, right-aligned. In
     // portrait the two scan buttons get a row of their own (below): the five do not fit in one.
@@ -476,7 +513,9 @@ private fun SourcesHeader(
             IconButton(onClick = onExport) {
                 Icon(painterResource(R.drawable.ic_share), contentDescription = stringResource(R.string.sources_export))
             }
-            IconButton(onClick = onImport, enabled = !isRescanning) {
+            // Enabled during a scan too (it then only says a scan is running): it turned disabled under
+            // the cursor as the rescan of an import started, and the focus fell out of the screen.
+            IconButton(onClick = onImport, modifier = Modifier.focusRequester(importFocus)) {
                 Icon(painterResource(R.drawable.ic_import), contentDescription = stringResource(R.string.sources_import))
             }
             if (isLandscape) ScanActions(isRescanning, onRescan, onFullRescan)

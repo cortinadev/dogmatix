@@ -161,4 +161,9 @@ interface SettingsRepository {
     val iaCookies: Flow<Pair<String, String>>
     /** Blank values forget the session. */
     suspend fun setIaCookies(user: String, sig: String): Preferences
+
+    // importar-url
+    /** The address the sources JSON was last imported from, as typed; "" = never. */
+    val sourcesImportUrl: Flow<String>
+    suspend fun setSourcesImportUrl(url: String): Preferences
 }

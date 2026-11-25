@@ -46,7 +46,7 @@ class TorrentMetadataFetcher @Inject constructor(
         val info = if (magnet.startsWith("magnet:")) {
             metadataCache.load(magnet)
         } else {
-            runCatching { TorrentInfo(File(magnet)) }.getOrNull()
+            runCatching { TorrentNative.serialized { TorrentInfo(File(magnet)) } }.getOrNull()
         } ?: return null
         return try { block(info) } finally { info.swig().delete() }
     }

@@ -58,10 +58,10 @@ class SourcesImportUndo @Inject constructor(
         return folder.absolutePath
     }
 
-    /** The history entry of an import of the file [uri] ([count] consoles). */
-    suspend fun recordImport(uri: String, count: Int, snapshot: String?) {
+    /** The history entry of an import of the file [uri] ([count] consoles); [subject] names it (by default, the file's name). */
+    suspend fun recordImport(uri: String, count: Int, snapshot: String?, subject: String = displayName(uri)) {
         history.get().record(
-            ActionTypes.SOURCES_IMPORT, displayName(uri), count,
+            ActionTypes.SOURCES_IMPORT, subject, count,
             undoKind = snapshot?.let { UndoKinds.SOURCES }, undoData = snapshot
         )
     }

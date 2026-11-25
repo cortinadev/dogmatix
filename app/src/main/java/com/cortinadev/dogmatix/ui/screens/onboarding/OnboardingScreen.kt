@@ -64,6 +64,7 @@ import com.cortinadev.dogmatix.ui.common.cycled
 import com.cortinadev.dogmatix.ui.common.labelRes
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import com.cortinadev.dogmatix.ui.screens.sources.FileImportFailure
 import com.cortinadev.dogmatix.ui.theme.LocalDogmatixTokens
 import com.cortinadev.dogmatix.util.FileParsingUtils
 
@@ -73,12 +74,19 @@ import com.cortinadev.dogmatix.util.FileParsingUtils
  * and the shell takes over.
  * Gamepad: focus starts on the primary action of each step, B goes one step back.
  *
- * [onImportSources] receives the picked document URI; the caller runs the import + rescan.
+ * [onImportSources] receives the picked document URI; the caller runs the import + rescan, and
+ * reports a file that changed nothing through [importFailure] (the step gets its buttons back and
+ * says why).
+ * [importUrlDialog] is the "From URL" dialog: it calls `onStarted` once the sources were replaced
+ * (the rescan follows, as with a file) and `onDismiss` when it closes without importing.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun OnboardingScreen(
     onImportSources: (String) -> Unit,
     isRescanning: Boolean,
+    importFailure: FileImportFailure?,
+    importUrlDialog: @Composable (onStarted: () -> Unit, onDismiss: () -> Unit) -> Unit,
     viewModel: OnboardingViewModel = hiltViewModel()
 ) {
     val context = LocalContext.current
@@ -90,6 +98,10 @@ fun OnboardingScreen(
     val totalSteps = if (viewModel.esdeInstalled) 5 else 4
     var step by rememberSaveable { mutableIntStateOf(0) }
     var importStarted by rememberSaveable { mutableStateOf(false) }
+    var importingFromUrl by rememberSaveable { mutableStateOf(false) }
+    // The last failed import from a file this screen has dealt with, and what it said.
+    var seenFailure by rememberSaveable { mutableIntStateOf(importFailure?.attempt ?: 0) }
+    var failureText by rememberSaveable { mutableStateOf<String?>(null) }
     val primaryFocus = remember { FocusRequester() }
     val rootFocus = remember { FocusRequester() }
     // After the sources step: the ES-DE step when it exists, otherwise the tour is over.
@@ -106,7 +118,7 @@ fun OnboardingScreen(
         }
     }
     val jsonPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri?.let { importStarted = true; onImportSources(it.toString()) }
+        uri?.let { failureText = null; importStarted = true; onImportSources(it.toString()) }
     }
     val esdePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         uri?.let {
@@ -117,6 +129,20 @@ fun OnboardingScreen(
         }
     }
 
+    // A file that could not be imported changed nothing and starts no rescan: the step gets its
+    // buttons back (focus on the main one) and says why, instead of waiting for a rescan forever.
+    // Before the effect below, which runs right after it: refused because a scan was running, the
+    // import must not count as started.
+    LaunchedEffect(importFailure) {
+        val failure = importFailure ?: return@LaunchedEffect
+        if (failure.attempt == seenFailure) return@LaunchedEffect
+        seenFailure = failure.attempt
+        if (!importStarted) return@LaunchedEffect
+        importStarted = false
+        failureText = failure.message
+        repeat(2) { withFrameNanos { } }
+        runCatching { primaryFocus.requestFocus() }
+    }
     // Once the import kicked off and its rescan is running (or already over), move on: the
     // consoles are already in Room, so the ES-DE step can use them while the rescan continues.
     LaunchedEffect(importStarted, isRescanning) {
@@ -207,13 +233,19 @@ fun OnboardingScreen(
                                 Text(stringResource(R.string.sources_rescanning), style = MaterialTheme.typography.bodyMedium)
                             }
                         } else {
-                            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            failureText?.let { Text(it, style = MaterialTheme.typography.bodyMedium, color = scheme.error) }
+                            // Wraps in a narrow portrait screen rather than cutting the last button off.
+                            FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 OnboardingButton(stringResource(R.string.onboarding_sources_import), primary = true, focus = primaryFocus) {
                                     jsonPicker.launch(arrayOf("application/json", "application/octet-stream", "text/*"))
                                 }
+                                OnboardingButton(stringResource(R.string.sources_import_from_url)) { importingFromUrl = true }
                                 OnboardingButton(
                                     stringResource(if (viewModel.esdeInstalled) R.string.onboarding_continue else R.string.onboarding_finish)
                                 ) { leaveSourcesStep() }
+                            }
+                            if (importingFromUrl) {
+                                importUrlDialog({ importingFromUrl = false; failureText = null; importStarted = true }, { importingFromUrl = false })
                             }
                         }
                     }

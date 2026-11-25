@@ -380,7 +380,7 @@
     <string name="sources_export_share_title">Partilhar JSON de fontes</string>
     <string name="sources_export_failed">Não foi possível exportar as fontes: %1$s</string>
     <string name="sources_import_confirm_title">Importar fontes?</string>
-    <string name="sources_import_confirm_message">As fontes atuais e a lista de jogos indexados serão substituídas pelo ficheiro JSON que escolher e, a seguir, todas as fontes serão reanalisadas.</string>
+    <string name="sources_import_confirm_message">As fontes atuais e a lista de jogos indexados serão substituídas pelo JSON que escolher (um ficheiro ou um da web) e, a seguir, todas as fontes serão reanalisadas.</string>
     <string name="sources_import_pick">Escolher ficheiro</string>
     <string name="sources_import_done">%1$d consolas importadas. A reanalisar todas as fontes…</string>
     <string name="sources_import_failed">Não foi possível importar as fontes: %1$s</string>

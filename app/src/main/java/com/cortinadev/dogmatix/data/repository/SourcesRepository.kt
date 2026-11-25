@@ -2,6 +2,7 @@ package com.cortinadev.dogmatix.data.repository
 
 import android.content.Context
 import androidx.core.net.toUri
+import com.cortinadev.dogmatix.BuildConfig
 import com.cortinadev.dogmatix.data.local.dao.ConsoleDao
 import com.cortinadev.dogmatix.data.local.dao.ManufacturerDao
 import com.cortinadev.dogmatix.data.local.dao.SourceScanDao
@@ -13,6 +14,7 @@ import com.cortinadev.dogmatix.data.model.Manufacturer
 import com.cortinadev.dogmatix.data.model.ScrapeRecipe
 import com.cortinadev.dogmatix.data.model.UrlEntry
 import com.cortinadev.dogmatix.data.service.DatabaseScrapingService
+import com.cortinadev.dogmatix.data.service.IaAuth
 import com.cortinadev.dogmatix.data.service.SourcesImportUndo
 import com.cortinadev.dogmatix.data.service.TorrentHandleRegistry
 import com.cortinadev.dogmatix.util.ConsoleAliasInfo
@@ -26,14 +28,22 @@ import com.cortinadev.dogmatix.util.MirrorUrls
 import com.cortinadev.dogmatix.util.SourceConsole
 import com.cortinadev.dogmatix.util.SourceManufacturer
 import com.cortinadev.dogmatix.util.SourcesJson
+import com.cortinadev.dogmatix.util.SourcesUrl
+import com.cortinadev.dogmatix.util.SourcesUrlException
+import com.cortinadev.dogmatix.util.SourcesUrlProblem
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -242,25 +252,111 @@ class SourcesRepository @Inject constructor(
      * Replaces every source with the contents of the document at [uri] (either the bundled
      * `consoles.json` layout or an export). Indexed files are cleared: the caller rescans.
      * Favourites in the document are added to the current ones (never replace them; a document
-     * without favourites leaves them alone). Returns the number of consoles imported.
+     * without favourites leaves them alone). Returns the number of consoles imported. Throws
+     * [SourcesUrlException] with [SourcesUrlProblem.UNREADABLE] when the file cannot be read and
+     * [SourcesUrlProblem.NOT_SOURCES] when it is not a sources document; nothing changes then.
      */
     suspend fun importFromUri(uri: String): Int = withContext(Dispatchers.IO) {
-        val text = context.contentResolver.openInputStream(uri.toUri())?.bufferedReader()?.use { it.readText() }
-            ?: throw IllegalStateException("Cannot open $uri")
-        // coleccion-gestion: what is replaced is kept so the history can put it back.
+        val text = try {
+            context.contentResolver.openInputStream(uri.toUri())?.use { SourcesUrl.decode(it.readBytes()) }
+        } catch (_: Exception) {
+            null
+        } ?: throw SourcesUrlException(SourcesUrlProblem.UNREADABLE)
+        if (!SourcesUrl.isImportableFile(text)) throw SourcesUrlException(SourcesUrlProblem.NOT_SOURCES)
+        importRecorded(text) { count, previous -> importUndo.get().recordImport(uri, count, previous) }
+    }
+
+    /** A sources document downloaded from [url] (the address actually read, GitHub pages already turned raw). */
+    class DownloadedSources(val url: String, val text: String)
+
+    /**
+     * Downloads the sources JSON at the address the user typed ([SourcesUrl.normalize]) and checks
+     * it is one; nothing is replaced yet ([importDownloaded] does that). Throws [SourcesUrlException]
+     * for a bad address, an HTTP error, a file over [SourcesUrl.MAX_BYTES] or something that is not
+     * a sources document, and the connection's own exceptions when the server cannot be reached.
+     * Cancelling stops the download.
+     */
+    suspend fun downloadSources(typed: String): DownloadedSources = withContext(Dispatchers.IO) {
+        val start = SourcesUrl.normalize(typed) ?: throw SourcesUrlException(SourcesUrlProblem.INVALID_ADDRESS)
+        val (url, connection) = openFollowingRedirects(start)
+        try {
+            val code = connection.responseCode
+            // Still a redirect here: one too many.
+            if (code !in 200..299) throw SourcesUrlException(SourcesUrlProblem.HTTP, code)
+            if (connection.contentLengthLong > SourcesUrl.MAX_BYTES) throw SourcesUrlException(SourcesUrlProblem.TOO_LARGE)
+            val text = SourcesUrl.decode(connection.inputStream.use { SourcesUrl.readCapped(it) { ensureActive() } })
+            if (!SourcesUrl.isSourcesDocument(text)) throw SourcesUrlException(SourcesUrlProblem.NOT_SOURCES)
+            DownloadedSources(url, text)
+        } finally {
+            connection.disconnect()
+        }
+    }
+
+    /**
+     * Opens [start] and follows up to [SourcesUrl.MAX_REDIRECTS] redirects by hand (HttpURLConnection
+     * never goes from http to https on its own). Returns the address reached and its open connection.
+     */
+    private fun openFollowingRedirects(start: String): Pair<String, HttpURLConnection> {
+        var url = start
+        var redirects = 0
+        while (true) {
+            val connection = (URL(url).openConnection() as HttpURLConnection).apply {
+                instanceFollowRedirects = false
+                connectTimeout = 15_000
+                readTimeout = 15_000
+                setRequestProperty("User-Agent", IaAuth.userAgent(BuildConfig.VERSION_NAME))
+                setRequestProperty("Accept", "application/json, text/plain;q=0.9, */*;q=0.8")
+            }
+            val code = try {
+                connection.responseCode
+            } catch (e: IOException) {
+                connection.disconnect()
+                throw e
+            }
+            val next = if (SourcesUrl.isRedirect(code) && redirects < SourcesUrl.MAX_REDIRECTS) {
+                SourcesUrl.redirectTarget(url, connection.getHeaderField("Location"))
+            } else null
+            if (next == null) return url to connection
+            connection.disconnect()
+            url = next
+            redirects++
+        }
+    }
+
+    /**
+     * Replaces every source with a [downloadSources] result, as an import from a file does (the
+     * history keeps the previous ones for the undo). Not cancellable: once it starts, it finishes.
+     */
+    suspend fun importDownloaded(sources: DownloadedSources): Int = withContext(NonCancellable + Dispatchers.IO) {
+        importRecorded(sources.text) { count, previous ->
+            importUndo.get().recordImport(sources.url, count, previous, subject = SourcesUrl.label(sources.url))
+        }
+    }
+
+    /**
+     * coleccion-gestion: [importFromText] with what it replaces kept so the history can put it back;
+     * [record] writes the history entry. A document that is not imported leaves no snapshot behind.
+     */
+    private suspend fun importRecorded(text: String, record: suspend (count: Int, snapshot: String?) -> Unit): Int {
         val previous = runCatching { importUndo.get().snapshot(snapshotDocument()) }.getOrNull()
-        val count = importFromText(text)
-        runCatching { importUndo.get().recordImport(uri, count, previous) }
-        count
+        val count = try {
+            importFromText(text)
+        } catch (e: Exception) {
+            previous?.let { importUndo.get().discard(it) }
+            throw e
+        }
+        runCatching { record(count, previous) }
+        return count
     }
 
     /**
      * coleccion-gestion: [importFromUri] without the file — replaces every source with [text]
-     * (also how undoing an import restores the previous ones). Indexed files are cleared.
+     * (also how undoing an import restores the previous ones). Indexed files are cleared. A
+     * document without a single console (another kind of JSON) is refused before anything changes.
      */
     suspend fun importFromText(text: String, allowEmpty: Boolean = false): Int = withContext(Dispatchers.IO) {
         val doc = SourcesJson.parseDocument(text)
-        require(allowEmpty || doc.isNotEmpty()) { "No sources found in file" }
+        require(allowEmpty || doc.any { it.consoles.isNotEmpty() }) { "No sources found in file" }
 
         // Release the torrents of everything we are about to drop.
         consoleDao.getAllConsoles().first().forEach { releaseSources(SourcesJson.parseUrlEntries(it.urls)) }

@@ -31,10 +31,15 @@ import com.cortinadev.dogmatix.util.ScanFailure
 import com.cortinadev.dogmatix.util.ScanRetry
 import com.cortinadev.dogmatix.util.ScrapeRecipes
 import com.cortinadev.dogmatix.util.SourcesJson
+import com.cortinadev.dogmatix.util.SourcesUrl
+import com.cortinadev.dogmatix.util.SourcesUrlException
+import com.cortinadev.dogmatix.util.SourcesUrlProblem
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -164,6 +169,7 @@ class SourcesViewModel @Inject constructor(
         data class ConfirmDeleteUrl(val consoleId: String, val index: Int, val url: String) : Dialog
         data class ConfirmDeleteManufacturer(val manufacturerId: String, val name: String) : Dialog
         data object ConfirmImport : Dialog
+        data object ImportUrl : Dialog
     }
 
     private val _dialog = MutableStateFlow<Dialog?>(null)
@@ -179,7 +185,12 @@ class SourcesViewModel @Inject constructor(
     fun confirmDeleteConsole(console: Console) { _dialog.value = Dialog.ConfirmDeleteConsole(console.id, console.name) }
     fun confirmDeleteUrl(consoleId: String, index: Int, entry: UrlEntry) { _dialog.value = Dialog.ConfirmDeleteUrl(consoleId, index, entry.url) }
     fun confirmDeleteManufacturer(manufacturer: Manufacturer) { _dialog.value = Dialog.ConfirmDeleteManufacturer(manufacturer.id, manufacturer.name) }
-    fun confirmImport() { _dialog.value = Dialog.ConfirmImport }
+    /** Import is always reachable (a button disabled under the cursor drops the focus): during a scan it only says so. */
+    fun confirmImport() {
+        if (rescanStateHolder.isRescanning.value) _importMessage.value = context.getString(R.string.sources_import_url_busy)
+        else _dialog.value = Dialog.ConfirmImport
+    }
+    fun showImportUrlDialog() { _dialog.value = Dialog.ImportUrl }
     fun dismissDialog() { resetScrapeTest(); _dialog.value = null }
 
     fun beginPickingDownloadPath(consoleId: String) { pendingPathConsoleId = consoleId }
@@ -341,14 +352,29 @@ class SourcesViewModel @Inject constructor(
     val importMessage: StateFlow<String?> = _importMessage.asStateFlow()
     fun clearImportMessage() { _importMessage.value = null }
 
-    /** Replaces all sources with the picked document, then rescans everything and re-indexes the library. */
+    private val _fileImportFailure = MutableStateFlow<FileImportFailure?>(null)
+    /** The last import from a file that failed, for the onboarding (Sources shows [importMessage]). */
+    val fileImportFailure: StateFlow<FileImportFailure?> = _fileImportFailure.asStateFlow()
+    private var fileImportAttempts = 0
+
+    /**
+     * Replaces all sources with the picked document, then rescans everything and re-indexes the
+     * library. A failure (unreadable file, not a sources JSON, a scan running) changes nothing and
+     * is reported in words, through [importMessage] and [fileImportFailure].
+     */
     fun importSources(uri: String) {
-        if (rescanStateHolder.isRescanning.value) return
+        val attempt = ++fileImportAttempts
+        if (rescanStateHolder.isRescanning.value) {
+            failFileImport(attempt, SourcesUrlProblem.BUSY, null)
+            return
+        }
         viewModelScope.launch {
             val count = try {
                 sources.importFromUri(uri)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                _importMessage.value = context.getString(R.string.sources_import_failed, e.message ?: "")
+                failFileImport(attempt, SourcesUrl.fileProblemOf(e), e.message)
                 return@launch
             }
             _importMessage.value = context.getString(R.string.sources_import_done, count)
@@ -356,6 +382,103 @@ class SourcesViewModel @Inject constructor(
             libraryIndexService.refresh()
         }
     }
+
+    private fun failFileImport(attempt: Int, problem: SourcesUrlProblem, detail: String?) {
+        val message = when (problem) {
+            SourcesUrlProblem.UNREADABLE -> context.getString(R.string.sources_import_file_unreadable)
+            SourcesUrlProblem.NOT_SOURCES -> context.getString(R.string.sources_import_file_not_sources)
+            SourcesUrlProblem.BUSY -> context.getString(R.string.sources_import_url_busy)
+            else -> context.getString(R.string.sources_import_failed, detail.orEmpty())
+        }
+        _importMessage.value = message
+        _fileImportFailure.value = FileImportFailure(message, attempt)
+    }
+
+    // ---- Import from a URL --------------------------------------------------------------------
+
+    /** The address of the last import from a URL, offered again in the dialog. */
+    val lastImportUrl: StateFlow<String> = settingsRepository.sourcesImportUrl
+        .stateIn(viewModelScope, SharingStarted.Eagerly, "")
+
+    private val _urlImport = MutableStateFlow<UrlImportState>(UrlImportState.Idle)
+    val urlImport: StateFlow<UrlImportState> = _urlImport.asStateFlow()
+    private var urlImportJob: Job? = null
+    /** The dialog closed while the sources were being replaced: nobody waits for [UrlImportState.Done]. */
+    private var urlImportClosed = false
+
+    /**
+     * Downloads the sources JSON at [typed] and, when it is one, does what importing a file does:
+     * every source replaced (undoable from History), rescan, re-index. Nothing changes on failure;
+     * [UrlImportState.Done] tells the dialog to close.
+     */
+    fun importSourcesFromUrl(typed: String) {
+        if (_urlImport.value == UrlImportState.Downloading || _urlImport.value == UrlImportState.Importing) return
+        if (rescanStateHolder.isRescanning.value) {
+            _urlImport.value = UrlImportState.Failed(SourcesUrlProblem.BUSY)
+            return
+        }
+        _urlImport.value = UrlImportState.Downloading
+        urlImportClosed = false
+        urlImportJob = viewModelScope.launch {
+            val document = try {
+                sources.downloadSources(typed)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                _urlImport.value = UrlImportState.Failed(SourcesUrl.problemOf(e), (e as? SourcesUrlException)?.httpCode ?: 0, e.message)
+                return@launch
+            }
+            // From here on the sources are being replaced: closing the dialog no longer stops it.
+            val scan = withContext(NonCancellable) {
+                _urlImport.value = UrlImportState.Importing
+                val count = try {
+                    sources.importDownloaded(document)
+                } catch (e: Exception) {
+                    if (urlImportClosed) _importMessage.value = context.getString(R.string.sources_import_failed, e.message ?: "")
+                    _urlImport.value = if (urlImportClosed) UrlImportState.Idle else UrlImportState.Failed(SourcesUrlProblem.OTHER, detail = e.message)
+                    return@withContext null
+                }
+                settingsRepository.setSourcesImportUrl(typed.trim())
+                _importMessage.value = context.getString(R.string.sources_import_done, count)
+                _urlImport.value = if (urlImportClosed) UrlImportState.Idle else UrlImportState.Done
+                sourceScanService.scanAll(force = true)
+            } ?: return@launch
+            scan.join()
+            libraryIndexService.refresh()
+        }
+    }
+
+    /** The dialog closes: a download under way stops (an import already replacing the sources goes on). */
+    fun closeUrlImport() {
+        when (_urlImport.value) {
+            UrlImportState.Importing -> urlImportClosed = true
+            UrlImportState.Downloading -> {
+                urlImportJob?.cancel()
+                _urlImport.value = UrlImportState.Idle
+            }
+            else -> _urlImport.value = UrlImportState.Idle
+        }
+    }
+
+    /** The address was edited: the last error no longer applies to it. */
+    fun clearUrlImportError() {
+        if (_urlImport.value is UrlImportState.Failed) _urlImport.value = UrlImportState.Idle
+    }
+}
+
+/** An import from a file that changed nothing: [message] for the user; [attempt] tells two failures in a row apart. */
+data class FileImportFailure(val message: String, val attempt: Int)
+
+/** Where "Import from a URL" stands. */
+sealed interface UrlImportState {
+    data object Idle : UrlImportState
+    data object Downloading : UrlImportState
+    /** Downloaded and valid: the sources are being replaced. */
+    data object Importing : UrlImportState
+    /** Imported; the rescan has started. */
+    data object Done : UrlImportState
+    /** Nothing was changed; [httpCode] with [SourcesUrlProblem.HTTP], [detail] with [SourcesUrlProblem.OTHER]. */
+    data class Failed(val problem: SourcesUrlProblem, val httpCode: Int = 0, val detail: String? = null) : UrlImportState
 }
 
 /** Where "Test" in the source dialog stands. */
