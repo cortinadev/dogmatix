@@ -27,7 +27,7 @@ Dogmatix ships **without sources**. On first run, import a sources JSON exported
 
 ### First run
 
-An onboarding wizard explains what Dogmatix does, asks for the root ROMs folder, your preferred region and languages, a sources JSON to import, and, when ES-DE is installed, offers to configure it. Every step can be skipped, B goes back one step, and the wizard never shows again once finished.
+An onboarding wizard explains what Dogmatix does, asks for the root ROMs folder, your preferred region and languages, a sources JSON to import (from a file or a web address), and, when ES-DE is installed, offers to configure it. Every step can be skipped, B goes back one step, and the wizard never shows again once finished.
 
 ### Library
 
@@ -79,7 +79,7 @@ A section between Downloads and Sources for the games already on disk. It analys
 - **Incremental rescans**: web listings ask the server first (ETag / Last-Modified), torrents already indexed with the same settings are not fetched again and their file lists are cached on the device, Internet Archive items are asked only whether they changed, and each source replaces only its own games, so one that fails keeps what it had. *Full rescan* reads everything again.
 - **Steady scans**: sources are read in parallel (two per server), busy servers are retried with growing waits honouring `Retry-After`, mirrors stand in for a failing address, an empty listing never wipes a source, scans requested while one runs are queued and merged, and the scan keeps going when you leave the screen. A *Last scan* card lists every source with a readable result and *Retry failed*. Under each URL, its server's success rate and speed.
 - **Automatic scan** (off by default): daily or weekly, on Wi-Fi only and optionally while charging, with a notification of the new games it finds.
-- **Export / import**: a `dogmatix-sources.json` carrying manufacturers, consoles (names, short labels, folder aliases, colours, favourites), URLs, mirrors and selector recipes. Import replaces every source, rescans and re-indexes; it can be undone from *History*.
+- **Export / import**: a `dogmatix-sources.json` carrying manufacturers, consoles (names, short labels, folder aliases, colours, favourites), URLs, mirrors and selector recipes. Import replaces every source, rescans and re-indexes; it can be undone from *History*. The JSON can be picked as a file or downloaded from a web address (GitHub and gist links work; up to 5 MB).
 - **Folders**: per-console download paths (useful for frontends), reuse of folders named the way ES-DE, RetroArch, Batocera or EmulationStation name them (`gba`, `psx`, `snes`…), and a merge dialog when several folders of the same console sit side by side.
 
 ### Integrations

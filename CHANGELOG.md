@@ -3,6 +3,24 @@
 All notable changes to Dogmatix are listed here. Dogmatix is a fork of
 [Milou](https://github.com/santiifm/milou) focused on UI/UX for Android handhelds.
 
+## [1.5.1] – 2026-11-25
+
+Sources can now be imported from a web address, and a rare crash while rescanning right after the app starts is fixed. Checked with the automated suite (781 unit tests) and by hand on an Android 14 handheld in landscape and portrait.
+
+### Added
+- **Import sources from a URL.** *Sources → Import* now asks *Import sources?* with three buttons, *From URL*, *Cancel* and *Choose file*. *From URL* takes a web address (the one that worked last time is remembered), downloads the JSON, checks it and imports it like a file: it replaces every source, rescans, and can be undone from *History*. Addresses without `https://` get it, and GitHub `blob` / `raw` and gist links are turned into the raw file. Redirects are followed; a reply of more than 5 MB, an HTTP error, an unreachable server or a page that is not a sources JSON stops with a clear message and changes nothing. The same option is in the setup wizard, next to *Import JSON*.
+- A JSON file with no consoles in it is now refused when imported from a file too, before anything is touched.
+
+### Fixed
+- **Crash when rescanning all sources right after the app started.** The torrent library could crash the app when two torrents were first read at the same moment. Torrent reading and starting now take turns. Eleven full rescans from a cold start and several URL imports ran without a crash.
+- In the setup wizard, choosing an invalid sources file no longer leaves “Rescanning…” spinning: the buttons come back with the reason in red.
+- Errors when importing a file now read as a message instead of a raw exception.
+- The *Import* icon in Sources is always available (during a scan it explains that a scan is running), focus returns to it when a notice or dialog closes, and the *Last scan* report no longer opens on top of another dialog.
+
+### Known issues
+- Not checked: the *could not read that file* message, a real gist link, an invalid file and the setup wizard in portrait, and leaving the address field with a physical D-pad.
+- In landscape the message under the address field sits right against the keyboard, *Import* stays active while the download runs, and a just-undone entry shows “Can’t be undone now” for a few seconds. A JSON of another kind whose keys look like consoles is accepted.
+
 ## [1.5] – 2026-11-25
 
 Finished games can be converted to formats that take less space, and the same game under different regional titles now shows as one. Checked with the automated suite (768 unit tests, 50 on-device tests) and by hand on an Android 14 handheld in landscape and portrait.

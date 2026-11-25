@@ -18,7 +18,7 @@ script can see (controller feel, storage cards, frontends).
 Grouped by area (class names, in `…Test`):
 
 - **Search and parsing**: `SearchNormalizer`, `SearchIndex`, `RecentSearches`, `ConsoleFolderAliases`, `GameTitleCleaner`, `LibraryKeys`, `ListingSize`, `ListingParsing` (15 sample directory listings: table, nginx, Apache, IIS), `ListingRenames`.
-- **Sources and scanning**: `SourcesJson`, `SourcesJsonMirrors`, `SourcesJsonFavourites`, `SourcesJsonScrape`, `ScrapeRecipes` (CSS-selector sources), `ListingLinks`, `KnownConsoles`, `IaSource`, `IaFiles`, `IaCookies`, `IaAuthJson`, `AuthRedirects`, `IaAuth` (Internet Archive), `SourceScanCheck`, `ScanRequests`, `ScanRetry`, `ScanHostGate`, `ScanEta`, `ScanScheduleAndProgress`.
+- **Sources and scanning**: `SourcesJson`, `SourcesJsonMirrors`, `SourcesJsonFavourites`, `SourcesJsonScrape`, `SourcesUrl` (import from a web address), `ScrapeRecipes` (CSS-selector sources), `ListingLinks`, `KnownConsoles`, `IaSource`, `IaFiles`, `IaCookies`, `IaAuthJson`, `AuthRedirects`, `IaAuth` (Internet Archive), `SourceScanCheck`, `ScanRequests`, `ScanRetry`, `ScanHostGate`, `ScanEta`, `ScanScheduleAndProgress`.
 - **Deep links and shortcuts**: `DeepLinkParser`, `DeepLinkResolver`, `DgmtxFile`.
 - **Frontends**: `EsdeXml`, `EsdeFindRules`, `EsdeFavouriteSync`, `FrontendCheck`, `IisuJson`, `DaijishoSetup`.
 - **Debrid and RomM**: `DebridMatcher`, `RommPlatformMapper`, `RommSource`, `CertPin`, `StoredZip`, `RommUploadResume`, `RommUploadSources`, `RommJson`, `RommMatching`, `RommPlayState`, `RommFavouritesMerge`, `RommCovers`.
@@ -167,6 +167,21 @@ On the Android 14 handheld (Unisoc T620, debug build, other load on the device):
 **Not verified**: converting real Xbox and Wii games, booting converted files in emulators, the release build after the last fixes, the expanded notification, a random Wii image, a conversion failing for another reason, a loose `.iso` that changes size or disappears, and the English text on screen. Instrumented tests were not repeated after the 13 November changes (767 unit tests in 109 classes then, 0 failures, 2 skipped).
 
 A one-off ANR was seen once and not reproduced.
+
+## Results of 25 November 2026 (1.5.1, import from a URL)
+
+| Step | Result |
+|---|---|
+| Unit tests | 781 tests in 110 classes, 0 failures (2 skipped) |
+| Lint | 0 errors, 23 warnings outside the baseline |
+| Debug build | built |
+| Test APK, instrumented tests, release (R8) | **not repeated** |
+
+On the Android 14 handheld (debug build, other load on the device), landscape and portrait. The first round failed (one crash in six full rescans, the keyboard covering the error in landscape, buttons on two rows, the setup wizard stuck on “Rescanning…”, raw exceptions); the second round passed:
+- **Native crash**: 11 full rescans from a cold start, 4 URL imports in a freshly started process, 1 warm import and 1 undo: 17 `Scan FULL finished` (29 sources, 60,740 files) and no `Fatal signal`. A full cold scan took 59.4–61.6 s (46–59 s before; not separable from the device load). A torrent download with a scan running worked.
+- **Import from a URL**: errors for a magnet, 404, 503, an HTML page, `{}`, 6 MB with and without `Content-Length` and a closed port; 301 / 302 redirects; `text/plain`; B during the download; the last address remembered; rotation; undo; a GitHub `blob` link turned into the raw file (a public 25 MB file gave “more than 5 MB”); the setup wizard; messages in English.
+
+**Not verified**: the *could not read that file* message, a real gist, an invalid file and the setup wizard in portrait, and leaving the address field with a physical D-pad.
 
 ## Results of 14 November 2026 (release 1.5)
 
